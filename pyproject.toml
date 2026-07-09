@@ -1,0 +1,69 @@
+[project]
+name = "cosmos-server"
+version = "0.1.0"
+description = "cosmos 백엔드 API 서버 — 화장품 전성분 해설·교차 조회·BSTI 기반 성분 추천"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "pydantic-settings>=2.7",
+    "supabase>=2.15",
+    "google-genai>=1.20",
+    "langfuse>=2.60",
+    "pyjwt>=2.10",
+    "httpx>=0.28",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "ruff>=0.9",
+    "import-linter>=2.1",
+    "mypy>=1.14",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+# 루트의 supabase/ (마이그레이션 디렉터리) 때문에 supabase 패키지가
+# first-party로 오인되는 것을 방지
+known-third-party = ["supabase"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+strict = true
+# BaseSettings가 .env에서 값을 채우는 것을 mypy가 이해하게 한다 (인자 없는 Settings() 허용).
+plugins = ["pydantic.mypy"]
+
+# 서드파티 타입 스텁이 부실하다. 우리 코드(app/)에만 엄격히 적용하고
+# 외부 라이브러리 import 누락은 무시한다.
+[[tool.mypy.overrides]]
+module = ["supabase.*", "google.*", "langfuse.*", "jwt.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+# 모듈 간 직접 import 금지를 도구로 강제한다 (규칙이 문서에만 있으면 지켜지지 않는다).
+# 검증: uv run lint-imports
+[tool.importlinter]
+root_package = "app"
+
+[[tool.importlinter.contracts]]
+name = "기능 모듈은 서로 독립 (공유 코드는 core/common으로)"
+type = "independence"
+modules = [
+    "app.modules.ingredient_search",
+    "app.modules.ingredient_detail",
+    "app.modules.product_compare",
+    "app.modules.bsti",
+    "app.modules.recommendation",
+]
