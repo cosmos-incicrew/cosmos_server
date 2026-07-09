@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# 도구 캐시 (pytest · ruff · mypy · import-linter)
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.import_linter_cache/
+
+# 환경 변수 — 절대 커밋 금지
+.env
+.env.*
+!.env.example
+
+# Supabase 로컬
+supabase/.temp/
+
+# OS / 도구
+.DS_Store
+.omc/
+
+# Claude Code — 로컬 개인 설정만 제외
+.claude
+superpowers/
+
+
