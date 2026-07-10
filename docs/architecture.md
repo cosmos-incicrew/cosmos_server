@@ -1,11 +1,10 @@
 # 서버 아키텍처
 
-> 작성일: 2026-07-09 · 작성: 민경
->
-> 대상: cosmos_server에 코드를 쓰는 백엔드 팀원 (영기·호영·금별·민경)
->
-> 범위: 이 저장소(FastAPI 서버)의 내부 구조. 상위 시스템 설계(클라이언트·인프라 포함)는
-> [시스템 아키텍처 설계서](https://app.notion.com/p/396d3e5629a4815d90a2c94743de8bb1)(Notion)가 진실 공급원이다.
+- **작성일**: 2026-07-09
+- **작성자**: 김민경
+
+- **대상**: cosmos_server에 코드를 쓰는 백엔드 팀원 (박영기·이호영·박금별·김민경)
+- **범위**: 이 저장소(FastAPI 서버)의 내부 구조. 상위 시스템 설계(클라이언트·인프라 포함)는 [시스템 아키텍처 설계서](https://app.notion.com/p/396d3e5629a4815d90a2c94743de8bb1)(Notion)가 진실 공급원이다.
 
 ## 1. 개요
 
@@ -72,11 +71,11 @@ app/main.py                  앱 조립 — 라우터 등록, 전역 예외 핸�
 
 | 모듈 | 기능 | URL prefix | 담당 |
 |---|---|---|---|
-| `ingredient_search` | 제품명·성분명 검색 (tsvector 우선, pgvector 폴백) | `/api/v1/ingredients` | 영기 |
-| `ingredient_detail` | 개별 성분 해설·주의사항 | `/api/v1/ingredients` | 호영 |
-| `product_compare` | 멀티 제품 교차 조회 | `/api/v1/products` | 영기 |
-| `bsti` | BSTI 16타입 검사 | `/api/v1/bsti` | 금별 |
-| `recommendation` | 성분 추천 Agent | `/api/v1/recommendations` | 민경 |
+| `ingredient_search` | 제품명·성분명 검색 (tsvector 우선, pgvector 폴백) | `/api/v1/ingredients` | 박영기 |
+| `ingredient_detail` | 개별 성분 해설·주의사항 | `/api/v1/ingredients` | 이호영 |
+| `product_compare` | 멀티 제품 교차 조회 | `/api/v1/products` | 박영기 |
+| `bsti` | BSTI 16타입 검사 | `/api/v1/bsti` | 박금별 |
+| `recommendations` | 성분 추천 Agent | `/api/v1/recommendations` | 김민경 |
 
 현재 각 모듈의 라우터는 501(미구현) 스텁 1개만 두어 등록 배선을 검증한 상태다.
 실제 엔드포인트는 API 명세서 확정 후 담당자가 채운다.
@@ -117,7 +116,7 @@ DB 정책이 아니라 **서비스 코드가 직접 행 수준 권한을 검사�
 
 ## 7. LLM·RAG 파이프라인
 
-LLM을 호출하는 모듈(`ingredient_detail`·`product_compare`·`recommendation`)은 아래 원칙을
+LLM을 호출하는 모듈(`ingredient_detail`·`product_compare`·`recommendations`)은 아래 원칙을
 예외 없이 지킨다. 상세는 [llm-rag-rules.md](llm-rag-rules.md).
 
 - **근거 기반 생성 강제**: retrieval 없이 LLM 단독 생성을 하지 않는다. 검색 점수가 임계값
@@ -133,9 +132,9 @@ LLM을 호출하는 모듈(`ingredient_detail`·`product_compare`·`recommendati
 ```mermaid
 sequenceDiagram
     participant App as Flutter
-    participant R as recommendation/router
+    participant R as recommendations/router
     participant Auth as verify_jwt
-    participant S as recommendation/service
+    participant S as recommendations/service
     participant DB as Supabase (pgvector)
     participant G as Gemini
     participant L as Langfuse
@@ -150,7 +149,7 @@ sequenceDiagram
         S-->>R: "확인 불가" 정형 응답 (생성 호출 안 함)
     else 근거 확보
         S->>G: 근거 포함 생성 (Flash 또는 Pro)
-        S->>L: 트레이스 기록 (module:recommendation)
+        S->>L: 트레이스 기록 (module:recommendations)
         G-->>S: 생성 결과 + 출처
         S-->>R: 추천 응답
     end
