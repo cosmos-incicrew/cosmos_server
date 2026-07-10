@@ -106,7 +106,8 @@ flowchart TD
 | `rec_efficacy` | 5 | 없음 | 성분-효능 근거 |
 
 - 계약: score(자료가 질의에 얼마나 맞는지 0~1 점수) 정규화, 빈 결과는 빈 리스트
-  (`app/common/retrieval.py`).
+  (`app/common/retrieval.py`). 이 유틸은 성분 해설(이호영)과 공유하며 계약은
+  [03-shared-retrieval-util.md](03-shared-retrieval-util.md)에 정의.
 - score < `MIN_RETRIEVAL_SCORE`(모듈 상수, **초기값 0.5**) 컷은 **호출자인 이 모듈이**
   수행한다. 초기값은 가설이며 Langfuse 트레이스의 실제 score 분포로 튜닝한다.
 - **성능**: 고민별 질의 텍스트는 두 컬렉션에 동일하므로 질의 임베딩은 최대 3회면

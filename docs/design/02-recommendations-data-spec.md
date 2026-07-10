@@ -173,6 +173,7 @@ flowchart LR
 | 6 | 임베딩 생성·인덱스 | embedding 컬럼 채우기(대상 텍스트는 §2 표 기준 — 김민경이 결합 텍스트 산출 규칙 전달) + HNSW(`vector_cosine_ops`) 2개 + **`rec_cases(skin_concerns)` GIN** (배열 겹침 필터용 — btree는 배열 필터에 못 쓴다) | **7/14** |
 
 score 0~1 정규화·빈 결과는 빈 리스트 계약은 기존 김민경·이호영 합의 그대로다.
+검색 함수는 추천·해설이 공유하므로 요청 명세는 [03-shared-retrieval-util.md](03-shared-retrieval-util.md)와 함께 본다.
 
 ## 5. 참조 상수 데이터 (코드로 관리, DB 아님)
 
