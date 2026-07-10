@@ -62,7 +62,7 @@ app/main.py                  앱 조립 — 라우터 등록, 전역 예외 핸�
 - `router.py`는 HTTP 관심사(경로·상태 코드·의존성)만 다루고 로직은 `service.py`에 둔다.
 - 모듈이 다른 모듈의 코드를 필요로 하면, 그 코드를 `core/` 또는 `common/`으로 올린 뒤 양쪽이 참조한다.
   이 규칙은 문서가 아니라 도구로 강제된다 — `uv run lint-imports`가 위반을 잡는다
-  ([pyproject.toml](../pyproject.toml)의 `independence` contract).
+  ([pyproject.toml](../../pyproject.toml)의 `independence` contract).
 
 ## 4. 모듈 구성
 

@@ -205,7 +205,7 @@ conventions 상태 코드 목록에 함께 추가한다 (공통 인프라 소유
 
 ## 6. LLM·RAG 규칙 준수 매핑
 
-[llm-rag-rules.md](../llm-rag-rules.md) 대비 — 근거 기반 생성·확인 불가 정형
+[llm-rag-rules.md](../rules/llm-rag-rules.md) 대비 — 근거 기반 생성·확인 불가 정형
 응답(§2-⑥), 출처 포함(§3 `sources`), injection 방어(§2-⑥), Langfuse 필수(§2),
 Pro 사용 기준 충족(§2-⑥), 비용 보호(§2-① 검색 상한, §2-⑥ 생성 스킵).
 
