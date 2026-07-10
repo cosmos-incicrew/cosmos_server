@@ -4,7 +4,7 @@
 - **작성자**: 김민경
 
 - **대상**: cosmos_server에 코드를 쓰는 모든 팀원. PR 전에 이 문서 기준으로 셀프 리뷰한다
-- **관련 문서**: 시작 방법 [getting-started.md](getting-started.md) · LLM 호출 규칙 [llm-rag-rules.md](llm-rag-rules.md)
+- **관련 문서**: 셋업·첫 모듈 구현 [README.md](../../README.md) · LLM 호출 규칙 [llm-rag-rules.md](llm-rag-rules.md)
 
 ## 코드 스타일
 
