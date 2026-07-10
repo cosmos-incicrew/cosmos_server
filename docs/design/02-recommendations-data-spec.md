@@ -1,0 +1,184 @@
+# 성분 추천(recommendations) 데이터 명세서
+
+- **작성일**: 2026-07-10
+- **작성자**: 김민경
+- **네이밍**: 테이블·컬렉션 prefix는 `rec_`(recommendations 도메인) — 소스명(ai_hub)을 넣지 않아 데이터 소스가 바뀌어도 이름이 유지된다
+
+성분 추천 파이프라인([01-recommendations-pipeline.md](01-recommendations-pipeline.md))이
+사용하는 데이터의 테이블·적재·참조 상수를 정의하고, **임베딩·인덱싱·검색 RPC에
+대한 서지우 요청 명세(§4)**를 포함한다. AI Hub "스킨케어 성분-효능 추천
+데이터"(dataSetSn=71886)의 정규화·적재는 김민경 담당 (데이터 소유자).
+
+## 1. 데이터 소스 현황 (전수 점검 완료, 2026-07-10)
+
+| 구성 | 내용 | 처리 방침 |
+|---|---|---|
+| Training 라벨링 (TL_*) 8,000건 | 상담 케이스 JSONL — question·answer·CoT 3단계·PMID 근거·meta(성별/나이/피부타입/고민) | **적재** → `rec_cases` |
+| 지식성분데이터.xlsx 2,465종 | 성분별 INCI·한글명·효능·물성·권장피부타입·주의사항·권장농도·배합규제·참고문헌 | **적재** → `rec_efficacy` |
+| Validation 라벨링 (VL_*) 1,000건 | Training과 동일 구조 | **미적재 — 추천 품질 평가용 held-out 보존** (과각질 0건·민감성 1건: 커버리지 한계 기록) |
+| 원천데이터 (TS_/VS_) | 설문 CSV + 얼굴 사진 JPG | **미적재** — 설문 정보는 라벨링 meta에 포함, 이미지 기능은 픽스에서 제외. CSV 헤더는 `initial_skin_condition` 8축 코드 해석 근거로만 참고 |
+| Other.zip | 지식성분데이터.xlsx 중복본 | 무시 |
+
+**Training 케이스의 고민별 분포는 극도로 불균형** — 파이프라인의 희소 고민 보완(01 §2-③)이 필요한 근거:
+
+| 고민 | 건수 | 고민 | 건수 |
+|---|---|---|---|
+| 모공 | 2,738 | 여드름 | 747 |
+| 미백 | 2,564 | 홍조 | 136 |
+| 주름 | 1,701 | 과각질/악건성 | 61 |
+| 피부처짐/탄력 | 47 | 민감성 | 6 |
+
+## 2. 테이블 구조
+
+```mermaid
+erDiagram
+    rec_cases {
+        text case_id PK
+        text target_concern "8종 CHECK"
+        text_arr skin_concerns "복수 고민"
+        text question "임베딩 대상"
+        text answer
+        jsonb cot "step2 = 성분 선택 근거"
+        text_arr recommended_ingredients "적재 시 사전 매칭 추출"
+        text_arr evidence_sources "PMID"
+        text gender
+        smallint age
+        text skin_type
+        text initial_skin_condition "8축 육안평가 코드"
+        vector embedding "1536 · 서지우 생성"
+    }
+    rec_efficacy {
+        bigint id PK
+        text inci
+        text name_kr
+        text efficacy "임베딩 대상"
+        text product_traits "임베딩 대상 보조"
+        text recommended_skin_types
+        text safety_note
+        text recommended_concentration
+        text regulation_note
+        text reference_source
+        bigint ingredient_id FK "NULL 허용"
+        vector embedding "1536 · 서지우 생성"
+    }
+    ingredients {
+        bigint ingredient_id PK "식약처 21,949종 · 서지우 소유"
+    }
+    restrictions {
+        bigint restriction_id PK "사용제한 · 서지우 적재"
+    }
+    rec_efficacy }o--|| ingredients : "적재 시 사전 매핑"
+    restrictions }o--|| ingredients : "참조"
+```
+
+두 테이블 모두 `supabase/migrations`로 관리(김민경), RLS 활성화 + service role만
+접근(기존 테이블과 동일 정책). `rec_efficacy`에는 물성 원본 컬럼
+(`properties`·`solubility`·`formula`·`weight`·`source`)도 페이로드로 보존한다.
+
+### 제약·멱등 키 (마이그레이션 필수 반영)
+
+| 테이블 | 제약 | 이유 |
+|---|---|---|
+| `rec_cases` | PK `case_id` = upsert conflict target / `target_concern`·`question`·`answer` NOT NULL + 8종 CHECK | AI Hub 원본 id가 자연 키 — 재실행 시 자동 멱등 |
+| `rec_efficacy` | **`UNIQUE(inci, name_kr)` = upsert conflict target** / `CHECK (inci IS NOT NULL OR name_kr IS NOT NULL)` / `efficacy` NOT NULL | PK가 자동생성 `id`라 conflict target 없이는 **재실행마다 2,465행이 중복 적재**되어 검색이 오염된다 |
+
+### 임베딩 대상 선정 원칙
+
+**사용자 질의와 의미적으로 비교될 텍스트만 임베딩**하고, 나머지는 메타데이터
+필터 또는 생성 페이로드로 쓴다.
+
+| 테이블 | 임베딩 대상 | 이유 |
+|---|---|---|
+| `rec_cases` | `question`만 | 검색 질의가 "사용자 상황 서술"이므로 비교 대상도 상황 서술이어야 한다. answer를 섞으면 상황↔상황 매칭이 상황↔해법 매칭으로 오염된다 |
+| `rec_efficacy` | `name_kr + efficacy + product_traits` 결합 | "고민 → 효능" 질의와 맞아야 하므로 효능이 핵심. 화학적물성·분자식·분자량·용해도는 의미 검색에 노이즈라 제외 |
+
+### 기존 `ingredients` 테이블과의 관계
+
+`ingredients`(식약처, 서지우 소유)와 `rec_efficacy`는 **성분명만 겹치고 내용은
+상보적**이다 (공식 원료 사전 vs 추천용 효능 지식). 병합하지 않고 분리 유지 +
+`ingredient_id` FK 연결 — 병합 시 sparse 컬럼(21,949 중 2,465만 채움), 소유권
+혼합, 임베딩 용도 충돌(해설용 vs 추천용)이 생긴다. 프론트 명세(박금별)의 통합
+`ingredients` 필드는 성분 상세 API가 **조인한 응답 형태**로 제공한다 — 테이블
+병합 아님 (박영기·이호영·서지우 공유 필요).
+
+## 3. 적재 파이프라인 — 김민경·서지우 역할 분담
+
+```mermaid
+flowchart LR
+    subgraph 김민경["김민경 — scripts/load_recommendations_data.py (멱등)"]
+        A[원본 정규화<br/>TL 8,000 + xlsx 2,465] --> B[recommended_ingredients<br/>사전 매칭 추출]
+        B --> C[ingredient_id 매핑<br/>name_kr → synonyms]
+        C --> D[upsert<br/>embedding은 NULL]
+    end
+    subgraph 서지우["서지우 — 공유 벡터 인프라 (§4 요청 명세)"]
+        E[임베딩 생성·적재] --> F[HNSW 인덱스] --> G[match_documents RPC]
+    end
+    D --> E
+```
+
+김민경 몫의 세부:
+
+- PoC(`skincare-rag-poc/prepare_data.py`) 정규화 로직 재활용. 단 PoC `COLUMN_MAP`은
+  xlsx 컬럼 9개만 다뤘으므로 권장피부타입·사용상주의사항·권장농도·배합규제·참고문헌
+  5개를 추가한다.
+- **recommended_ingredients 추출**: 지식성분데이터 2,465종 성분명(INCI+한글명)
+  사전으로 `answer + CoT step2` 텍스트에서 사전 매칭. 따옴표 표기 파싱은 불가 —
+  검증 결과 답변 450건 중 67%가 따옴표 표기 0개.
+- **ingredient_id 매핑**: `name_kr` 정확 일치 → `synonyms` 순서, 미매칭 NULL 허용.
+- **upsert**는 위 "제약·멱등 키" 표의 conflict target 기준 — 재실행이 안전하다.
+- 실행 후 리포트: 적재 건수, 고민별 분포, ingredient_id 매칭률, 성분 추출 0건 케이스 수.
+
+## 4. 서지우 요청 명세 — 임베딩·인덱싱·검색 RPC
+
+임베딩은 공유 벡터 인프라 소유자인 서지우의 역할이다. 아래를 요청하며, 시그니처
+동결은 서지우가 발행한다. 기한은 중간발표(7/16) 역산 제안이며, **지연 시 폴백:
+김민경이 `app/core/gemini.py` 경유 임시 임베딩 스크립트로 대체 적재 후, 서지우
+인프라 완성 시 교체한다** (호출부 무변경).
+
+| # | 요청 | 내용 | 기한(제안) |
+|---|---|---|---|
+| 1 | 모델·차원 확정 | Gemini 임베딩 + **1536 차원** — 기존 `ingredients.embedding vector(1536)`과 통일. 1536이 의도된 선택인지 확인. 근거: Gemini MRL 공식 지원 차원(3072/1536/768) 중 하나이고, pgvector HNSW는 `vector` 타입 최대 2,000차원(3072는 halfvec 우회 필요). **현재 전 테이블 임베딩 0행 — 지금이 차원 변경 가능한 마지막 시점** | **7/11** |
+| 2 | RPC 시그니처 동결 | 요구 인터페이스: `(collection, query_embedding, filters jsonb, match_count) → (content, score 0~1, source, metadata)`. collection 값 `rec_cases`·`rec_efficacy` 라우팅 추가 | 7/12 |
+| 3 | **metadata 필수 키** | 파이프라인이 retrieve() 결과만으로 후보 집계·안전 필터를 수행하므로, metadata에 반드시 포함: 케이스 → `recommended_ingredients`·`skin_concerns`, 효능 → `ingredient_id`·`safety_note`·`recommended_concentration`·`regulation_note` | 7/12 (2와 함께) |
+| 4 | 필터 의미 | `rec_cases`의 고민 필터는 `skin_concerns` **배열 겹침 매칭** (희소 고민 대응) — filters 키·의미 합의 | 7/12 (2와 함께) |
+| 5 | 질의 임베딩 재사용 | 동일 질의로 두 컬렉션을 검색하므로 임베딩 중복 방지 방안 협의 — retrieve()에 사전 계산 임베딩 전달 옵션 또는 유틸 내부 캐시 | 7/12 (2와 함께) |
+| 6 | 임베딩 생성·인덱스 | embedding 컬럼 채우기(대상 텍스트는 §2 표 기준 — 김민경이 결합 텍스트 산출 규칙 전달) + HNSW(`vector_cosine_ops`) 2개 + **`rec_cases(skin_concerns)` GIN** (배열 겹침 필터용 — btree는 배열 필터에 못 쓴다) | **7/14** |
+
+score 0~1 정규화·빈 결과는 빈 리스트 계약은 기존 김민경·이호영 합의 그대로다.
+
+## 5. 참조 상수 데이터 (코드로 관리, DB 아님)
+
+| 상수 | 위치 | 내용·용도 |
+|---|---|---|
+| 피부 고민 8종 코드 | `app/common` (공용) | 코드↔한글 라벨 매핑 (예: `pores`↔모공). 온보딩 `skin_concerns`·추천 공용 — 박금별 명세 파트 D-2 "피부고민 표준 코드" 응답. DB `target_concern`은 원본 한글 라벨 유지 |
+| BSTI 축 사전 | `app/modules/recommendations/bsti_axes.py` | 8축 코드(O/D·S/R·P/N·W/T) → 특성 서술. 질의 구성용. 타입별 권장·기피 성분은 보유하지 않음 — `bsti_results`(박금별) 소비 |
+| 기능성 고시원료 | `app/modules/recommendations/notified_ingredients.py` | 식약처 「기능성화장품 기준 및 시험방법」 미백·주름개선·자외선차단 고시 성분 + 고시 함량. 응답 배지용 |
+| 알레르기 유발성분 25종 | `app/modules/recommendations/allergen_fragrances.py` | 식약처 「화장품 사용 시의 주의사항 및 알레르기 유발성분 표시에 관한 규정」 착향제 25종. 경고용 |
+
+고시 기반 고정 목록은 수십 종 이하라 DB 없이 상수로 관리하고, 개정 시 git으로 추적한다.
+
+## 6. 의존 계약 (타 모듈 소유)
+
+| 테이블 | 소유 | 이 설계가 요구하는 것 |
+|---|---|---|
+| `user_profiles` | 김민경(회원 모듈) | `user_id(auth uid)`·`age`·`gender`·`skin_concerns text[]` — 온보딩 필수 수집 (박금별 프론트 명세와 합의됨) |
+| `bsti_results` | 박금별 | 최근 결과의 `type_code`·`recommended_ingredients`·`caution_ingredients` 조회 (가점·기피 경고용) |
+| `restrictions` | 서지우 | `regulate_type(금지/한도)`·`limit_cond` — 적재 전에도 파이프라인 동작 (0행=통과) |
+| `ingredients`·`synonyms` | 서지우 | ingredient_id 매핑·조인 대상 |
+
+## 7. 검토 후 제외한 추가 데이터 후보 (기록)
+
+- 기능성화장품 보고품목정보 API(공공데이터 15095680) — 제품 단위 정보, v1 스코프
+  밖. MVP 후 "성분 함유 제품" 확장 시 1순위 후보
+- CosIng(EU)·INCIDecoder·EWG — 영문 매핑 비용 큼, EWG 라이선스 불명확, AI Hub 효능과 중복
+- 화해 등 리뷰 크롤링 — 약관·저작권 리스크 대비 효익 낮음
+- PubMed 초록 인덱싱 — 케이스에 PMID `evidence_sources` 전 건 존재, 링크 표기로 충분
+
+## 구성 근거
+
+- 테이블을 소스 단위(케이스/성분지식)로 나누고 식약처 테이블과 분리한 것은
+  소유권·적재 주기·임베딩 용도가 다르기 때문. 통합은 조인·응답 계층에서 한다.
+- 적재(김민경)와 임베딩·인덱싱(서지우)을 나눈 것은 RAG 역할 분담 원칙(공유 벡터
+  인프라 = 서지우) 그대로이며, 경계를 §4 요청 명세로 문서화해 협의 seam을 한 곳에 모았다.
+- 고시 목록을 DB가 아닌 상수로 둔 것은 규모(수십 종)와 변경 빈도(고시 개정
+  시에만)를 고려 — 마이그레이션 없이 git 리뷰로 관리하는 편이 가볍다.

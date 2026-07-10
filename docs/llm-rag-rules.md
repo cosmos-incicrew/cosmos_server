@@ -1,10 +1,10 @@
 # LLM·RAG 규칙
 
-> 작성일: 2026-07-09 · 작성: 민경
->
-> 대상: Gemini를 호출하는 모든 모듈 (ingredient_detail·product_compare·recommendation).
->
-> 서비스 신뢰성의 핵심 규칙이므로 예외 없이 적용한다.
+- **작성일**: 2026-07-09
+- **작성자**: 김민경
+
+- **대상**: Gemini를 호출하는 모든 모듈 (ingredient_detail·product_compare·recommendations)
+- **적용**: 서비스 신뢰성의 핵심 규칙이므로 예외 없이 적용한다
 
 ## 근거 기반 생성 (필수)
 
@@ -29,7 +29,7 @@
 ## Langfuse 트레이싱 (필수)
 
 - 모든 LLM 호출(생성·임베딩)은 Langfuse 트레이스를 남긴다. 트레이스 없는 호출은 리뷰에서 반려한다.
-- 트레이스에는 모듈명 태그를 붙인다 (예: `module:recommendation`) — 비용·품질을 모듈별로 추적한다.
+- 트레이스에는 모듈명 태그를 붙인다 (예: `module:recommendations`) — 비용·품질을 모듈별로 추적한다.
 
 ## 모델 선택
 

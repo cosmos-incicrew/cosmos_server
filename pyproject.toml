@@ -65,5 +65,5 @@ modules = [
     "app.modules.ingredient_detail",
     "app.modules.product_compare",
     "app.modules.bsti",
-    "app.modules.recommendation",
+    "app.modules.recommendations",
 ]

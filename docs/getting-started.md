@@ -1,10 +1,10 @@
 # 개발 시작하기
 
-> 작성일: 2026-07-09 · 작성: 민경
->
-> 대상: 저장소를 처음 클론하는 팀원. 환경 셋업부터 자기 모듈 첫 구현까지 이 문서 하나로 간다.
->
-> 지켜야 할 규칙은 [conventions.md](conventions.md), LLM 호출 규칙은 [llm-rag-rules.md](llm-rag-rules.md).
+- **작성일**: 2026-07-09
+- **작성자**: 김민경
+
+- **대상**: 저장소를 처음 클론하는 팀원. 환경 셋업부터 자기 모듈 첫 구현까지 이 문서 하나로 간다
+- **관련 문서**: 지켜야 할 규칙 [conventions.md](conventions.md) · LLM 호출 규칙 [llm-rag-rules.md](llm-rag-rules.md)
 
 ## 1. 셋업
 
@@ -19,9 +19,9 @@ cp .env.example .env    # 환경 변수 채우기
 
 | 변수 | 어디서 |
 |---|---|
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` | 공유 Supabase 프로젝트 → Settings → API (접근 요청: 민경) |
-| `GEMINI_API_KEY` | 팀 공유 키 (노션 / 민경) |
-| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | Langfuse 프로젝트 Settings (접근: 민경) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` | 공유 Supabase 프로젝트 → Settings → API (접근 요청: 김민경) |
+| `GEMINI_API_KEY` | 팀 공유 키 (노션 / 김민경) |
+| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | Langfuse 프로젝트 Settings (접근: 김민경) |
 | `GEMINI_MODEL_*`, `LANGFUSE_HOST`, `LOG_LEVEL` | 기본값이 `app/core/config.py`에 있음. 바꿀 때만 지정 |
 
 필수값이 하나라도 비면 서버가 **기동 시점에** 즉시 실패한다. 실행·확인:
@@ -104,13 +104,13 @@ from fastapi import Depends
 from app.core.auth import verify_jwt
 
 @router.post("")
-async def create_recommendation(
+async def create_recommendations(
     body: RecommendRequest,
     user_id: Annotated[str, Depends(verify_jwt)],
 ) -> RecommendResponse: ...
 ```
 
-**Gemini를 호출하는 모듈**(`ingredient_detail`·`product_compare`·`recommendation`)은
+**Gemini를 호출하는 모듈**(`ingredient_detail`·`product_compare`·`recommendations`)은
 [llm-rag-rules.md](llm-rag-rules.md)를 예외 없이 따른다.
 
 ## 3. 완료 전 검증 (머지 게이트)

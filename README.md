@@ -38,4 +38,4 @@ uv run lint-imports              # 모듈 독립성 검사
 | `ingredient_detail` | 개별 성분 해설·주의사항 | 호영 |
 | `product_compare` | 멀티 제품 교차 조회 | 영기 |
 | `bsti` | BSTI 16타입 검사 | 금별 |
-| `recommendation` | 성분 추천 Agent | 민경 |
+| `recommendations` | 성분 추천 Agent | 민경 |
