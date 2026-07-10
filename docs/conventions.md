@@ -1,10 +1,10 @@
 # 개발 규칙
 
-> 작성일: 2026-07-09 · 작성: 민경
->
-> 대상: cosmos_server에 코드를 쓰는 모든 팀원. PR 전에 이 문서 기준으로 셀프 리뷰한다.
->
-> 시작 방법은 [getting-started.md](getting-started.md), LLM 호출은 [llm-rag-rules.md](llm-rag-rules.md).
+- **작성일**: 2026-07-09
+- **작성자**: 김민경
+
+- **대상**: cosmos_server에 코드를 쓰는 모든 팀원. PR 전에 이 문서 기준으로 셀프 리뷰한다
+- **관련 문서**: 시작 방법 [getting-started.md](getting-started.md) · LLM 호출 규칙 [llm-rag-rules.md](llm-rag-rules.md)
 
 ## 코드 스타일
 
@@ -48,11 +48,12 @@
   | ingredient_search · ingredient_detail | `/api/v1/ingredients` |
   | product_compare | `/api/v1/products` |
   | bsti | `/api/v1/bsti` |
-  | recommendation | `/api/v1/recommendations` |
+  | recommendations | `/api/v1/recommendations` |
 
 - **메서드:** GET은 조회(부작용 없음), POST는 생성·실행형 작업(비교·추천·설문 제출).
 - **상태 코드:** 200 성공 · 201 생성 · 400 잘못된 요청 · 401 인증 실패 · 404 없음 ·
-  422 유효성 실패 · 500 서버 오류 · 501 미구현 스텁.
+  409 선행 조건 미충족(예: 온보딩 미완료) · 422 유효성 실패 · 500 서버 오류 ·
+  501 미구현 스텁 · 502 외부 서비스(LLM 등) 호출 실패 · 503 의존 서비스(DB 등) 연결 실패.
 - **에러 응답**은 전역 핸들러가 아래 포맷을 보장한다:
 
   ```json
@@ -87,4 +88,4 @@
 - **`.env`·API 키·시크릿 커밋 금지.** 실수로 스테이징되면 커밋을 멈추고 팀에 알린다.
 - **다른 사람 담당 모듈을 상의 없이 수정하지 않는다.**
 - PR: ① diff를 처음부터 끝까지 셀프 리뷰 → ② 위 검증(pytest·ruff·mypy·lint-imports) 통과 확인 →
-  ③ 아래 담당 표 기준으로 리뷰어 지정. 공통 인프라(core·common·main)는 민경.
+  ③ 아래 담당 표 기준으로 리뷰어 지정. 공통 인프라(core·common·main)는 김민경.
