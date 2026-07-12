@@ -4,9 +4,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+MIN_COMPARE_PRODUCT_COUNT = 2
+
 
 class ProductCompareRequest(BaseModel):
-    product_ids: list[str] = Field(min_length=2)
+    product_ids: list[str] = Field(min_length=MIN_COMPARE_PRODUCT_COUNT)
 
 
 class ComparedProduct(BaseModel):

@@ -11,6 +11,7 @@ from app.modules.product_compare.repository import (
     RestrictionRow,
     get_product_compare_repository,
 )
+from app.modules.product_compare.schemas import MIN_COMPARE_PRODUCT_COUNT
 
 
 class FakeProductCompareRepository(ProductCompareRepository):
@@ -43,7 +44,15 @@ class FakeProductCompareRepository(ProductCompareRepository):
                 provis_atrcl="사용 조건",
                 limit_cond="배합 한도",
                 is_registered_korea=True,
-            )
+            ),
+            RestrictionRow(
+                restriction_id=11,
+                ingredient_id=2,
+                regulate_type="금지",
+                provis_atrcl="예외 조항",
+                limit_cond=None,
+                is_registered_korea=True,
+            ),
         ]
 
 
@@ -90,7 +99,14 @@ def test_compare_products_returns_presence_and_resolved_ids(client: TestClient) 
                         "provis_atrcl": "사용 조건",
                         "limit_cond": "배합 한도",
                         "is_registered_korea": True,
-                    }
+                    },
+                    {
+                        "restriction_id": 11,
+                        "regulate_type": "금지",
+                        "provis_atrcl": "예외 조항",
+                        "limit_cond": None,
+                        "is_registered_korea": True,
+                    },
                 ],
             },
             {
@@ -214,3 +230,11 @@ def test_compare_products_requires_jwt(client: TestClient) -> None:
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "AUTH_MISSING_TOKEN"
+
+
+def test_compare_products_requires_at_least_two_products(client: TestClient) -> None:
+    product_ids = [f"product-{index}" for index in range(MIN_COMPARE_PRODUCT_COUNT - 1)]
+    response = client.post("/api/v1/products/compare", json={"product_ids": product_ids})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
