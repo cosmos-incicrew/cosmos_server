@@ -45,7 +45,8 @@
 
   | 모듈 | prefix |
   |---|---|
-  | ingredient_search · ingredient_detail | `/api/v1/ingredients` |
+  | ingredient_search | `/api/v1/products` · `/api/v1/ingredients` |
+  | ingredient_detail | `/api/v1/ingredients` |
   | product_compare | `/api/v1/products` |
   | bsti | `/api/v1/bsti` |
   | recommendations | `/api/v1/recommendations` |

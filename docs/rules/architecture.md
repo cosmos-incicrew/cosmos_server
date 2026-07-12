@@ -71,7 +71,7 @@ app/main.py                  앱 조립 — 라우터 등록, 전역 예외 핸�
 
 | 모듈 | 기능 | URL prefix | 담당 |
 |---|---|---|---|
-| `ingredient_search` | 제품명·성분명 검색 (tsvector 우선, pgvector 폴백) | `/api/v1/ingredients` | 박영기 |
+| `ingredient_search` | 제품명·성분 이명 검색과 제품→성분 ID 확장 | `/api/v1/products` · `/api/v1/ingredients` | 박영기 |
 | `ingredient_detail` | 개별 성분 해설·주의사항 | `/api/v1/ingredients` | 이호영 |
 | `product_compare` | 멀티 제품 교차 조회 | `/api/v1/products` | 박영기 |
 | `bsti` | BSTI 16타입 검사 | `/api/v1/bsti` | 박금별 |
