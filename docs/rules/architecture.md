@@ -8,7 +8,7 @@
 
 ## 1. 개요
 
-cosmos_server는 화장품 전성분 해설·2개 제품 교차 조회·BSTI 기반 성분 추천을 제공하는 백엔드 API다.
+cosmos_server는 화장품 전성분 해설·다중 제품 교차 조회·BSTI 기반 성분 추천을 제공하는 백엔드 API다.
 Flutter 앱이 유일한 클라이언트이며, 서버는 요청 인증·데이터 조회·LLM 생성을 담당한다.
 
 이 저장소가 책임지는 것과 책임지지 않는 것을 먼저 분명히 한다.
@@ -73,7 +73,7 @@ app/main.py                  앱 조립 — 라우터 등록, 전역 예외 핸�
 |---|---|---|---|
 | `ingredient_search` | 제품명·성분명 검색 (tsvector 우선, pgvector 폴백) | `/api/v1/ingredients` | 박영기 |
 | `ingredient_detail` | 개별 성분 해설·주의사항 | `/api/v1/ingredients` | 이호영 |
-| `product_compare` | 멀티 제품 교차 조회 | `/api/v1/products` | 박영기 |
+| `product_compare` | 2개 이상 제품의 구조화 성분 비교 | `/api/v1/products` | 박영기 |
 | `bsti` | BSTI 16타입 검사 | `/api/v1/bsti` | 박금별 |
 | `recommendations` | 성분 추천 Agent | `/api/v1/recommendations` | 김민경 |
 
@@ -116,7 +116,7 @@ DB 정책이 아니라 **서비스 코드가 직접 행 수준 권한을 검사�
 
 ## 7. LLM·RAG 파이프라인
 
-LLM을 호출하는 모듈(`ingredient_detail`·`product_compare`·`recommendations`)은 아래 원칙을
+LLM을 호출하는 모듈(`ingredient_detail`·`recommendations`)은 아래 원칙을
 예외 없이 지킨다. 상세는 [llm-rag-rules.md](llm-rag-rules.md).
 
 - **근거 기반 생성 강제**: retrieval 없이 LLM 단독 생성을 하지 않는다. 검색 점수가 임계값
