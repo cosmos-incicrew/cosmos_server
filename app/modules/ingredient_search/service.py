@@ -8,6 +8,14 @@ from app.modules.ingredient_search.schemas import (
 )
 
 
+class ProductNotFoundError(Exception):
+    """Raised when the selected product does not exist."""
+
+
+class ProductNotAnalyzableError(Exception):
+    """Raised when a product has no mapped ingredient identifiers."""
+
+
 async def search_products(
     repository: IngredientSearchRepository, query: str, limit: int
 ) -> ProductSearchResponse:
@@ -28,5 +36,29 @@ async def search_ingredients(
 
 async def get_product_ingredient_ids(
     repository: IngredientSearchRepository, product_id: str
-) -> ProductIngredientIdsResponse | None:
-    return await repository.get_product_ingredient_ids(product_id)
+) -> ProductIngredientIdsResponse:
+    product = await repository.get_product_ingredients(product_id)
+    if product is None:
+        raise ProductNotFoundError
+
+    ingredient_ids: list[int] = []
+    seen_ids: set[int] = set()
+    unmapped_ingredient_count = 0
+    for ingredient_id in product.ingredient_ids:
+        if ingredient_id is None:
+            unmapped_ingredient_count += 1
+            continue
+        if ingredient_id not in seen_ids:
+            seen_ids.add(ingredient_id)
+            ingredient_ids.append(ingredient_id)
+
+    if not ingredient_ids:
+        raise ProductNotAnalyzableError
+
+    return ProductIngredientIdsResponse(
+        product_id=product.product_id,
+        product_name=product.product_name,
+        ingredient_ids=ingredient_ids,
+        mapped_ingredient_count=len(ingredient_ids),
+        unmapped_ingredient_count=unmapped_ingredient_count,
+    )

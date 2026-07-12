@@ -1,6 +1,7 @@
 """ingredient_search 모듈의 Supabase 조회 어댑터."""
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from supabase import AsyncClient
@@ -8,7 +9,6 @@ from supabase import AsyncClient
 from app.core.supabase import get_supabase
 from app.modules.ingredient_search.schemas import (
     IngredientSearchCandidate,
-    ProductIngredientIdsResponse,
     ProductSearchCandidate,
 )
 
@@ -20,9 +20,14 @@ class IngredientSearchRepository(Protocol):
         self, query: str, limit: int
     ) -> list[IngredientSearchCandidate]: ...
 
-    async def get_product_ingredient_ids(
-        self, product_id: str
-    ) -> ProductIngredientIdsResponse | None: ...
+    async def get_product_ingredients(self, product_id: str) -> "ProductIngredientRows | None": ...
+
+
+@dataclass(frozen=True)
+class ProductIngredientRows:
+    product_id: str
+    product_name: str
+    ingredient_ids: list[int | None]
 
 
 class SupabaseIngredientSearchRepository:
@@ -30,45 +35,53 @@ class SupabaseIngredientSearchRepository:
         self._client = client
 
     async def search_products(self, query: str, limit: int) -> list[ProductSearchCandidate]:
-        product_response = await (
-            self._client.table("products")
-            .select("product_id,product_name,main_category,sub_category")
-            .ilike("product_name", f"%{_escape_like(query)}%")
-            .order("product_name")
-            .order("product_id")
-            .limit(limit)
-            .execute()
-        )
-        product_rows = _rows(product_response.data)
-        product_ids = [
-            row["product_id"] for row in product_rows if isinstance(row.get("product_id"), str)
-        ]
-        if not product_ids:
-            return []
-
-        mapped_response = await (
-            self._client.table("product_ingredients")
-            .select("product_id")
-            .in_("product_id", product_ids)
-            .not_.is_("ingredient_id", "null")
-            .execute()
-        )
-        analyzable_product_ids = {
-            row["product_id"]
-            for row in _rows(mapped_response.data)
-            if isinstance(row.get("product_id"), str)
-        }
-        return [
-            ProductSearchCandidate(
-                product_id=row["product_id"],
-                product_name=row["product_name"],
-                main_category=_optional_text(row.get("main_category")),
-                sub_category=_optional_text(row.get("sub_category")),
+        results: list[ProductSearchCandidate] = []
+        offset = 0
+        while len(results) < limit:
+            product_response = await (
+                self._client.table("products")
+                .select("product_id,product_name,main_category,sub_category")
+                .ilike("product_name", f"%{_escape_like(query)}%")
+                .order("product_name")
+                .order("product_id")
+                .range(offset, offset + limit - 1)
+                .execute()
             )
-            for row in product_rows
-            if row.get("product_id") in analyzable_product_ids
-            and isinstance(row.get("product_name"), str)
-        ]
+            product_rows = _rows(product_response.data)
+            product_ids = [
+                row["product_id"] for row in product_rows if isinstance(row.get("product_id"), str)
+            ]
+            if not product_ids:
+                break
+
+            mapped_response = await (
+                self._client.table("product_ingredients")
+                .select("product_id")
+                .in_("product_id", product_ids)
+                .not_.is_("ingredient_id", "null")
+                .execute()
+            )
+            analyzable_product_ids = {
+                row["product_id"]
+                for row in _rows(mapped_response.data)
+                if isinstance(row.get("product_id"), str)
+            }
+            results.extend(
+                ProductSearchCandidate(
+                    product_id=row["product_id"],
+                    product_name=row["product_name"],
+                    main_category=_optional_text(row.get("main_category")),
+                    sub_category=_optional_text(row.get("sub_category")),
+                )
+                for row in product_rows
+                if row.get("product_id") in analyzable_product_ids
+                and isinstance(row.get("product_name"), str)
+            )
+            if len(product_rows) < limit:
+                break
+            offset += len(product_rows)
+
+        return results[:limit]
 
     async def search_ingredients(self, query: str, limit: int) -> list[IngredientSearchCandidate]:
         synonym_response = await (
@@ -96,9 +109,7 @@ class SupabaseIngredientSearchRepository:
             )
         return list(results_by_id.values())
 
-    async def get_product_ingredient_ids(
-        self, product_id: str
-    ) -> ProductIngredientIdsResponse | None:
+    async def get_product_ingredients(self, product_id: str) -> ProductIngredientRows | None:
         product_response = await (
             self._client.table("products")
             .select("product_id,product_name")
@@ -122,24 +133,12 @@ class SupabaseIngredientSearchRepository:
             .order("id")
             .execute()
         )
-        ingredient_ids: list[int] = []
-        seen_ids: set[int] = set()
-        unmapped_ingredient_count = 0
-        for row in _rows(ingredient_response.data):
-            ingredient_id = _integer(row.get("ingredient_id"))
-            if ingredient_id is None:
-                unmapped_ingredient_count += 1
-                continue
-            if ingredient_id not in seen_ids:
-                seen_ids.add(ingredient_id)
-                ingredient_ids.append(ingredient_id)
-
-        return ProductIngredientIdsResponse(
+        return ProductIngredientRows(
             product_id=resolved_product_id,
             product_name=product_name,
-            ingredient_ids=ingredient_ids,
-            mapped_ingredient_count=len(ingredient_ids),
-            unmapped_ingredient_count=unmapped_ingredient_count,
+            ingredient_ids=[
+                _integer(row.get("ingredient_id")) for row in _rows(ingredient_response.data)
+            ],
         )
 
 

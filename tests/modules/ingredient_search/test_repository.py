@@ -28,6 +28,9 @@ class FakeQuery:
     def limit(self, count: int) -> "FakeQuery":
         return self
 
+    def range(self, from_: int, to: int) -> "FakeQuery":
+        return self
+
     def in_(self, column: str, values: list[str]) -> "FakeQuery":
         return self
 
@@ -158,13 +161,9 @@ async def test_repository_returns_ordered_unique_integer_ids_for_a_product() -> 
         )
     )
 
-    result = await repository.get_product_ingredient_ids("product-001")
+    result = await repository.get_product_ingredients("product-001")
 
     assert result is not None
-    assert result.model_dump() == {
-        "product_id": "product-001",
-        "product_name": "테스트 세럼",
-        "ingredient_ids": [2700, 2247],
-        "mapped_ingredient_count": 2,
-        "unmapped_ingredient_count": 1,
-    }
+    assert result.product_id == "product-001"
+    assert result.product_name == "테스트 세럼"
+    assert result.ingredient_ids == [2700, 2247, 2700, None]
