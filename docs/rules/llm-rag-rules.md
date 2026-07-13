@@ -3,7 +3,7 @@
 - **작성일**: 2026-07-09
 - **작성자**: 김민경
 
-- **대상**: Gemini를 호출하는 모든 모듈 (ingredient_detail·product_compare·recommendations)
+- **대상**: Gemini를 호출하는 모든 모듈 (ingredient_detail·recommendations)
 - **적용**: 서비스 신뢰성의 핵심 규칙이므로 예외 없이 적용한다
 
 ## 근거 기반 생성 (필수)

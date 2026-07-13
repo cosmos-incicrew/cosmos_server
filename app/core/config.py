@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     langfuse_host: str = "https://cloud.langfuse.com"
     gemini_model_flash: str = "gemini-2.5-flash"
     gemini_model_pro: str = "gemini-2.5-pro"
+    product_compare_max_count: int = 4
     log_level: str = "INFO"
 
 
