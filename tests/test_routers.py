@@ -3,7 +3,6 @@ from fastapi.testclient import TestClient
 
 STUB_ENDPOINTS = [
     ("GET", "/api/v1/ingredients/1/detail"),  # ingredient_detail (호영)
-    ("POST", "/api/v1/products/compare"),  # product_compare (영기)
     ("POST", "/api/v1/bsti/submit"),  # bsti (금별)
     ("POST", "/api/v1/recommendations"),  # recommendations (민경)
 ]

@@ -1,6 +1,6 @@
 # cosmos_server
 
-cosmos 백엔드 API 서버 — 화장품 전성분 해설 · 2개 제품 교차 조회 · BSTI 기반 성분 추천.
+cosmos 백엔드 API 서버 — 화장품 전성분 해설 · 다중 제품 교차 조회 · BSTI 기반 성분 추천.
 
 저장소를 처음 클론했다면 이 문서 하나로 셋업부터 자기 모듈 첫 구현까지 간다.
 지켜야 할 규칙은 [docs/rules/conventions.md](docs/rules/conventions.md)에 있다.
@@ -111,7 +111,7 @@ async def create_recommendations(
 ) -> RecommendResponse: ...
 ```
 
-**Gemini를 호출하는 모듈**(`ingredient_detail`·`product_compare`·`recommendations`)은
+**Gemini를 호출하는 모듈**(`ingredient_detail`·`recommendations`)은
 [llm-rag-rules.md](docs/rules/llm-rag-rules.md)를 예외 없이 따른다.
 
 ## 검증 (머지 게이트)
@@ -142,6 +142,6 @@ uv run lint-imports      # 모듈 독립성 검사
 |---|---|---|
 | `ingredient_search` | 제품명·성분명 검색 | 박영기 |
 | `ingredient_detail` | 개별 성분 해설·주의사항 | 이호영 |
-| `product_compare` | 멀티 제품 교차 조회 | 박영기 |
+| `product_compare` | 2개 이상 제품의 구조화 성분 비교 | 박영기 |
 | `bsti` | BSTI 16타입 검사 | 박금별 |
 | `recommendations` | 성분 추천 Agent | 김민경 |
