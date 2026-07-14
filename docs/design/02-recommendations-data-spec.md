@@ -9,7 +9,30 @@
 대한 서지우 요청 명세(§4)**를 포함한다. AI Hub "스킨케어 성분-효능 추천
 데이터"(dataSetSn=71886)의 정규화·적재는 김민경 담당 (데이터 소유자).
 
+## 0. 한눈에 보기
+
+- **두 종류의 데이터를 검색해 쓴다**: 상담 사례 8,000건(`rec_cases` — "나와 비슷한
+  사람은 어떤 답을 받았나")과 성분 지식 2,465종(`rec_efficacy` — "이 고민에 효과 있는
+  성분은 뭔가"). 둘 다 AI Hub 공공데이터(dataSetSn=71886)에서 온다.
+- **임베딩이란**: 문장을 컴퓨터가 "의미"로 비교하도록 숫자 좌표(벡터)로 바꾼 것. 이
+  좌표가 있어야 "모공 넓어짐"과 "모공이 커 보임"을 비슷한 뜻으로 검색할 수 있다.
+- **역할 분담**: 김민경이 데이터를 다듬어 저장(임베딩 칸은 비움)하는 데까지, 그 뒤
+  임베딩 생성·검색 인덱스·검색 함수(RPC)는 공유 벡터 인프라 소유자인 서지우가 맡는다
+  (§3·§4).
+- **보유 제품 성분도 입력이다 (2026-07-10 결정)**: 추천이 사용자의 화장대
+  (`user_shelf`)에 등록된 제품·성분을 읽어 "지금 루틴에 없는 성분"을 우선한다 —
+  전용 테이블을 새로 만들지 않고 기존 `user_shelf`·`product_ingredients` 조인으로
+  해결한다 (§6 의존 계약).
+- **왜 기존 성분 테이블과 따로 두나**: 식약처 `ingredients`는 "공식 원료 사전",
+  `rec_efficacy`는 "추천용 효능 지식"으로 성격이 다르다. 합치지 않고 `ingredient_id`로
+  연결한다 (§3).
+
 ## 1. 데이터 소스 현황 (전수 점검 완료, 2026-07-10)
+
+> AI Hub 소개 페이지의 "10,000건"은 전체 구축량이다 (80/10/10 분할 = Training 8,000 /
+> Validation 1,000 / Test 1,000). **개방 다운로드에는 Test 1,000건이 포함되지 않아**
+> 실제 수령분은 9,000건이며, 로컬 zip 전수 집계로 확인했다 (라벨링·원천 모두 동일).
+> Test 부재로 인해 아래 Validation 1,000건 보존 방침이 우리가 가진 유일한 평가셋이 된다.
 
 | 구성 | 내용 | 처리 방침 |
 |---|---|---|
@@ -27,6 +50,11 @@
 | 미백 | 2,564 | 홍조 | 136 |
 | 주름 | 1,701 | 과각질/악건성 | 61 |
 | 피부처짐/탄력 | 47 | 민감성 | 6 |
+
+**이용 범위 확인 (출시 조건) [검증 필요]**: AI Hub는 데이터셋마다 이용허락범위가
+다르다. 학습·연구 목적 신청·승인과 별개로, **상업 서비스에서 파생물(추천 근거·성분
+목록·케이스 답변)을 최종 사용자에게 서빙**해도 되는지 dataSetSn=71886의 이용조건을
+배포 전 확인해 근거를 남긴다 (`restrictions` 적재와 함께 배포 전 체크리스트).
 
 ## 2. 테이블 구조
 
@@ -82,15 +110,20 @@ erDiagram
 | `rec_cases` | PK `case_id` = upsert conflict target / `target_concern`·`question`·`answer` NOT NULL + 8종 CHECK | AI Hub 원본 id가 자연 키 — 재실행 시 자동 멱등 |
 | `rec_efficacy` | **`UNIQUE(inci, name_kr)` = upsert conflict target** / `CHECK (inci IS NOT NULL OR name_kr IS NOT NULL)` / `efficacy` NOT NULL | PK가 자동생성 `id`라 conflict target 없이는 **재실행마다 2,465행이 중복 적재**되어 검색이 오염된다 |
 
+> **멱등이란**: 적재 스크립트를 실수로 두 번 돌려도 결과가 같도록 "중복 판단 기준"을
+> 둔 것. `rec_cases`는 원본 id(`case_id`)가 자연히 그 역할을 하지만, `rec_efficacy`는
+> 위 `UNIQUE` 제약이 없으면 재실행 때마다 2,465행이 통째로 또 쌓인다.
+
 ### 임베딩 대상 선정 원칙
 
-**사용자 질의와 의미적으로 비교될 텍스트만 임베딩**하고, 나머지는 메타데이터
-필터 또는 생성 페이로드로 쓴다.
+한 행의 모든 칸을 임베딩하지 않는다. **사용자 질의와 의미로 비교될 텍스트만 임베딩**
+하고(그래야 검색이 정확하다), 나머지는 검색을 걸러내는 메타데이터 필터나 LLM에 보여줄
+생성 페이로드로 쓴다.
 
 | 테이블 | 임베딩 대상 | 이유 |
 |---|---|---|
-| `rec_cases` | `question`만 | 검색 질의가 "사용자 상황 서술"이므로 비교 대상도 상황 서술이어야 한다. answer를 섞으면 상황↔상황 매칭이 상황↔해법 매칭으로 오염된다 |
-| `rec_efficacy` | `name_kr + efficacy + product_traits` 결합 | "고민 → 효능" 질의와 맞아야 하므로 효능이 핵심. 화학적물성·분자식·분자량·용해도는 의미 검색에 노이즈라 제외 |
+| `rec_cases` | `question`만 | 검색 질의가 "사용자 상황 서술"이므로 비교 대상도 상황 서술이어야 한다. answer(해결책)를 섞으면 상황↔상황 매칭이 상황↔해법 매칭으로 오염된다 |
+| `rec_efficacy` | `name_kr + efficacy + product_traits` 결합 | "고민 → 효능" 질의와 맞아야 하므로 효능이 핵심. 화학적물성·분자식·분자량·용해도는 의미 검색에 노이즈라 제외(저장은 하되 임베딩엔 안 넣음) |
 
 ### 기존 `ingredients` 테이블과의 관계
 
@@ -126,7 +159,11 @@ flowchart LR
   검증 결과 답변 450건 중 67%가 따옴표 표기 0개.
 - **ingredient_id 매핑**: `name_kr` 정확 일치 → `synonyms` 순서, 미매칭 NULL 허용.
 - **upsert**는 위 "제약·멱등 키" 표의 conflict target 기준 — 재실행이 안전하다.
-- 실행 후 리포트: 적재 건수, 고민별 분포, ingredient_id 매칭률, 성분 추출 0건 케이스 수.
+- 실행 후 리포트: 적재 건수, 고민별 분포, **연령·성별 분포**(demographic skew
+  사각지대 — 소수 집단은 검색 임계값을 넘겨도 인구통계 불일치로 나쁜 매칭이 될 수
+  있어, 편중을 미리 파악한다), ingredient_id 매칭률, 성분 추출 0건 케이스 수,
+  **PMID 근거 스팟체크**(`evidence_sources` 표본 수십 건을 실제 논문과 대조 —
+  틀린 인용을 임상 근거로 사용자에게 노출하는 것을 방지).
 
 ## 4. 서지우 요청 명세 — 임베딩·인덱싱·검색 RPC
 
@@ -145,6 +182,7 @@ flowchart LR
 | 6 | 임베딩 생성·인덱스 | embedding 컬럼 채우기(대상 텍스트는 §2 표 기준 — 김민경이 결합 텍스트 산출 규칙 전달) + HNSW(`vector_cosine_ops`) 2개 + **`rec_cases(skin_concerns)` GIN** (배열 겹침 필터용 — btree는 배열 필터에 못 쓴다) | **7/14** |
 
 score 0~1 정규화·빈 결과는 빈 리스트 계약은 기존 김민경·이호영 합의 그대로다.
+검색 함수는 추천·해설이 공유하므로 요청 명세는 [03-shared-retrieval-util.md](03-shared-retrieval-util.md)와 함께 본다.
 
 ## 5. 참조 상수 데이터 (코드로 관리, DB 아님)
 
@@ -154,6 +192,7 @@ score 0~1 정규화·빈 결과는 빈 리스트 계약은 기존 김민경·이
 | BSTI 축 사전 | `app/modules/recommendations/bsti_axes.py` | 8축 코드(O/D·S/R·P/N·W/T) → 특성 서술. 질의 구성용. 타입별 권장·기피 성분은 보유하지 않음 — `bsti_results`(박금별) 소비 |
 | 기능성 고시원료 | `app/modules/recommendations/notified_ingredients.py` | 식약처 「기능성화장품 기준 및 시험방법」 미백·주름개선·자외선차단 고시 성분 + 고시 함량. 응답 배지용 |
 | 알레르기 유발성분 25종 | `app/modules/recommendations/allergen_fragrances.py` | 식약처 「화장품 사용 시의 주의사항 및 알레르기 유발성분 표시에 관한 규정」 착향제 25종. 경고용 |
+| 임신·수유 금기 성분 | `app/modules/recommendations/pregnancy_contraindicated.py` | 임신·수유 중 사용 주의로 널리 안내되는 성분(레티노이드·고농도 살리실산·하이드로퀴논 등). 안전 필터의 금기 검사·경고용 (01 §2-⑤). **[검증 필요]** — 목록·근거는 식약처·공신력 있는 출처와 대조 후 확정 |
 
 고시 기반 고정 목록은 수십 종 이하라 DB 없이 상수로 관리하고, 개정 시 git으로 추적한다.
 
@@ -161,8 +200,10 @@ score 0~1 정규화·빈 결과는 빈 리스트 계약은 기존 김민경·이
 
 | 테이블 | 소유 | 이 설계가 요구하는 것 |
 |---|---|---|
-| `user_profiles` | 김민경(회원 모듈) | `user_id(auth uid)`·`age`·`gender`·`skin_concerns text[]` — 온보딩 필수 수집 (박금별 프론트 명세와 합의됨) |
+| `user_profiles` | 김민경(회원 모듈) | `user_id(auth uid)`·`age`·`gender`·`skin_concerns text[]` — 온보딩 필수 수집 (박금별 프론트 명세와 합의됨). **임신·수유 플래그(`is_pregnant`·`is_nursing`)는 안전 필터 금기 검사용으로 정식 공개 전 수집 필요** — 미수집 시 `unknown` 경로(01 §2-①·⑤·§7) |
 | `bsti_results` | 박금별 | 최근 결과의 `type_code`·`recommended_ingredients`·`caution_ingredients` 조회 (가점·기피 경고용) |
+| `user_shelf` | 김민경(화장대, 박금별 명세 기반) | `item_type(product/ingredient)`·`ref_id` — 보유 성분 집합 도출(01 §2-①, 2026-07-10 v1 포함 결정). 미구현·빈 상태여도 파이프라인 동작(보정만 생략) |
+| `products`·`product_ingredients` | 서지우 | 보유 제품 → 성분 전개 조인. 테이블 구조는 [supabase/schema.md](../../supabase/schema.md) 참조. DB에 없는 제품은 성분 전개 불가, 성분 직접 등록이 보완 수단 |
 | `restrictions` | 서지우 | `regulate_type(금지/한도)`·`limit_cond` — 적재 전에도 파이프라인 동작 (0행=통과) |
 | `ingredients`·`synonyms` | 서지우 | ingredient_id 매핑·조인 대상 |
 
