@@ -19,7 +19,7 @@ class FakeQuery:
     def select(self, *columns: str) -> "FakeQuery":
         return self
 
-    def in_(self, column: str, values: list[int] | list[str]) -> "FakeQuery":
+    def in_(self, column: str, values: list[int]) -> "FakeQuery":
         return self
 
     def order(self, column: str) -> "FakeQuery":
@@ -45,24 +45,24 @@ async def test_repository_preserves_requested_product_order_and_raw_ingredient_r
             FakeSupabase(
                 {
                     "products": [
-                        {"product_id": "product-b", "product_name": "제품 B"},
-                        {"product_id": "product-a", "product_name": "제품 A"},
+                        {"id": 102, "product_name": "제품 B"},
+                        {"id": 101, "product_name": "제품 A"},
                     ],
                     "product_ingredients": [
-                        {"product_id": "product-a", "ingredient_id": "1"},
-                        {"product_id": "product-a", "ingredient_id": None},
-                        {"product_id": "product-b", "ingredient_id": "2"},
+                        {"product_id": 101, "ingredient_id": "1"},
+                        {"product_id": 101, "ingredient_id": None},
+                        {"product_id": 102, "ingredient_id": "2"},
                     ],
                 }
             ),
         )
     )
 
-    products = await repository.get_products(["product-a", "product-b"])
+    products = await repository.get_products([101, 102])
 
-    assert [(product.product_id, product.ingredient_ids) for product in products] == [
-        ("product-a", [1, None]),
-        ("product-b", [2]),
+    assert [(product.id, product.ingredient_ids) for product in products] == [
+        (101, [1, None]),
+        (102, [2]),
     ]
 
 
@@ -74,8 +74,8 @@ async def test_repository_maps_ingredient_names_and_restriction_rows() -> None:
             FakeSupabase(
                 {
                     "ingredients": [
-                        {"ingredient_id": "1", "name_kr": "정제수"},
-                        {"ingredient_id": "2", "name_kr": "글리세린"},
+                        {"ingredient_id": "1", "name_kor": "정제수"},
+                        {"ingredient_id": "2", "name_kor": "글리세린"},
                     ],
                     "restrictions": [
                         {

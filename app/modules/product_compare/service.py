@@ -31,7 +31,7 @@ class ProductNotAnalyzableError(Exception):
 
 
 async def compare_products(
-    repository: ProductCompareRepository, product_ids: list[str], max_product_count: int
+    repository: ProductCompareRepository, product_ids: list[int], max_product_count: int
 ) -> ProductCompareResponse:
     if len(set(product_ids)) != len(product_ids):
         raise DuplicateProductIdsError
@@ -42,14 +42,14 @@ async def compare_products(
     if len(products) != len(product_ids):
         raise ProductNotFoundError
 
-    ingredient_ids_by_product: dict[str, list[int]] = {}
+    ingredient_ids_by_product: dict[int, list[int]] = {}
     all_ingredient_ids: list[int] = []
     seen_ingredient_ids: set[int] = set()
     for product in products:
         unique_ingredient_ids = _ordered_unique(product.ingredient_ids)
         if not unique_ingredient_ids:
             raise ProductNotAnalyzableError
-        ingredient_ids_by_product[product.product_id] = unique_ingredient_ids
+        ingredient_ids_by_product[product.id] = unique_ingredient_ids
         for ingredient_id in unique_ingredient_ids:
             if ingredient_id not in seen_ingredient_ids:
                 seen_ingredient_ids.add(ingredient_id)
@@ -59,7 +59,7 @@ async def compare_products(
     restrictions_by_ingredient = _restrictions_by_ingredient(
         await repository.get_restrictions(all_ingredient_ids)
     )
-    product_ids_by_ingredient: dict[int, list[str]] = defaultdict(list)
+    product_ids_by_ingredient: dict[int, list[int]] = defaultdict(list)
     for product_id, ingredient_ids in ingredient_ids_by_product.items():
         for ingredient_id in ingredient_ids:
             product_ids_by_ingredient[ingredient_id].append(product_id)
@@ -67,7 +67,7 @@ async def compare_products(
     total_product_count = len(products)
     return ProductCompareResponse(
         products=[
-            ComparedProduct(product_id=product.product_id, product_name=product.product_name)
+            ComparedProduct(id=product.id, product_name=product.product_name)
             for product in products
         ],
         ingredient_presence=[

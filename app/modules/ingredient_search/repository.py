@@ -20,12 +20,12 @@ class IngredientSearchRepository(Protocol):
         self, query: str, limit: int
     ) -> list[IngredientSearchCandidate]: ...
 
-    async def get_product_ingredients(self, product_id: str) -> "ProductIngredientRows | None": ...
+    async def get_product_ingredients(self, product_id: int) -> "ProductIngredientRows | None": ...
 
 
 @dataclass(frozen=True)
 class ProductIngredientRows:
-    product_id: str
+    id: int
     product_name: str
     ingredient_ids: list[int | None]
 
@@ -40,16 +40,20 @@ class SupabaseIngredientSearchRepository:
         while len(results) < limit:
             product_response = await (
                 self._client.table("products")
-                .select("product_id,product_name,main_category,sub_category")
+                .select(
+                    "id,product_name,brand,main_category,sub_category,detailed_category,product_url"
+                )
                 .ilike("product_name", f"%{_escape_like(query)}%")
                 .order("product_name")
-                .order("product_id")
+                .order("id")
                 .range(offset, offset + limit - 1)
                 .execute()
             )
             product_rows = _rows(product_response.data)
             product_ids = [
-                row["product_id"] for row in product_rows if isinstance(row.get("product_id"), str)
+                product_id
+                for row in product_rows
+                if (product_id := _integer(row.get("id"))) is not None
             ]
             if not product_ids:
                 break
@@ -62,19 +66,22 @@ class SupabaseIngredientSearchRepository:
                 .execute()
             )
             analyzable_product_ids = {
-                row["product_id"]
+                product_id
                 for row in _rows(mapped_response.data)
-                if isinstance(row.get("product_id"), str)
+                if (product_id := _integer(row.get("product_id"))) is not None
             }
             results.extend(
                 ProductSearchCandidate(
-                    product_id=row["product_id"],
+                    id=product_id,
                     product_name=row["product_name"],
+                    brand=_optional_text(row.get("brand")),
                     main_category=_optional_text(row.get("main_category")),
                     sub_category=_optional_text(row.get("sub_category")),
+                    detailed_category=_optional_text(row.get("detailed_category")),
+                    product_url=_optional_text(row.get("product_url")),
                 )
                 for row in product_rows
-                if row.get("product_id") in analyzable_product_ids
+                if (product_id := _integer(row.get("id"))) in analyzable_product_ids
                 and isinstance(row.get("product_name"), str)
             )
             if len(product_rows) < limit:
@@ -109,20 +116,20 @@ class SupabaseIngredientSearchRepository:
             )
         return list(results_by_id.values())
 
-    async def get_product_ingredients(self, product_id: str) -> ProductIngredientRows | None:
+    async def get_product_ingredients(self, product_id: int) -> ProductIngredientRows | None:
         product_response = await (
             self._client.table("products")
-            .select("product_id,product_name")
-            .eq("product_id", product_id)
+            .select("id,product_name")
+            .eq("id", product_id)
             .maybe_single()
             .execute()
         )
         if product_response is None or not isinstance(product_response.data, dict):
             return None
         product = product_response.data
-        resolved_product_id = product.get("product_id")
+        resolved_product_id = _integer(product.get("id"))
         product_name = product.get("product_name")
-        if not isinstance(resolved_product_id, str) or not isinstance(product_name, str):
+        if resolved_product_id is None or not isinstance(product_name, str):
             return None
 
         ingredient_response = await (
@@ -134,7 +141,7 @@ class SupabaseIngredientSearchRepository:
             .execute()
         )
         return ProductIngredientRows(
-            product_id=resolved_product_id,
+            id=resolved_product_id,
             product_name=product_name,
             ingredient_ids=[
                 _integer(row.get("ingredient_id")) for row in _rows(ingredient_response.data)

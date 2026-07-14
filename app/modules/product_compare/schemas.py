@@ -8,11 +8,11 @@ MIN_COMPARE_PRODUCT_COUNT = 2
 
 
 class ProductCompareRequest(BaseModel):
-    product_ids: list[str] = Field(min_length=MIN_COMPARE_PRODUCT_COUNT)
+    product_ids: list[int] = Field(min_length=MIN_COMPARE_PRODUCT_COUNT)
 
 
 class ComparedProduct(BaseModel):
-    product_id: str
+    id: int
     product_name: str
 
 
@@ -27,7 +27,7 @@ class RestrictionRule(BaseModel):
 class IngredientPresence(BaseModel):
     ingredient_id: int
     name_kr: str
-    product_ids: list[str]
+    product_ids: list[int]
     presence_type: Literal["all", "partial", "single"]
     restrictions: list[RestrictionRule]
 
