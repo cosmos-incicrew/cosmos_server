@@ -21,8 +21,8 @@ import os
 import sys
 
 import psycopg2
-from psycopg2.extras import execute_values
 from dotenv import load_dotenv
+from psycopg2.extras import execute_values
 
 load_dotenv()
 
@@ -31,7 +31,7 @@ UNMATCHED_CSV = "unmatched_std_names.csv"
 
 
 def load_json(path: str) -> list[dict]:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     if isinstance(data, dict):
@@ -69,15 +69,18 @@ def build_name_to_id_map(conn) -> dict:
         mapping[key] = ingredient_id
 
     if dup_names:
-        print(f"[경고] ingredients.name_kr에 중복된 이름 {len(dup_names)}건 있음 (마지막 값으로 덮어씀): "
-              f"{list(dup_names)[:5]}{' ...' if len(dup_names) > 5 else ''}")
+        print(
+            f"[경고] ingredients.name_kr에 중복된 이름 {len(dup_names)}건 있음"
+            f"(마지막 값으로 덮어씀): "
+            f"{list(dup_names)[:5]}{' ...' if len(dup_names) > 5 else ''}"
+        )
 
     return mapping
 
 
 def transform(records: list[dict], name_to_id: dict):
-    rows = []          # (ingredient_id, name_kor, synonym, language)
-    unmatched = []      # STD_NAME_KOR 값들
+    rows = []  # (ingredient_id, name_kor, synonym, language)
+    unmatched = []  # STD_NAME_KOR 값들
 
     for rec in records:
         std_name_kor = clean(rec.get("STD_NAME_KOR"))

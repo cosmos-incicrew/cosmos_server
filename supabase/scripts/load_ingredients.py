@@ -17,8 +17,8 @@ import os
 import sys
 
 import psycopg2
-from psycopg2.extras import execute_values
 from dotenv import load_dotenv
+from psycopg2.extras import execute_values
 
 load_dotenv()
 
@@ -26,16 +26,14 @@ BATCH_SIZE = 1000
 
 
 def load_json(path: str) -> list[dict]:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     if isinstance(data, dict):
         for key in ("data", "items", "records"):
             if key in data and isinstance(data[key], list):
                 return data[key]
-        raise ValueError(
-            "JSON 최상위가 dict인데 list를 못 찾았어요. 최상위 구조를 확인해주세요."
-        )
+        raise ValueError("JSON 최상위가 dict인데 list를 못 찾았어요. 최상위 구조를 확인해주세요.")
 
     if not isinstance(data, list):
         raise ValueError(f"JSON 최상위가 list가 아니에요: {type(data)}")
@@ -73,9 +71,9 @@ def transform(records: list[dict]) -> list[tuple]:
         origin_definition = normalize(rec.get("ORIGIN_DEFINITION"))
         purpose_formulation = normalize(rec.get("PURPOSE_FORMULATION"))
 
-        rows.append((
-            ingredient_id, name_kor, name_eng, cas_no, origin_definition, purpose_formulation
-        ))
+        rows.append(
+            (ingredient_id, name_kor, name_eng, cas_no, origin_definition, purpose_formulation)
+        )
 
     if skipped:
         print(f"[경고] NAME_KOR 또는 INGR_CODE 없는 행 {skipped}건은 건너뛰었어요.")
