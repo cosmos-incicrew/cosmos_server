@@ -39,8 +39,8 @@ import re
 import sys
 
 import psycopg2
-from psycopg2.extras import execute_values
 from dotenv import load_dotenv
+from psycopg2.extras import execute_values
 
 load_dotenv()
 
@@ -56,6 +56,7 @@ def normalize(value):
 
 
 # ── 성분 텍스트 정제/매칭 관련 ──────────────────────────────
+
 
 def strip_dosage_parens(text: str) -> str:
     text = re.sub(r"\([^)]*\d[^)]*\)", "", text)
@@ -104,11 +105,7 @@ def merge_isolated_short_tokens(tokens: list[str], exception_chars: set) -> list
     while i < len(tokens):
         current = tokens[i]
         last_piece = tokens[i]
-        while (
-            len(last_piece) == 1
-            and last_piece not in exception_chars
-            and i + 1 < len(tokens)
-        ):
+        while len(last_piece) == 1 and last_piece not in exception_chars and i + 1 < len(tokens):
             i += 1
             last_piece = tokens[i]
             current = current + "," + last_piece
@@ -123,9 +120,7 @@ def build_multi_comma_names(conn) -> set:
         cur.execute("select name_kr from ingredients where name_kr like '%,%';")
         names.update(row[0].strip() for row in cur.fetchall() if row[0])
     with conn.cursor() as cur:
-        cur.execute(
-            "select synonym from synonyms where language = 'kor' and synonym like '%,%';"
-        )
+        cur.execute("select synonym from synonyms where language = 'kor' and synonym like '%,%';")
         names.update(row[0].strip() for row in cur.fetchall() if row[0])
     return names
 
@@ -156,7 +151,8 @@ def build_ingredient_name_map(conn) -> dict:
     mapping = {}
     with conn.cursor() as cur:
         cur.execute(
-            "select synonym, ingredient_id from synonyms where language = 'kor' and synonym is not null;"
+            "select synonym, ingredient_id from synonyms "
+            "where language = 'kor' and synonym is not null;"
         )
         for synonym, ingredient_id in cur.fetchall():
             key = synonym.strip()
@@ -170,8 +166,12 @@ def build_ingredient_name_map(conn) -> dict:
 
 
 def process_ingredient_text(
-    product_id: int, ingredient_text: str, name_to_id: dict, multi_comma_names: set,
-    ingredient_rows: list, unmatched: list
+    product_id: int,
+    ingredient_text: str,
+    name_to_id: dict,
+    multi_comma_names: set,
+    ingredient_rows: list,
+    unmatched: list,
 ):
     parts = split_ingredients(ingredient_text, multi_comma_names)
 
@@ -210,6 +210,7 @@ def process_ingredient_text(
 
 # ── CSV 로드 ────────────────────────────────────────────────
 
+
 def find_csv_files(pattern: str) -> list[str]:
     files = []
     for part in pattern.split(","):
@@ -220,7 +221,7 @@ def find_csv_files(pattern: str) -> list[str]:
 
 
 def load_products_from_csv(path: str) -> list[dict]:
-    with open(path, "r", encoding="utf-8-sig") as f:
+    with open(path, encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
 
     cleaned = [r for r in rows if normalize(r.get("대분류")) != "대분류"]
@@ -233,6 +234,7 @@ def load_products_from_csv(path: str) -> list[dict]:
 
 # ── products insert (id는 identity로 자동 채번) ─────────────
 
+
 def insert_products_and_get_ids(conn, records: list[dict]) -> dict:
     """products를 insert하고, DB가 생성한 id를 product_num 기준으로 매핑해서 반환"""
     rows = []
@@ -244,17 +246,19 @@ def insert_products_and_get_ids(conn, records: list[dict]) -> dict:
             continue
         seen.add(product_num)
 
-        rows.append((
-            normalize(rec.get("제품명")),
-            normalize(rec.get("정제된 제품명")),
-            product_num,
-            normalize(rec.get("대분류")),
-            normalize(rec.get("중분류")),
-            normalize(rec.get("소분류")),
-            normalize(rec.get("링크")),
-            normalize(rec.get("브랜드")),
-            normalize(rec.get("데이터출처")),
-        ))
+        rows.append(
+            (
+                normalize(rec.get("제품명")),
+                normalize(rec.get("정제된 제품명")),
+                product_num,
+                normalize(rec.get("대분류")),
+                normalize(rec.get("중분류")),
+                normalize(rec.get("소분류")),
+                normalize(rec.get("링크")),
+                normalize(rec.get("브랜드")),
+                normalize(rec.get("데이터출처")),
+            )
+        )
 
     insert_sql = """
         insert into products
@@ -336,8 +340,9 @@ def update_flagship_ids(conn, records: list[dict], product_num_to_id: dict):
             print(f"  [flagship_id] {i + len(batch)}/{len(updates)}건 업데이트 완료")
 
 
-def build_ingredient_rows(records: list[dict], product_num_to_id: dict,
-                           name_to_id: dict, multi_comma_names: set):
+def build_ingredient_rows(
+    records: list[dict], product_num_to_id: dict, name_to_id: dict, multi_comma_names: set
+):
     ingredient_rows = []
     unmatched = []
     seen = set()
@@ -356,14 +361,14 @@ def build_ingredient_rows(records: list[dict], product_num_to_id: dict,
         raw_ingredients = re.sub(r"^\s*(오리지널|번역)\s*", "", raw_ingredients)
 
         process_ingredient_text(
-            product_id, raw_ingredients, name_to_id, multi_comma_names,
-            ingredient_rows, unmatched
+            product_id, raw_ingredients, name_to_id, multi_comma_names, ingredient_rows, unmatched
         )
 
     return ingredient_rows, unmatched
 
 
 # ── DB insert (product_ingredients) ─────────────────────────
+
 
 def insert_product_ingredients(conn, rows: list[tuple]):
     insert_sql = """
@@ -391,8 +396,7 @@ def write_unmatched(unmatched: list[tuple]):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--files", required=True,
-        help='정제된 CSV 파일 glob 패턴 또는 쉼표로 구분한 여러 경로'
+        "--files", required=True, help="정제된 CSV 파일 glob 패턴 또는 쉼표로 구분한 여러 경로"
     )
     args = parser.parse_args()
 
