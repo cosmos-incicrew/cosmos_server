@@ -1,0 +1,52 @@
+{
+  "products": [
+    {"id": 101, "product_name": "제품 A"},
+    {"id": 102, "product_name": "제품 B"},
+    {"id": 103, "product_name": "제품 C"},
+    {"id": 104, "product_name": "제품 D"},
+    {"id": 105, "product_name": "성분 매핑 대기 제품"}
+  ],
+  "product_ingredients": [
+    {"id": 8, "product_id": 102, "ingredient_id": 5, "order_no": 4},
+    {"id": 4, "product_id": 101, "ingredient_id": 4, "order_no": 3},
+    {"id": 11, "product_id": 103, "ingredient_id": 6, "order_no": 3},
+    {"id": 2, "product_id": 101, "ingredient_id": 2, "order_no": 2},
+    {"id": 13, "product_id": 104, "ingredient_id": 7, "order_no": 2},
+    {"id": 7, "product_id": 102, "ingredient_id": 3, "order_no": 3},
+    {"id": 14, "product_id": 105, "ingredient_id": null, "order_no": 1},
+    {"id": 1, "product_id": 101, "ingredient_id": 1, "order_no": 1},
+    {"id": 10, "product_id": 103, "ingredient_id": 2, "order_no": 2},
+    {"id": 6, "product_id": 102, "ingredient_id": 2, "order_no": 2},
+    {"id": 3, "product_id": 101, "ingredient_id": 3, "order_no": 3},
+    {"id": 12, "product_id": 104, "ingredient_id": 1, "order_no": 1},
+    {"id": 5, "product_id": 102, "ingredient_id": 1, "order_no": 1},
+    {"id": 9, "product_id": 103, "ingredient_id": 1, "order_no": 1}
+  ],
+  "ingredients": [
+    {"ingredient_id": 1, "name_kor": "정제수"},
+    {"ingredient_id": 2, "name_kor": "글리세린"},
+    {"ingredient_id": 3, "name_kor": "판테놀"},
+    {"ingredient_id": 4, "name_kor": "나이아신아마이드"},
+    {"ingredient_id": 5, "name_kor": "세라마이드"},
+    {"ingredient_id": 6, "name_kor": "토코페롤"},
+    {"ingredient_id": 7, "name_kor": "알란토인"}
+  ],
+  "restrictions": [
+    {
+      "restriction_id": 10,
+      "ingredient_id": 2,
+      "regulate_type": "한도",
+      "provis_atrcl": "사용 조건",
+      "limit_cond": "배합 한도",
+      "is_registered_korea": true
+    },
+    {
+      "restriction_id": 11,
+      "ingredient_id": 2,
+      "regulate_type": "금지",
+      "provis_atrcl": "예외 조항",
+      "limit_cond": null,
+      "is_registered_korea": true
+    }
+  ]
+}
