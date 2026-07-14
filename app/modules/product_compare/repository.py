@@ -11,7 +11,7 @@ from app.core.supabase import get_supabase
 
 @dataclass(frozen=True)
 class ProductIngredientRows:
-    product_id: str
+    id: int
     product_name: str
     ingredient_ids: list[int | None]
 
@@ -27,7 +27,7 @@ class RestrictionRow:
 
 
 class ProductCompareRepository(Protocol):
-    async def get_products(self, product_ids: list[str]) -> list[ProductIngredientRows]: ...
+    async def get_products(self, product_ids: list[int]) -> list[ProductIngredientRows]: ...
 
     async def get_ingredient_names(self, ingredient_ids: list[int]) -> dict[int, str]: ...
 
@@ -38,17 +38,18 @@ class SupabaseProductCompareRepository:
     def __init__(self, client: AsyncClient) -> None:
         self._client = client
 
-    async def get_products(self, product_ids: list[str]) -> list[ProductIngredientRows]:
+    async def get_products(self, product_ids: list[int]) -> list[ProductIngredientRows]:
         product_response = await (
             self._client.table("products")
-            .select("product_id,product_name")
-            .in_("product_id", product_ids)
+            .select("id,product_name")
+            .in_("id", product_ids)
             .execute()
         )
         products_by_id = {
-            row["product_id"]: row
+            product_id: row
             for row in _rows(product_response.data)
-            if isinstance(row.get("product_id"), str) and isinstance(row.get("product_name"), str)
+            if (product_id := _integer(row.get("id"))) is not None
+            and isinstance(row.get("product_name"), str)
         }
         if not products_by_id:
             return []
@@ -62,17 +63,17 @@ class SupabaseProductCompareRepository:
             .order("id")
             .execute()
         )
-        ingredient_ids_by_product: dict[str, list[int | None]] = {
+        ingredient_ids_by_product: dict[int, list[int | None]] = {
             product_id: [] for product_id in products_by_id
         }
         for row in _rows(ingredient_response.data):
-            product_id = row.get("product_id")
-            if isinstance(product_id, str) and product_id in ingredient_ids_by_product:
+            product_id = _integer(row.get("product_id"))
+            if product_id is not None and product_id in ingredient_ids_by_product:
                 ingredient_ids_by_product[product_id].append(_integer(row.get("ingredient_id")))
 
         return [
             ProductIngredientRows(
-                product_id=product_id,
+                id=product_id,
                 product_name=products_by_id[product_id]["product_name"],
                 ingredient_ids=ingredient_ids_by_product[product_id],
             )

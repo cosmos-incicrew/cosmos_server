@@ -22,10 +22,13 @@ class FakeIngredientSearchRepository(IngredientSearchRepository):
         assert limit == 20
         return [
             ProductSearchCandidate(
-                product_id="product-001",
+                id=1,
                 product_name="테스트 세럼",
+                brand="테스트 브랜드",
                 main_category="스킨케어",
                 sub_category="에센스/세럼",
+                detailed_category="세럼",
+                product_url="https://example.com/products/1",
             )
         ]
 
@@ -40,10 +43,10 @@ class FakeIngredientSearchRepository(IngredientSearchRepository):
             )
         ]
 
-    async def get_product_ingredients(self, product_id: str) -> ProductIngredientRows | None:
-        assert product_id == "product-001"
+    async def get_product_ingredients(self, product_id: int) -> ProductIngredientRows | None:
+        assert product_id == 1
         return ProductIngredientRows(
-            product_id="product-001",
+            id=1,
             product_name="테스트 세럼",
             ingredient_ids=[2700, 2247, 3851, None],
         )
@@ -68,10 +71,13 @@ def test_search_products_returns_analyzable_candidates(client: TestClient) -> No
         "query": "테스트 세럼",
         "results": [
             {
-                "product_id": "product-001",
+                "id": 1,
                 "product_name": "테스트 세럼",
+                "brand": "테스트 브랜드",
                 "main_category": "스킨케어",
                 "sub_category": "에센스/세럼",
+                "detailed_category": "세럼",
+                "product_url": "https://example.com/products/1",
             }
         ],
     }
@@ -94,11 +100,11 @@ def test_search_ingredients_returns_alias_candidates(client: TestClient) -> None
 
 
 def test_get_product_ingredient_ids_returns_resolved_integer_ids(client: TestClient) -> None:
-    response = client.get("/api/v1/products/product-001/ingredients")
+    response = client.get("/api/v1/products/1/ingredients")
 
     assert response.status_code == 200
     assert response.json() == {
-        "product_id": "product-001",
+        "id": 1,
         "product_name": "테스트 세럼",
         "ingredient_ids": [2700, 2247, 3851],
         "mapped_ingredient_count": 3,
@@ -108,7 +114,7 @@ def test_get_product_ingredient_ids_returns_resolved_integer_ids(client: TestCli
 
 def test_product_selection_flow_returns_ids_for_the_selected_candidate(client: TestClient) -> None:
     search_response = client.get("/api/v1/products/search", params={"q": "테스트 세럼"})
-    product_id = search_response.json()["results"][0]["product_id"]
+    product_id = search_response.json()["results"][0]["id"]
     ingredient_response = client.get(f"/api/v1/products/{product_id}/ingredients")
 
     assert search_response.status_code == 200
@@ -120,12 +126,12 @@ def test_get_product_ingredient_ids_returns_not_found_for_unknown_product(
     client: TestClient,
 ) -> None:
     class MissingProductRepository(FakeIngredientSearchRepository):
-        async def get_product_ingredients(self, product_id: str) -> ProductIngredientRows | None:
+        async def get_product_ingredients(self, product_id: int) -> ProductIngredientRows | None:
             return None
 
     app.dependency_overrides[get_ingredient_search_repository] = lambda: MissingProductRepository()
 
-    response = client.get("/api/v1/products/missing/ingredients")
+    response = client.get("/api/v1/products/999/ingredients")
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "PRODUCT_NOT_FOUND"
@@ -135,9 +141,9 @@ def test_get_product_ingredient_ids_returns_unprocessable_for_unmapped_product(
     client: TestClient,
 ) -> None:
     class UnanalyzableProductRepository(FakeIngredientSearchRepository):
-        async def get_product_ingredients(self, product_id: str) -> ProductIngredientRows | None:
+        async def get_product_ingredients(self, product_id: int) -> ProductIngredientRows | None:
             return ProductIngredientRows(
-                product_id=product_id,
+                id=product_id,
                 product_name="미매핑 제품",
                 ingredient_ids=[None],
             )
@@ -146,7 +152,7 @@ def test_get_product_ingredient_ids_returns_unprocessable_for_unmapped_product(
         UnanalyzableProductRepository()
     )
 
-    response = client.get("/api/v1/products/product-unmapped/ingredients")
+    response = client.get("/api/v1/products/2/ingredients")
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "PRODUCT_NOT_ANALYZABLE"

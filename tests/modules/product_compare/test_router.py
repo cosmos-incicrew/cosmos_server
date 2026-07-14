@@ -15,16 +15,16 @@ from app.modules.product_compare.schemas import MIN_COMPARE_PRODUCT_COUNT
 
 
 class FakeProductCompareRepository(ProductCompareRepository):
-    async def get_products(self, product_ids: list[str]) -> list[ProductIngredientRows]:
-        assert product_ids == ["product-a", "product-b"]
+    async def get_products(self, product_ids: list[int]) -> list[ProductIngredientRows]:
+        assert product_ids == [101, 102]
         return [
             ProductIngredientRows(
-                product_id="product-a",
+                id=101,
                 product_name="제품 A",
                 ingredient_ids=[1, 2, 3],
             ),
             ProductIngredientRows(
-                product_id="product-b",
+                id=102,
                 product_name="제품 B",
                 ingredient_ids=[1, 2, 4],
             ),
@@ -70,27 +70,27 @@ def client() -> AsyncIterator[TestClient]:
 def test_compare_products_returns_presence_and_resolved_ids(client: TestClient) -> None:
     response = client.post(
         "/api/v1/products/compare",
-        json={"product_ids": ["product-a", "product-b"]},
+        json={"product_ids": [101, 102]},
     )
 
     assert response.status_code == 200
     assert response.json() == {
         "products": [
-            {"product_id": "product-a", "product_name": "제품 A"},
-            {"product_id": "product-b", "product_name": "제품 B"},
+            {"id": 101, "product_name": "제품 A"},
+            {"id": 102, "product_name": "제품 B"},
         ],
         "ingredient_presence": [
             {
                 "ingredient_id": 1,
                 "name_kr": "정제수",
-                "product_ids": ["product-a", "product-b"],
+                "product_ids": [101, 102],
                 "presence_type": "all",
                 "restrictions": [],
             },
             {
                 "ingredient_id": 2,
                 "name_kr": "글리세린",
-                "product_ids": ["product-a", "product-b"],
+                "product_ids": [101, 102],
                 "presence_type": "all",
                 "restrictions": [
                     {
@@ -112,14 +112,14 @@ def test_compare_products_returns_presence_and_resolved_ids(client: TestClient) 
             {
                 "ingredient_id": 3,
                 "name_kr": "판테놀",
-                "product_ids": ["product-a"],
+                "product_ids": [101],
                 "presence_type": "single",
                 "restrictions": [],
             },
             {
                 "ingredient_id": 4,
                 "name_kr": "나이아신아마이드",
-                "product_ids": ["product-b"],
+                "product_ids": [102],
                 "presence_type": "single",
                 "restrictions": [],
             },
@@ -130,13 +130,13 @@ def test_compare_products_returns_presence_and_resolved_ids(client: TestClient) 
 
 def test_compare_four_products_classifies_all_partial_and_single(client: TestClient) -> None:
     class FourProductRepository(FakeProductCompareRepository):
-        async def get_products(self, product_ids: list[str]) -> list[ProductIngredientRows]:
-            assert product_ids == ["product-a", "product-b", "product-c", "product-d"]
+        async def get_products(self, product_ids: list[int]) -> list[ProductIngredientRows]:
+            assert product_ids == [101, 102, 103, 104]
             return [
-                ProductIngredientRows("product-a", "제품 A", [1, 2, 3, 4]),
-                ProductIngredientRows("product-b", "제품 B", [1, 2, 3, 5]),
-                ProductIngredientRows("product-c", "제품 C", [1, 2, 6]),
-                ProductIngredientRows("product-d", "제품 D", [1, 7]),
+                ProductIngredientRows(101, "제품 A", [1, 2, 3, 4]),
+                ProductIngredientRows(102, "제품 B", [1, 2, 3, 5]),
+                ProductIngredientRows(103, "제품 C", [1, 2, 6]),
+                ProductIngredientRows(104, "제품 D", [1, 7]),
             ]
 
         async def get_ingredient_names(self, ingredient_ids: list[int]) -> dict[int, str]:
@@ -149,7 +149,7 @@ def test_compare_four_products_classifies_all_partial_and_single(client: TestCli
 
     response = client.post(
         "/api/v1/products/compare",
-        json={"product_ids": ["product-a", "product-b", "product-c", "product-d"]},
+        json={"product_ids": [101, 102, 103, 104]},
     )
 
     assert response.status_code == 200
@@ -158,7 +158,7 @@ def test_compare_four_products_classifies_all_partial_and_single(client: TestCli
     }
     assert presence_by_id[1]["presence_type"] == "all"
     assert presence_by_id[2]["presence_type"] == "partial"
-    assert presence_by_id[2]["product_ids"] == ["product-a", "product-b", "product-c"]
+    assert presence_by_id[2]["product_ids"] == [101, 102, 103]
     assert presence_by_id[3]["presence_type"] == "partial"
     assert presence_by_id[4]["presence_type"] == "single"
     assert response.json()["ingredient_ids"] == [1, 2, 3, 4, 5, 6, 7]
@@ -167,15 +167,15 @@ def test_compare_four_products_classifies_all_partial_and_single(client: TestCli
 @pytest.mark.parametrize(
     ("product_ids", "error_code"),
     [
-        (["product-a", "product-a"], "DUPLICATE_PRODUCT_IDS"),
+        ([101, 101], "DUPLICATE_PRODUCT_IDS"),
         (
-            ["product-a", "product-b", "product-c", "product-d", "product-e"],
+            [101, 102, 103, 104, 105],
             "PRODUCT_COMPARE_LIMIT_EXCEEDED",
         ),
     ],
 )
 def test_compare_products_rejects_invalid_product_sets(
-    client: TestClient, product_ids: list[str], error_code: str
+    client: TestClient, product_ids: list[int], error_code: str
 ) -> None:
     response = client.post("/api/v1/products/compare", json={"product_ids": product_ids})
 
@@ -185,14 +185,14 @@ def test_compare_products_rejects_invalid_product_sets(
 
 def test_compare_products_fails_when_any_product_is_missing(client: TestClient) -> None:
     class MissingProductRepository(FakeProductCompareRepository):
-        async def get_products(self, product_ids: list[str]) -> list[ProductIngredientRows]:
-            return [ProductIngredientRows("product-a", "제품 A", [1])]
+        async def get_products(self, product_ids: list[int]) -> list[ProductIngredientRows]:
+            return [ProductIngredientRows(101, "제품 A", [1])]
 
     app.dependency_overrides[get_product_compare_repository] = lambda: MissingProductRepository()
 
     response = client.post(
         "/api/v1/products/compare",
-        json={"product_ids": ["product-a", "missing"]},
+        json={"product_ids": [101, 999]},
     )
 
     assert response.status_code == 404
@@ -201,10 +201,10 @@ def test_compare_products_fails_when_any_product_is_missing(client: TestClient) 
 
 def test_compare_products_fails_when_any_product_is_unanalyzable(client: TestClient) -> None:
     class UnanalyzableProductRepository(FakeProductCompareRepository):
-        async def get_products(self, product_ids: list[str]) -> list[ProductIngredientRows]:
+        async def get_products(self, product_ids: list[int]) -> list[ProductIngredientRows]:
             return [
-                ProductIngredientRows("product-a", "제품 A", [1]),
-                ProductIngredientRows("product-b", "제품 B", [None]),
+                ProductIngredientRows(101, "제품 A", [1]),
+                ProductIngredientRows(102, "제품 B", [None]),
             ]
 
     app.dependency_overrides[get_product_compare_repository] = lambda: (
@@ -213,7 +213,7 @@ def test_compare_products_fails_when_any_product_is_unanalyzable(client: TestCli
 
     response = client.post(
         "/api/v1/products/compare",
-        json={"product_ids": ["product-a", "product-b"]},
+        json={"product_ids": [101, 102]},
     )
 
     assert response.status_code == 422
@@ -225,7 +225,7 @@ def test_compare_products_requires_jwt(client: TestClient) -> None:
 
     response = client.post(
         "/api/v1/products/compare",
-        json={"product_ids": ["product-a", "product-b"]},
+        json={"product_ids": [101, 102]},
     )
 
     assert response.status_code == 401
@@ -233,7 +233,7 @@ def test_compare_products_requires_jwt(client: TestClient) -> None:
 
 
 def test_compare_products_requires_at_least_two_products(client: TestClient) -> None:
-    product_ids = [f"product-{index}" for index in range(MIN_COMPARE_PRODUCT_COUNT - 1)]
+    product_ids = list(range(MIN_COMPARE_PRODUCT_COUNT - 1))
     response = client.post("/api/v1/products/compare", json={"product_ids": product_ids})
 
     assert response.status_code == 422

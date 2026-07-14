@@ -31,10 +31,10 @@ class FakeQuery:
     def range(self, from_: int, to: int) -> "FakeQuery":
         return self
 
-    def in_(self, column: str, values: list[str]) -> "FakeQuery":
+    def in_(self, column: str, values: list[int]) -> "FakeQuery":
         return self
 
-    def eq(self, column: str, value: str) -> "FakeQuery":
+    def eq(self, column: str, value: int) -> "FakeQuery":
         return self
 
     @property
@@ -68,19 +68,25 @@ async def test_repository_filters_products_without_mapped_ingredients() -> None:
                 {
                     "products": [
                         {
-                            "product_id": "product-001",
+                            "id": 1,
                             "product_name": "분석 가능한 세럼",
+                            "brand": "브랜드 A",
                             "main_category": "스킨케어",
                             "sub_category": "세럼",
+                            "detailed_category": "페이셜 세럼",
+                            "product_url": "https://example.com/products/1",
                         },
                         {
-                            "product_id": "product-002",
+                            "id": 2,
                             "product_name": "성분 없는 세럼",
+                            "brand": "브랜드 B",
                             "main_category": "스킨케어",
                             "sub_category": "세럼",
+                            "detailed_category": "페이셜 세럼",
+                            "product_url": "https://example.com/products/2",
                         },
                     ],
-                    "product_ingredients": [{"product_id": "product-001"}],
+                    "product_ingredients": [{"product_id": 1}],
                 }
             ),
         )
@@ -90,12 +96,55 @@ async def test_repository_filters_products_without_mapped_ingredients() -> None:
 
     assert [candidate.model_dump() for candidate in results] == [
         {
-            "product_id": "product-001",
+            "id": 1,
             "product_name": "분석 가능한 세럼",
+            "brand": "브랜드 A",
             "main_category": "스킨케어",
             "sub_category": "세럼",
+            "detailed_category": "페이셜 세럼",
+            "product_url": "https://example.com/products/1",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_repository_keeps_each_analyzable_product_in_the_same_flagship_group() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [
+                        {
+                            "id": 1,
+                            "product_name": "아이크림 35ml",
+                            "brand": "브랜드 A",
+                            "main_category": "스킨케어",
+                            "sub_category": "크림",
+                            "detailed_category": "아이크림",
+                            "product_url": "https://example.com/products/1",
+                            "flagship_id": 1,
+                        },
+                        {
+                            "id": 2,
+                            "product_name": "아이크림 기획세트",
+                            "brand": "브랜드 A",
+                            "main_category": "스킨케어",
+                            "sub_category": "크림",
+                            "detailed_category": "아이크림",
+                            "product_url": "https://example.com/products/2",
+                            "flagship_id": 1,
+                        },
+                    ],
+                    "product_ingredients": [{"product_id": 1}, {"product_id": 2}],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_products("아이크림", 20)
+
+    assert [candidate.id for candidate in results] == [1, 2]
 
 
 @pytest.mark.asyncio
@@ -147,7 +196,7 @@ async def test_repository_returns_ordered_unique_integer_ids_for_a_product() -> 
             FakeSupabase(
                 {
                     "products": {
-                        "product_id": "product-001",
+                        "id": 1,
                         "product_name": "테스트 세럼",
                     },
                     "product_ingredients": [
@@ -161,9 +210,9 @@ async def test_repository_returns_ordered_unique_integer_ids_for_a_product() -> 
         )
     )
 
-    result = await repository.get_product_ingredients("product-001")
+    result = await repository.get_product_ingredients(1)
 
     assert result is not None
-    assert result.product_id == "product-001"
+    assert result.id == 1
     assert result.product_name == "테스트 세럼"
     assert result.ingredient_ids == [2700, 2247, 2700, None]

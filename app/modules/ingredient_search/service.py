@@ -1,4 +1,4 @@
-"""제품명·성분 이명 검색 비즈니스 로직. 담당: 박영기."""
+"""제품·성분 검색 비즈니스 로직."""
 
 from app.modules.ingredient_search.repository import IngredientSearchRepository
 from app.modules.ingredient_search.schemas import (
@@ -35,7 +35,7 @@ async def search_ingredients(
 
 
 async def get_product_ingredient_ids(
-    repository: IngredientSearchRepository, product_id: str
+    repository: IngredientSearchRepository, product_id: int
 ) -> ProductIngredientIdsResponse:
     product = await repository.get_product_ingredients(product_id)
     if product is None:
@@ -56,7 +56,7 @@ async def get_product_ingredient_ids(
         raise ProductNotAnalyzableError
 
     return ProductIngredientIdsResponse(
-        product_id=product.product_id,
+        id=product.id,
         product_name=product.product_name,
         ingredient_ids=ingredient_ids,
         mapped_ingredient_count=len(ingredient_ids),
