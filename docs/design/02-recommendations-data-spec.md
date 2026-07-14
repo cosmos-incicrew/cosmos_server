@@ -51,6 +51,11 @@
 | 주름 | 1,701 | 과각질/악건성 | 61 |
 | 피부처짐/탄력 | 47 | 민감성 | 6 |
 
+**이용 범위 확인 (출시 조건) [검증 필요]**: AI Hub는 데이터셋마다 이용허락범위가
+다르다. 학습·연구 목적 신청·승인과 별개로, **상업 서비스에서 파생물(추천 근거·성분
+목록·케이스 답변)을 최종 사용자에게 서빙**해도 되는지 dataSetSn=71886의 이용조건을
+배포 전 확인해 근거를 남긴다 (`restrictions` 적재와 함께 배포 전 체크리스트).
+
 ## 2. 테이블 구조
 
 ```mermaid
@@ -154,7 +159,11 @@ flowchart LR
   검증 결과 답변 450건 중 67%가 따옴표 표기 0개.
 - **ingredient_id 매핑**: `name_kr` 정확 일치 → `synonyms` 순서, 미매칭 NULL 허용.
 - **upsert**는 위 "제약·멱등 키" 표의 conflict target 기준 — 재실행이 안전하다.
-- 실행 후 리포트: 적재 건수, 고민별 분포, ingredient_id 매칭률, 성분 추출 0건 케이스 수.
+- 실행 후 리포트: 적재 건수, 고민별 분포, **연령·성별 분포**(demographic skew
+  사각지대 — 소수 집단은 검색 임계값을 넘겨도 인구통계 불일치로 나쁜 매칭이 될 수
+  있어, 편중을 미리 파악한다), ingredient_id 매칭률, 성분 추출 0건 케이스 수,
+  **PMID 근거 스팟체크**(`evidence_sources` 표본 수십 건을 실제 논문과 대조 —
+  틀린 인용을 임상 근거로 사용자에게 노출하는 것을 방지).
 
 ## 4. 서지우 요청 명세 — 임베딩·인덱싱·검색 RPC
 
@@ -183,6 +192,7 @@ score 0~1 정규화·빈 결과는 빈 리스트 계약은 기존 김민경·이
 | BSTI 축 사전 | `app/modules/recommendations/bsti_axes.py` | 8축 코드(O/D·S/R·P/N·W/T) → 특성 서술. 질의 구성용. 타입별 권장·기피 성분은 보유하지 않음 — `bsti_results`(박금별) 소비 |
 | 기능성 고시원료 | `app/modules/recommendations/notified_ingredients.py` | 식약처 「기능성화장품 기준 및 시험방법」 미백·주름개선·자외선차단 고시 성분 + 고시 함량. 응답 배지용 |
 | 알레르기 유발성분 25종 | `app/modules/recommendations/allergen_fragrances.py` | 식약처 「화장품 사용 시의 주의사항 및 알레르기 유발성분 표시에 관한 규정」 착향제 25종. 경고용 |
+| 임신·수유 금기 성분 | `app/modules/recommendations/pregnancy_contraindicated.py` | 임신·수유 중 사용 주의로 널리 안내되는 성분(레티노이드·고농도 살리실산·하이드로퀴논 등). 안전 필터의 금기 검사·경고용 (01 §2-⑤). **[검증 필요]** — 목록·근거는 식약처·공신력 있는 출처와 대조 후 확정 |
 
 고시 기반 고정 목록은 수십 종 이하라 DB 없이 상수로 관리하고, 개정 시 git으로 추적한다.
 
@@ -190,10 +200,10 @@ score 0~1 정규화·빈 결과는 빈 리스트 계약은 기존 김민경·이
 
 | 테이블 | 소유 | 이 설계가 요구하는 것 |
 |---|---|---|
-| `user_profiles` | 김민경(회원 모듈) | `user_id(auth uid)`·`age`·`gender`·`skin_concerns text[]` — 온보딩 필수 수집 (박금별 프론트 명세와 합의됨) |
+| `user_profiles` | 김민경(회원 모듈) | `user_id(auth uid)`·`age`·`gender`·`skin_concerns text[]` — 온보딩 필수 수집 (박금별 프론트 명세와 합의됨). **임신·수유 플래그(`is_pregnant`·`is_nursing`)는 안전 필터 금기 검사용으로 정식 공개 전 수집 필요** — 미수집 시 `unknown` 경로(01 §2-①·⑤·§7) |
 | `bsti_results` | 박금별 | 최근 결과의 `type_code`·`recommended_ingredients`·`caution_ingredients` 조회 (가점·기피 경고용) |
 | `user_shelf` | 김민경(화장대, 박금별 명세 기반) | `item_type(product/ingredient)`·`ref_id` — 보유 성분 집합 도출(01 §2-①, 2026-07-10 v1 포함 결정). 미구현·빈 상태여도 파이프라인 동작(보정만 생략) |
-| `products`·`product_ingredients` | 서지우 | 보유 제품 → 성분 전개 조인. **커버리지 한계: 현재 올리브영 크롤링 351개 제품** — DB에 없는 제품은 성분 전개 불가, 성분 직접 등록이 보완 수단 |
+| `products`·`product_ingredients` | 서지우 | 보유 제품 → 성분 전개 조인. 테이블 구조는 [supabase/schema.md](../../supabase/schema.md) 참조. DB에 없는 제품은 성분 전개 불가, 성분 직접 등록이 보완 수단 |
 | `restrictions` | 서지우 | `regulate_type(금지/한도)`·`limit_cond` — 적재 전에도 파이프라인 동작 (0행=통과) |
 | `ingredients`·`synonyms` | 서지우 | ingredient_id 매핑·조인 대상 |
 
