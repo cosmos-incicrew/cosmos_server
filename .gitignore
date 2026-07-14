@@ -23,6 +23,7 @@ supabase/.temp/
 
 # Claude Code — 로컬 개인 설정만 제외
 .claude
+CLAUDE.md
 superpowers/
 
 .vscode
