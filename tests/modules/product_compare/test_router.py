@@ -1,7 +1,9 @@
 from collections.abc import AsyncIterator
+from typing import cast
 
 import pytest
 from fastapi.testclient import TestClient
+from supabase import AsyncClient
 
 from app.core.auth import verify_jwt
 from app.main import app
@@ -9,58 +11,29 @@ from app.modules.product_compare.repository import (
     ProductCompareRepository,
     ProductIngredientRows,
     RestrictionRow,
+    SupabaseProductCompareRepository,
     get_product_compare_repository,
 )
 from app.modules.product_compare.schemas import MIN_COMPARE_PRODUCT_COUNT
+from tests.support.mock_supabase import load_product_compare_mock_supabase
 
 
-class FakeProductCompareRepository(ProductCompareRepository):
+class StubProductCompareRepository(ProductCompareRepository):
     async def get_products(self, product_ids: list[int]) -> list[ProductIngredientRows]:
-        assert product_ids == [101, 102]
-        return [
-            ProductIngredientRows(
-                id=101,
-                product_name="제품 A",
-                ingredient_ids=[1, 2, 3],
-            ),
-            ProductIngredientRows(
-                id=102,
-                product_name="제품 B",
-                ingredient_ids=[1, 2, 4],
-            ),
-        ]
+        raise NotImplementedError
 
     async def get_ingredient_names(self, ingredient_ids: list[int]) -> dict[int, str]:
-        assert ingredient_ids == [1, 2, 3, 4]
-        return {1: "정제수", 2: "글리세린", 3: "판테놀", 4: "나이아신아마이드"}
+        return {ingredient_id: f"성분 {ingredient_id}" for ingredient_id in ingredient_ids}
 
     async def get_restrictions(self, ingredient_ids: list[int]) -> list[RestrictionRow]:
-        assert ingredient_ids == [1, 2, 3, 4]
-        return [
-            RestrictionRow(
-                restriction_id=10,
-                ingredient_id=2,
-                regulate_type="한도",
-                provis_atrcl="사용 조건",
-                limit_cond="배합 한도",
-                is_registered_korea=True,
-            ),
-            RestrictionRow(
-                restriction_id=11,
-                ingredient_id=2,
-                regulate_type="금지",
-                provis_atrcl="예외 조항",
-                limit_cond=None,
-                is_registered_korea=True,
-            ),
-        ]
+        return []
 
 
 @pytest.fixture()
 def client() -> AsyncIterator[TestClient]:
     app.dependency_overrides[verify_jwt] = lambda: "user-123"
     app.dependency_overrides[get_product_compare_repository] = lambda: (
-        FakeProductCompareRepository()
+        SupabaseProductCompareRepository(cast(AsyncClient, load_product_compare_mock_supabase()))
     )
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
@@ -112,41 +85,30 @@ def test_compare_products_returns_presence_and_resolved_ids(client: TestClient) 
             {
                 "ingredient_id": 3,
                 "name_kr": "판테놀",
-                "product_ids": [101],
-                "presence_type": "single",
+                "product_ids": [101, 102],
+                "presence_type": "all",
                 "restrictions": [],
             },
             {
                 "ingredient_id": 4,
                 "name_kr": "나이아신아마이드",
+                "product_ids": [101],
+                "presence_type": "single",
+                "restrictions": [],
+            },
+            {
+                "ingredient_id": 5,
+                "name_kr": "세라마이드",
                 "product_ids": [102],
                 "presence_type": "single",
                 "restrictions": [],
             },
         ],
-        "ingredient_ids": [1, 2, 3, 4],
+        "ingredient_ids": [1, 2, 3, 4, 5],
     }
 
 
 def test_compare_four_products_classifies_all_partial_and_single(client: TestClient) -> None:
-    class FourProductRepository(FakeProductCompareRepository):
-        async def get_products(self, product_ids: list[int]) -> list[ProductIngredientRows]:
-            assert product_ids == [101, 102, 103, 104]
-            return [
-                ProductIngredientRows(101, "제품 A", [1, 2, 3, 4]),
-                ProductIngredientRows(102, "제품 B", [1, 2, 3, 5]),
-                ProductIngredientRows(103, "제품 C", [1, 2, 6]),
-                ProductIngredientRows(104, "제품 D", [1, 7]),
-            ]
-
-        async def get_ingredient_names(self, ingredient_ids: list[int]) -> dict[int, str]:
-            return {ingredient_id: f"성분 {ingredient_id}" for ingredient_id in ingredient_ids}
-
-        async def get_restrictions(self, ingredient_ids: list[int]) -> list[RestrictionRow]:
-            return []
-
-    app.dependency_overrides[get_product_compare_repository] = lambda: FourProductRepository()
-
     response = client.post(
         "/api/v1/products/compare",
         json={"product_ids": [101, 102, 103, 104]},
@@ -184,7 +146,7 @@ def test_compare_products_rejects_invalid_product_sets(
 
 
 def test_compare_products_fails_when_any_product_is_missing(client: TestClient) -> None:
-    class MissingProductRepository(FakeProductCompareRepository):
+    class MissingProductRepository(StubProductCompareRepository):
         async def get_products(self, product_ids: list[int]) -> list[ProductIngredientRows]:
             return [ProductIngredientRows(101, "제품 A", [1])]
 
@@ -200,7 +162,7 @@ def test_compare_products_fails_when_any_product_is_missing(client: TestClient) 
 
 
 def test_compare_products_fails_when_any_product_is_unanalyzable(client: TestClient) -> None:
-    class UnanalyzableProductRepository(FakeProductCompareRepository):
+    class UnanalyzableProductRepository(StubProductCompareRepository):
         async def get_products(self, product_ids: list[int]) -> list[ProductIngredientRows]:
             return [
                 ProductIngredientRows(101, "제품 A", [1]),
