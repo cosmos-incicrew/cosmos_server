@@ -74,8 +74,8 @@ async def test_repository_maps_ingredient_names_and_restriction_rows() -> None:
             FakeSupabase(
                 {
                     "ingredients": [
-                        {"ingredient_id": "1", "name_kr": "정제수"},
-                        {"ingredient_id": "2", "name_kr": "글리세린"},
+                        {"ingredient_id": "1", "name_kor": "정제수"},
+                        {"ingredient_id": "2", "name_kor": "글리세린"},
                     ],
                     "restrictions": [
                         {

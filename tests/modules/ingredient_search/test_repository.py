@@ -107,7 +107,6 @@ async def test_repository_filters_products_without_mapped_ingredients() -> None:
     ]
 
 
-@pytest.mark.asyncio
 async def test_repository_keeps_each_analyzable_product_in_the_same_flagship_group() -> None:
     repository = SupabaseIngredientSearchRepository(
         cast(
