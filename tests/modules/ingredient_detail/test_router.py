@@ -1,5 +1,7 @@
 """ingredient_detail router 테스트. 엔드포인트가 service를 호출해 응답을 반환하는지."""
 
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -47,3 +49,28 @@ def test_unconfirmed_returns_200(monkeypatch: pytest.MonkeyPatch) -> None:
     body = response.json()
     assert body["status"] == "확인 불가"
     assert body["body"] is None
+
+
+def test_product_summary_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _fake_summary(ingredient_ids: list[int]):
+        from app.modules.ingredient_detail.schemas import (
+            ProductSummaryResponse,
+            TopIngredient,
+        )
+
+        return ProductSummaryResponse(
+            status="ok",
+            top_ingredients=[TopIngredient(ingredient_id=1, name="성분A")],
+            summary="제품 요약입니다.",
+        )
+
+    monkeypatch.setattr(detail_router.service, "get_product_summary", _fake_summary)
+
+    response = client.post(
+        "/api/v1/ingredients/product-summary", json={"ingredient_ids": [1, 2, 3]}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["summary"] == "제품 요약입니다."

@@ -1,7 +1,11 @@
 from fastapi import APIRouter
 
 from app.modules.ingredient_detail import service
-from app.modules.ingredient_detail.schemas import IngredientDetailResponse
+from app.modules.ingredient_detail.schemas import (
+    IngredientDetailResponse,
+    ProductSummaryRequest,
+    ProductSummaryResponse,
+)
 
 router = APIRouter(prefix="/api/v1/ingredients", tags=["ingredient_detail"])
 
@@ -10,3 +14,9 @@ router = APIRouter(prefix="/api/v1/ingredients", tags=["ingredient_detail"])
 async def get_ingredient_detail(ingredient_id: int) -> IngredientDetailResponse:
     """개별 성분 해설·주의사항 — 근거 기반 생성 + 출처 인용. 담당: 호영"""
     return await service.get_ingredient_detail(ingredient_id)
+
+
+@router.post("/product-summary", response_model=ProductSummaryResponse)
+async def get_product_summary(body: ProductSummaryRequest) -> ProductSummaryResponse:
+    """제품 요약 — 전성분(배합순)을 종합해 대표성분 + 제품 해설 요약. 담당: 호영"""
+    return await service.get_product_summary(body.ingredient_ids)

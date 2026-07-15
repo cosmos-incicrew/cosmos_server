@@ -14,14 +14,19 @@ from app.core.supabase import get_supabase
 from app.modules.ingredient_detail.prompts import (
     EXPLANATION_SYSTEM_PROMPT,
     EXPLANATION_USER_TEMPLATE,
+    PRODUCT_SUMMARY_SYSTEM_PROMPT,
+    PRODUCT_SUMMARY_USER_TEMPLATE,
 )
 from app.modules.ingredient_detail.schemas import (
     IngredientDetailResponse,
     IngredientEvidence,
+    ProductSummaryResponse,
+    TopIngredient,
 )
 
 _SAFETY_UNKNOWN = "안전성 확인 불가"
 _MODULE_TAG = "module:ingredient_detail"
+_TOP_INGREDIENT_COUNT = 3  # 대표 성분(배합순 상위) 개수
 
 _SOURCE_PATTERNS = [
     re.compile(r"PMID[:\s]*\d+", re.IGNORECASE),
@@ -177,3 +182,97 @@ def _verify_sources(text: str, evidence: IngredientEvidence) -> tuple[str, bool]
     cleaned = re.sub(r",\s*([.。])", r"\1", cleaned)
     cleaned = re.sub(r",\s*$", "", cleaned.strip())
     return cleaned.strip(), False
+
+
+async def get_product_summary(ingredient_ids: list[int]) -> ProductSummaryResponse:
+    """제품 요약 생성 (복수 성분 종합).
+
+    제품 전성분 id(배합순)를 받아, 대표 성분(상위 N개)을 뽑고 전체 근거를
+    종합해 제품 요약을 생성한다. 개별 성분 해설은 별도(단수 API)에서 처리.
+    """
+    if not ingredient_ids:
+        return ProductSummaryResponse(status="확인 불가", reason="성분 목록 없음")
+
+    # 여러 성분의 근거 조회 (배합순 유지)
+    evidences: list[IngredientEvidence] = []
+    for iid in ingredient_ids:
+        ev = await _fetch_evidence(iid)
+        if ev is not None:
+            evidences.append(ev)
+
+    if not any(ev.has_explanation_basis() for ev in evidences):
+        return ProductSummaryResponse(status="확인 불가", reason="제품 성분 근거 없음")
+
+    # 대표 성분: 배합순(입력 순서) 상위 N개
+    top = [
+        TopIngredient(ingredient_id=ev.ingredient_id, name=ev.name_kr)
+        for ev in evidences[:_TOP_INGREDIENT_COUNT]
+    ]
+
+    raw_summary = await _generate_product_summary(evidences)
+    clean_summary, verified = _verify_sources_multi(raw_summary, evidences)
+
+    return ProductSummaryResponse(
+        status="ok",
+        top_ingredients=top,
+        summary=clean_summary,
+        source_verified=verified,
+    )
+
+
+def _build_product_evidence_block(evidences: list[IngredientEvidence]) -> str:
+    """여러 성분의 근거를 제품 요약용 블록으로 조립."""
+    blocks: list[str] = []
+    for ev in evidences:
+        lines: list[str] = []
+        if ev.name_kr:
+            lines.append(f"  성분명: {ev.name_kr}")
+        if ev.efficacy:
+            lines.append(f"  효능: {ev.efficacy}")
+        if ev.product_traits:
+            lines.append(f"  제품 특성: {ev.product_traits}")
+        if ev.recommended_skin_types:
+            lines.append(f"  권장 피부타입: {ev.recommended_skin_types}")
+        if ev.safety_note:
+            lines.append(f"  안전성: {ev.safety_note}")
+        if ev.regulation_note:
+            lines.append(f"  주의·제한: {ev.regulation_note}")
+        if lines:
+            blocks.append(f"- {ev.name_kr or ev.ingredient_id}\n" + "\n".join(lines))
+    return "\n".join(blocks)
+
+
+@observe(as_type="generation")
+async def _generate_product_summary(evidences: list[IngredientEvidence]) -> str:
+    """여러 성분 근거를 종합해 제품 요약 생성.
+
+    여러 근거를 종합하는 복합 질의이므로 Pro 모델을 사용한다(llm-rag-rules).
+    """
+    evidence_block = _build_product_evidence_block(evidences)
+    user_prompt = PRODUCT_SUMMARY_USER_TEMPLATE.format(evidence_block=evidence_block)
+    model = gemini_model_for(complex_query=True)  # 여러 근거 종합 → Pro
+
+    langfuse = get_client()
+    langfuse.update_current_generation(
+        model=model,
+        input=user_prompt,
+        metadata={"ingredient_count": len(evidences), "module": _MODULE_TAG},
+    )
+
+    client = get_gemini()
+    response = await client.aio.models.generate_content(
+        model=model,
+        contents=f"{PRODUCT_SUMMARY_SYSTEM_PROMPT}\n\n{user_prompt}",
+    )
+    output = response.text or ""
+    langfuse.update_current_generation(output=output)
+    return output
+
+
+def _verify_sources_multi(text: str, evidences: list[IngredientEvidence]) -> tuple[str, bool]:
+    """제품 요약의 출처 검증. 여러 성분의 출처를 합쳐 대조."""
+    merged = ", ".join(ev.reference_source for ev in evidences if ev.reference_source)
+    merged_evidence = IngredientEvidence(
+        ingredient_id=0, name_kr=None, inci=None, reference_source=merged or None
+    )
+    return _verify_sources(text, merged_evidence)
