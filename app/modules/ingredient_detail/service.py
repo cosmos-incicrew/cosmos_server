@@ -21,6 +21,7 @@ from app.modules.ingredient_detail.schemas import (
     IngredientDetailResponse,
     IngredientEvidence,
     ProductSummaryResponse,
+    Restriction,
     TopIngredient,
 )
 
@@ -47,8 +48,8 @@ async def get_ingredient_detail(ingredient_id: int) -> IngredientDetailResponse:
             status="확인 불가", ingredient_id=ingredient_id, reason=reason
         )
 
-    safety = evidence.safety_note or _SAFETY_UNKNOWN
-    safety_unknown = evidence.safety_note is None
+    safety = _build_safety_text(evidence)
+    safety_unknown = not evidence.has_safety_basis()
 
     raw_body = await _generate_explanation(evidence, safety_unknown)
     clean_body, verified = _verify_sources(raw_body, evidence)
@@ -72,8 +73,18 @@ async def _fetch_evidence(ingredient_id: int) -> IngredientEvidence | None:
     )
     ing_rows = (
         await client.table("ingredients")
-        .select("origin_definition, name_kr, name_en")
-        .eq("id", ingredient_id)
+        .select("origin_definition, name_kor, name_eng")
+        .eq("ingredient_id", ingredient_id)
+        .execute()
+    )
+    # 공식 규제(식약처 등). 성분당 여러 건일 수 있다.
+    restriction_rows = (
+        await client.table("restrictions")
+        .select(
+            "restriction_id, regulate_type, notice_ingr_name, "
+            "provis_atrcl, limit_cond, is_registered_korea"
+        )
+        .eq("ingredient_id", ingredient_id)
         .execute()
     )
     if not eff_rows.data and not ing_rows.data:
@@ -90,10 +101,27 @@ async def _fetch_evidence(ingredient_id: int) -> IngredientEvidence | None:
                 return str(value)
         return None
 
+    restrictions = [
+        Restriction(
+            restriction_id=row.get("restriction_id")
+            if isinstance(row.get("restriction_id"), int)
+            else None,
+            regulate_type=pick(row.get("regulate_type")),
+            notice_ingr_name=pick(row.get("notice_ingr_name")),
+            provis_atrcl=pick(row.get("provis_atrcl")),
+            limit_cond=pick(row.get("limit_cond")),
+            is_registered_korea=row.get("is_registered_korea")
+            if isinstance(row.get("is_registered_korea"), bool)
+            else None,
+        )
+        for row in (restriction_rows.data or [])
+        if isinstance(row, dict)
+    ]
+
     return IngredientEvidence(
         ingredient_id=ingredient_id,
-        name_kr=pick(eff.get("name_kr"), ing.get("name_kr")),
-        inci=pick(eff.get("inci"), ing.get("name_en")),
+        name_kr=pick(eff.get("name_kr"), ing.get("name_kor")),
+        inci=pick(eff.get("inci"), ing.get("name_eng")),
         origin_definition=pick(ing.get("origin_definition")),
         efficacy=pick(eff.get("efficacy")),
         product_traits=pick(eff.get("product_traits")),
@@ -103,7 +131,33 @@ async def _fetch_evidence(ingredient_id: int) -> IngredientEvidence | None:
         regulation_note=pick(eff.get("regulation_note")),
         recommended_concentration=pick(eff.get("recommended_concentration")),
         reference_source=pick(eff.get("reference_source")),
+        restrictions=restrictions,
     )
+
+
+def _build_safety_text(evidence: IngredientEvidence) -> str:
+    """주의사항 문구 조립. 공식 규제(restrictions)를 우선하고 safety_note를 보조로 붙인다.
+
+    근거가 하나도 없으면 "안전성 확인 불가"로 명시한다(안전하다고 단정하지 않는다).
+    """
+    parts: list[str] = []
+    for restriction in evidence.restrictions:
+        if not restriction.has_content():
+            continue
+        detail = " / ".join(
+            text
+            for text in (
+                restriction.regulate_type,
+                restriction.limit_cond,
+                restriction.provis_atrcl,
+            )
+            if text
+        )
+        if detail:
+            parts.append(f"[공식 규제] {detail}")
+    if evidence.safety_note:
+        parts.append(evidence.safety_note)
+    return " ".join(parts) if parts else _SAFETY_UNKNOWN
 
 
 def _build_evidence_block(evidence: IngredientEvidence, safety_unknown: bool) -> str:
@@ -119,10 +173,25 @@ def _build_evidence_block(evidence: IngredientEvidence, safety_unknown: bool) ->
         lines.append(f"- 정의·기원: {evidence.origin_definition}")
     if evidence.reference_source:
         lines.append(f"- 출처: {evidence.reference_source}")
+    # 공식 규제는 사실이므로 근거에 명확히 포함한다(있으면 반드시 안내되어야 함).
+    for restriction in evidence.restrictions:
+        if not restriction.has_content():
+            continue
+        detail = " / ".join(
+            text
+            for text in (
+                restriction.regulate_type,
+                restriction.limit_cond,
+                restriction.provis_atrcl,
+            )
+            if text
+        )
+        if detail:
+            lines.append(f"- 공식 규제(식약처 등): {detail}")
     if safety_unknown:
         lines.append("- 안전성: 확인 불가 (안전하다고 단정하지 말 것)")
     elif evidence.safety_note:
-        lines.append(f"- 안전성: {evidence.safety_note}")
+        lines.append(f"- 안전성 참고: {evidence.safety_note}")
     return "\n".join(lines)
 
 
@@ -234,9 +303,23 @@ def _build_product_evidence_block(evidences: list[IngredientEvidence]) -> str:
         if ev.recommended_skin_types:
             lines.append(f"  권장 피부타입: {ev.recommended_skin_types}")
         if ev.safety_note:
-            lines.append(f"  안전성: {ev.safety_note}")
+            lines.append(f"  안전성 참고: {ev.safety_note}")
         if ev.regulation_note:
             lines.append(f"  주의·제한: {ev.regulation_note}")
+        for restriction in ev.restrictions:
+            if not restriction.has_content():
+                continue
+            detail = " / ".join(
+                text
+                for text in (
+                    restriction.regulate_type,
+                    restriction.limit_cond,
+                    restriction.provis_atrcl,
+                )
+                if text
+            )
+            if detail:
+                lines.append(f"  공식 규제(식약처 등): {detail}")
         if lines:
             blocks.append(f"- {ev.name_kr or ev.ingredient_id}\n" + "\n".join(lines))
     return "\n".join(blocks)

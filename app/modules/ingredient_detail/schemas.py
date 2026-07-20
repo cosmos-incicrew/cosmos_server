@@ -3,6 +3,20 @@
 from pydantic import BaseModel
 
 
+class Restriction(BaseModel):
+    """식약처 등 공식 규제 정보 (restrictions 테이블 1행)."""
+
+    restriction_id: int | None = None
+    regulate_type: str | None = None  # 제한·금지 등 규제 유형
+    notice_ingr_name: str | None = None  # 고시 성분명
+    provis_atrcl: str | None = None  # 단서·예외 조항
+    limit_cond: str | None = None  # 사용 한도·조건
+    is_registered_korea: bool | None = None  # 국내 등록 여부
+
+    def has_content(self) -> bool:
+        return any([self.regulate_type, self.provis_atrcl, self.limit_cond])
+
+
 class IngredientEvidence(BaseModel):
     """해설 생성을 위한 근거 묶음. service 내부에서 조회·조립한다.
 
@@ -21,9 +35,14 @@ class IngredientEvidence(BaseModel):
     regulation_note: str | None = None
     recommended_concentration: str | None = None
     reference_source: str | None = None
+    restrictions: list[Restriction] = []
 
     def has_explanation_basis(self) -> bool:
         return any([self.efficacy, self.product_traits, self.origin_definition])
+
+    def has_safety_basis(self) -> bool:
+        """주의사항 근거 유무. 공식 규제 또는 안전성 참고 문구 중 하나라도 있으면 True."""
+        return bool(self.safety_note) or any(r.has_content() for r in self.restrictions)
 
 
 class IngredientDetailResponse(BaseModel):

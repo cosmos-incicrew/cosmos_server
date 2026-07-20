@@ -188,3 +188,97 @@ async def test_product_summary_empty_ids(monkeypatch: pytest.MonkeyPatch) -> Non
     result = await service.get_product_summary([])
     assert result.status == "확인 불가"
     assert result.reason == "성분 목록 없음"
+
+
+async def test_includes_official_restriction_in_safety(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """공식 규제가 있으면 주의사항에 명시된다."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [
+                {
+                    "ingredient_id": 5,
+                    "name_kr": "규제성분",
+                    "inci": "R",
+                    "efficacy": "보존",
+                }
+            ],
+            "ingredients": [],
+            "restrictions": [
+                {
+                    "restriction_id": 10,
+                    "regulate_type": "사용 한도",
+                    "limit_cond": "0.5% 이하",
+                    "provis_atrcl": None,
+                    "is_registered_korea": True,
+                }
+            ],
+        },
+    )
+    _patch_gemini(monkeypatch, "이 성분은 보존 목적으로 쓰이며 사용 한도가 있습니다.")
+
+    result = await service.get_ingredient_detail(5)
+
+    assert result.status == "ok"
+    assert result.safety is not None
+    assert "공식 규제" in result.safety
+    assert "0.5% 이하" in result.safety
+
+
+async def test_multiple_restrictions_all_included(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """한 성분에 규제가 여러 건이면 모두 주의사항에 포함된다."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [
+                {
+                    "ingredient_id": 6,
+                    "name_kr": "다중규제",
+                    "inci": "M",
+                    "efficacy": "기능",
+                }
+            ],
+            "ingredients": [],
+            "restrictions": [
+                {"restriction_id": 1, "regulate_type": "사용 한도", "limit_cond": "1% 이하"},
+                {"restriction_id": 2, "regulate_type": "사용 금지", "provis_atrcl": "영유아 제품"},
+            ],
+        },
+    )
+    _patch_gemini(monkeypatch, "규제가 있는 성분입니다.")
+
+    result = await service.get_ingredient_detail(6)
+
+    assert result.safety is not None
+    assert "1% 이하" in result.safety
+    assert "영유아 제품" in result.safety
+
+
+async def test_safety_unknown_when_no_restriction_and_no_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """규제도 안전성 문구도 없으면 '안전성 확인 불가'."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [
+                {
+                    "ingredient_id": 7,
+                    "name_kr": "무정보",
+                    "inci": "N",
+                    "efficacy": "보습",
+                }
+            ],
+            "ingredients": [],
+            "restrictions": [],
+        },
+    )
+    _patch_gemini(monkeypatch, "보습 성분입니다.")
+
+    result = await service.get_ingredient_detail(7)
+
+    assert result.safety == "안전성 확인 불가"
