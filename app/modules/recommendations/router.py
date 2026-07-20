@@ -1,14 +1,17 @@
-from fastapi import APIRouter, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
+
+from app.core.auth import verify_jwt
+from app.modules.recommendations import service
+from app.modules.recommendations.schemas import RecommendationResponse
 
 router = APIRouter(prefix="/api/v1/recommendations", tags=["recommendations"])
 
-_NOT_IMPLEMENTED = HTTPException(
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
-    detail={"code": "NOT_IMPLEMENTED", "message": "아직 구현되지 않은 엔드포인트입니다."},
-)
 
-
-@router.post("")
-async def create_recommendations() -> None:
-    """성분 추천 Agent 파이프라인 — 컨텍스트 → retrieval → 안전성 필터 → 생성. 담당: 민경"""
-    raise _NOT_IMPLEMENTED
+@router.post("", response_model=RecommendationResponse)
+async def create_recommendations(
+    user_id: Annotated[str, Depends(verify_jwt)],
+) -> RecommendationResponse:
+    """성분 추천 — 컨텍스트 조립 → retrieval → 안전성 필터 → 생성. 요청 바디 없음."""
+    return await service.create_recommendations(user_id)

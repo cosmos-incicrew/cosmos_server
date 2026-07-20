@@ -1,10 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
+# 구현이 끝난 엔드포인트는 이 목록에서 뺀다 (구현 후에도 501을 기대하면 실패한다).
 STUB_ENDPOINTS = [
-    ("GET", "/api/v1/ingredients/1/detail"),  # ingredient_detail (호영)
     ("POST", "/api/v1/bsti/submit"),  # bsti (금별)
-    ("POST", "/api/v1/recommendations"),  # recommendations (민경)
 ]
 
 
