@@ -156,3 +156,35 @@ async def test_removes_hallucinated_source(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert result.source_verified is False
     assert "PMID" not in (result.body or "")
+
+
+async def test_generates_product_summary(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [
+                {
+                    "ingredient_id": 1,
+                    "name_kr": "성분A",
+                    "inci": "A",
+                    "efficacy": "보습",
+                    "recommended_skin_types": "건성",
+                    "reference_source": "PubChem",
+                }
+            ],
+            "ingredients": [],
+        },
+    )
+    _patch_gemini(monkeypatch, "이 제품은 건성 피부에 적합한 보습 중심 제품입니다.")
+
+    result = await service.get_product_summary([1, 2, 3])
+
+    assert result.status == "ok"
+    assert result.summary is not None
+    assert len(result.top_ingredients) >= 1
+
+
+async def test_product_summary_empty_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = await service.get_product_summary([])
+    assert result.status == "확인 불가"
+    assert result.reason == "성분 목록 없음"
