@@ -90,3 +90,56 @@ def test_detail_requires_jwt(client: TestClient) -> None:
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "AUTH_MISSING_TOKEN"
+
+
+def test_product_summary_requires_jwt(client: TestClient) -> None:
+    """제품 요약 엔드포인트도 인증이 필요하다."""
+    app.dependency_overrides.pop(verify_jwt)
+
+    response = client.post("/api/v1/ingredients/product-summary", json={"ingredient_ids": [1]})
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTH_MISSING_TOKEN"
+
+
+def test_product_summary_rejects_missing_body(client: TestClient) -> None:
+    """ingredient_ids가 없으면 검증 실패(422)."""
+    response = client.post("/api/v1/ingredients/product-summary", json={})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_product_summary_rejects_non_integer_ids(client: TestClient) -> None:
+    """ingredient_ids에 정수가 아닌 값이 오면 검증 실패(422)."""
+    response = client.post("/api/v1/ingredients/product-summary", json={"ingredient_ids": ["abc"]})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_detail_rejects_non_integer_path(client: TestClient) -> None:
+    """경로의 ingredient_id가 정수가 아니면 검증 실패(422)."""
+    response = client.get("/api/v1/ingredients/abc/detail")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_product_summary_unconfirmed_returns_200(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """제품 요약이 '확인 불가'여도 200으로 반환한다(에러가 아님)."""
+
+    async def _fake_unknown(ingredient_ids: list[int]) -> ProductSummaryResponse:
+        return ProductSummaryResponse(status="확인 불가", reason="제품 성분 근거 없음")
+
+    monkeypatch.setattr(detail_router.service, "get_product_summary", _fake_unknown)
+
+    response = client.post("/api/v1/ingredients/product-summary", json={"ingredient_ids": [999]})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "확인 불가"
+    assert body["summary"] is None
+    assert body["top_ingredients"] == []
