@@ -181,18 +181,19 @@ flowchart LR
 | 5 | 질의 임베딩 재사용 | 동일 질의로 두 컬렉션을 검색하므로 임베딩 중복 방지 방안 협의 — retrieve()에 사전 계산 임베딩 전달 옵션 또는 유틸 내부 캐시 | 7/12 (2와 함께) |
 | 6 | 임베딩 생성·인덱스 | embedding 컬럼 채우기(대상 텍스트는 §2 표 기준 — 김민경이 결합 텍스트 산출 규칙 전달) + HNSW(`vector_cosine_ops`) 2개 + **`rec_cases(skin_concerns)` GIN** (배열 겹침 필터용 — btree는 배열 필터에 못 쓴다) | **7/14** |
 
-score 0~1 정규화·빈 결과는 빈 리스트 계약은 기존 김민경·이호영 합의 그대로다.
-검색 함수는 추천·해설이 공유하므로 요청 명세는 [03-shared-retrieval-util.md](03-shared-retrieval-util.md)와 함께 본다.
+score 0~1 정규화·빈 결과는 빈 리스트 계약은 그대로 유지한다. 다만 검색 함수를
+추천·해설이 공유하려던 계획은 폐기했고(2026-07-20, 이호영은 자체 조회 사용),
+추천용 검색은 `app/modules/recommendations/pipeline/s3_retrieval.py`가 단독으로 소유한다.
 
 ## 5. 참조 상수 데이터 (코드로 관리, DB 아님)
 
 | 상수 | 위치 | 내용·용도 |
 |---|---|---|
 | 피부 고민 8종 코드 | `app/common` (공용) | 코드↔한글 라벨 매핑 (예: `pores`↔모공). 온보딩 `skin_concerns`·추천 공용 — 박금별 명세 파트 D-2 "피부고민 표준 코드" 응답. DB `target_concern`은 원본 한글 라벨 유지 |
-| BSTI 축 사전 | `app/modules/recommendations/bsti_axes.py` | 8축 코드(O/D·S/R·P/N·W/T) → 특성 서술. 질의 구성용. 타입별 권장·기피 성분은 보유하지 않음 — `bsti_results`(박금별) 소비 |
-| 기능성 고시원료 | `app/modules/recommendations/notified_ingredients.py` | 식약처 「기능성화장품 기준 및 시험방법」 미백·주름개선·자외선차단 고시 성분 + 고시 함량. 응답 배지용 |
-| 알레르기 유발성분 25종 | `app/modules/recommendations/allergen_fragrances.py` | 식약처 「화장품 사용 시의 주의사항 및 알레르기 유발성분 표시에 관한 규정」 착향제 25종. 경고용 |
-| 임신·수유 금기 성분 | `app/modules/recommendations/pregnancy_contraindicated.py` | 임신·수유 중 사용 주의로 널리 안내되는 성분(레티노이드·고농도 살리실산·하이드로퀴논 등). 안전 필터의 금기 검사·경고용 (01 §2-⑤). **[검증 필요]** — 목록·근거는 식약처·공신력 있는 출처와 대조 후 확정 |
+| BSTI 축 사전 | `app/modules/recommendations/bsti_traits.py` | 8축 코드(O/D·S/R·P/N·W/T) → 특성 서술. 질의 구성용. 타입별 권장·기피 성분은 보유하지 않음 — 박금별 BSTI 테이블 소비(아래 §6 정정 참조) |
+| 기능성 고시원료 | `app/modules/recommendations/constants.py` (`FUNCTIONAL_NOTICE_BADGES`) | 식약처 「기능성화장품 기준 및 시험방법」 미백·주름개선 고시 성분. 응답 배지용. **고시 함량은 API 계약에 필드가 없어 제외**, 자외선차단 목록 보강은 v1.1 |
+| 알레르기 유발성분 25종 | `app/modules/recommendations/constants.py` (`ALLERGEN_INGREDIENTS`) | 식약처 「화장품 사용 시의 주의사항 및 알레르기 유발성분 표시에 관한 규정」 착향제 25종. 경고용 |
+| 임신·수유 주의 성분 | `constants.py` (`PREGNANCY_AVOID` · `PREGNANCY_CAUTION`) | **2026-07-20 근거 조사로 확정.** 제외=레티노이드(PMID 22174426·15940677 — 위험 증가 미확인이나 저자 결론이 '권고되지 않음') / 경고=살리실릭애씨드(EU SCCS 농도 조건부 허용·임부 제한 없음, MotherSafe '임신 중 안전'). **국내 규제 근거는 존재하지 않음** — 01 §0-3 참조 |
 
 고시 기반 고정 목록은 수십 종 이하라 DB 없이 상수로 관리하고, 개정 시 git으로 추적한다.
 
@@ -201,8 +202,8 @@ score 0~1 정규화·빈 결과는 빈 리스트 계약은 기존 김민경·이
 | 테이블 | 소유 | 이 설계가 요구하는 것 |
 |---|---|---|
 | `user_profiles` | 김민경(회원 모듈) | `user_id(auth uid)`·`age`·`gender`·`skin_concerns text[]` — 온보딩 필수 수집 (박금별 프론트 명세와 합의됨). **임신·수유 플래그(`is_pregnant`·`is_nursing`)는 안전 필터 금기 검사용으로 정식 공개 전 수집 필요** — 미수집 시 `unknown` 경로(01 §2-①·⑤·§7) |
-| `bsti_results` | 박금별 | 최근 결과의 `type_code`·`recommended_ingredients`·`caution_ingredients` 조회 (가점·기피 경고용) |
-| `user_shelf` | 김민경(화장대, 박금별 명세 기반) | `item_type(product/ingredient)`·`ref_id` — 보유 성분 집합 도출(01 §2-①, 2026-07-10 v1 포함 결정). 미구현·빈 상태여도 파이프라인 동작(보정만 생략) |
+| ~~`bsti_results`~~ → `bsti_user_diagnoses` + `bsti_type_ingredients` + `bsti_ingredients` | 박금별 | **2026-07-20 정정**: `bsti_results`는 존재하지 않는다. 최근 `bsti_user_diagnoses.result_code` → `bsti_type_ingredients.relation`(`recommend`/`avoid`) → `bsti_ingredients.name_ko` 3단 조인으로 소비한다. 아직 미머지라 DB에 없으며, 없으면 BSTI 요소만 생략 |
+| `user_shelf` | 김민경(화장대, 박금별 명세 기반) | **컬럼 미확정**. 코드는 `item_type(product/ingredient)`·`product_id`·`ingredient_name`을 가정한다(설계의 `ref_id` 아님) — 박금별과 확정 필요. 테이블 미구현·빈 상태여도 파이프라인 동작(보정만 생략) |
 | `products`·`product_ingredients` | 서지우 | 보유 제품 → 성분 전개 조인. 테이블 구조는 [supabase/schema.md](../../supabase/schema.md) 참조. DB에 없는 제품은 성분 전개 불가, 성분 직접 등록이 보완 수단 |
 | `restrictions` | 서지우 | `regulate_type(금지/한도)`·`limit_cond` — 적재 전에도 파이프라인 동작 (0행=통과) |
 | `ingredients`·`synonyms` | 서지우 | ingredient_id 매핑·조인 대상 |
