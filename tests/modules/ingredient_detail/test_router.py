@@ -48,9 +48,14 @@ def test_detail_endpoint_returns_ok(client: TestClient, monkeypatch: pytest.Monk
 
 
 def test_unconfirmed_returns_200(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """성분은 있으나 근거가 부족한 경우는 오류가 아니라 200 + 확인 불가."""
+
     async def _fake_unknown(ingredient_id: int) -> IngredientDetailResponse:
         return IngredientDetailResponse(
-            status="확인 불가", ingredient_id=ingredient_id, reason="성분 근거 없음"
+            status="확인 불가",
+            ingredient_id=ingredient_id,
+            name="이름만있는성분",
+            reason="해설 근거(효능·특성) 없음",
         )
 
     monkeypatch.setattr(detail_router.service, "get_ingredient_detail", _fake_unknown)
@@ -143,3 +148,83 @@ def test_product_summary_unconfirmed_returns_200(
     assert body["status"] == "확인 불가"
     assert body["summary"] is None
     assert body["top_ingredients"] == []
+
+
+def test_detail_returns_503_when_evidence_unavailable(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """근거 조회 실패는 503 EVIDENCE_UNAVAILABLE로 변환된다."""
+
+    async def _fail(ingredient_id: int) -> IngredientDetailResponse:
+        raise detail_router.service.EvidenceUnavailableError("db down")
+
+    monkeypatch.setattr(detail_router.service, "get_ingredient_detail", _fail)
+
+    response = client.get("/api/v1/ingredients/1/detail")
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "EVIDENCE_UNAVAILABLE"
+
+
+def test_detail_returns_502_when_generation_fails(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """생성 실패는 502 GENERATION_FAILED로 변환된다."""
+
+    async def _fail(ingredient_id: int) -> IngredientDetailResponse:
+        raise detail_router.service.GenerationFailedError("llm down")
+
+    monkeypatch.setattr(detail_router.service, "get_ingredient_detail", _fail)
+
+    response = client.get("/api/v1/ingredients/1/detail")
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "GENERATION_FAILED"
+
+
+def test_product_summary_returns_502_when_generation_fails(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """제품 요약도 생성 실패 시 502로 변환된다."""
+
+    async def _fail(ingredient_ids: list[int]) -> ProductSummaryResponse:
+        raise detail_router.service.GenerationFailedError("llm down")
+
+    monkeypatch.setattr(detail_router.service, "get_product_summary", _fail)
+
+    response = client.post("/api/v1/ingredients/product-summary", json={"ingredient_ids": [1]})
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "GENERATION_FAILED"
+
+
+def test_detail_returns_404_when_ingredient_absent(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DB에 없는 성분은 404 INGREDIENT_NOT_FOUND."""
+
+    async def _fail(ingredient_id: int) -> IngredientDetailResponse:
+        raise detail_router.service.IngredientNotFoundError("999")
+
+    monkeypatch.setattr(detail_router.service, "get_ingredient_detail", _fail)
+
+    response = client.get("/api/v1/ingredients/999/detail")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "INGREDIENT_NOT_FOUND"
+
+
+def test_product_summary_returns_404_when_all_absent(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """요청 성분이 하나도 없으면 제품 요약도 404."""
+
+    async def _fail(ingredient_ids: list[int]) -> ProductSummaryResponse:
+        raise detail_router.service.IngredientNotFoundError("1, 2")
+
+    monkeypatch.setattr(detail_router.service, "get_product_summary", _fail)
+
+    response = client.post("/api/v1/ingredients/product-summary", json={"ingredient_ids": [1, 2]})
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "INGREDIENT_NOT_FOUND"

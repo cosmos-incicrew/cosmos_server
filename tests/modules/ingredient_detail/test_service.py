@@ -98,15 +98,15 @@ async def test_generates_explanation_when_evidence_present(monkeypatch: pytest.M
     assert result.safety == "자극 낮음"
 
 
-async def test_returns_unconfirmed_when_no_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_raises_not_found_when_ingredient_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """성분이 DB에 아예 없으면 404 예외(잘못된 요청). '근거 부족'과 구분된다."""
     _patch_supabase(monkeypatch, {"rec_efficacy": [], "ingredients": []})
     _patch_gemini(monkeypatch, "이 텍스트는 나오면 안 됨")
 
-    result = await service.get_ingredient_detail(999)
-
-    assert result.status == "확인 불가"
-    assert result.body is None
-    assert result.reason == "성분 근거 없음"
+    with pytest.raises(service.IngredientNotFoundError):
+        await service.get_ingredient_detail(999)
 
 
 async def test_marks_safety_unconfirmed_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -480,10 +480,10 @@ async def test_product_summary_top_ingredients_limited_to_three(
     assert len(result.top_ingredients) == 3
 
 
-async def test_product_summary_unconfirmed_when_no_evidence(
+async def test_product_summary_raises_not_found_when_all_absent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """모든 성분에 근거가 없으면 생성하지 않고 확인 불가."""
+    """요청한 성분이 하나도 DB에 없으면 404 예외."""
     _patch_supabase(
         monkeypatch,
         {
@@ -494,7 +494,25 @@ async def test_product_summary_unconfirmed_when_no_evidence(
     )
     _patch_gemini(monkeypatch, "나오면 안 되는 텍스트")
 
-    result = await service.get_product_summary([1, 2])
+    with pytest.raises(service.IngredientNotFoundError):
+        await service.get_product_summary([1, 2])
+
+
+async def test_product_summary_unconfirmed_when_evidence_insufficient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """성분은 있으나 해설 근거가 부족하면 정상 응답 + 확인 불가."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [{"ingredient_id": 1, "name_kr": "이름만", "inci": None}],
+            "ingredients": [],
+            "restrictions": [],
+        },
+    )
+    _patch_gemini(monkeypatch, "나오면 안 되는 텍스트")
+
+    result = await service.get_product_summary([1])
 
     assert result.status == "확인 불가"
     assert result.summary is None
@@ -567,3 +585,108 @@ async def test_restriction_without_safety_note_still_marks_safety(
     assert result.safety is not None
     assert result.safety != "안전성 확인 불가"
     assert "1% 이하" in result.safety
+
+
+# ── 예외 처리 ─────────────────────────────────────────────────
+
+
+async def test_raises_evidence_unavailable_when_db_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """근거 조회(Supabase) 실패는 '근거 없음'이 아니라 장애로 구분된다."""
+
+    async def _broken_supabase() -> Any:
+        raise RuntimeError("connection refused")
+
+    monkeypatch.setattr(service, "get_supabase", _broken_supabase)
+
+    with pytest.raises(service.EvidenceUnavailableError):
+        await service.get_ingredient_detail(1)
+
+
+async def test_raises_generation_failed_when_llm_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """생성(Gemini) 실패는 GenerationFailedError로 올라온다."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [
+                {
+                    "ingredient_id": 1,
+                    "name_kr": "성분",
+                    "inci": "A",
+                    "efficacy": "보습",
+                }
+            ],
+            "ingredients": [],
+            "restrictions": [],
+        },
+    )
+    _patch_gemini(monkeypatch, "정상 응답")
+
+    class _BrokenModels:
+        async def generate_content(self, **_: Any) -> Any:
+            raise RuntimeError("rate limit exceeded")
+
+    class _BrokenAio:
+        models = _BrokenModels()
+
+    class _BrokenGemini:
+        aio = _BrokenAio()
+
+    monkeypatch.setattr(service, "get_gemini", lambda: _BrokenGemini())
+
+    with pytest.raises(service.GenerationFailedError):
+        await service.get_ingredient_detail(1)
+
+
+async def test_product_summary_survives_partial_fetch_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """성분 일부 조회가 실패해도 나머지 근거로 요약을 만든다."""
+    call_count = {"n": 0}
+    original_tables = {
+        "rec_efficacy": [
+            {
+                "ingredient_id": 1,
+                "name_kr": "성분A",
+                "inci": "A",
+                "efficacy": "보습",
+            }
+        ],
+        "ingredients": [],
+        "restrictions": [],
+    }
+
+    _patch_supabase(monkeypatch, original_tables)
+    _patch_gemini(monkeypatch, "요약입니다.")
+
+    real_fetch = service._fetch_evidence
+
+    async def _flaky_fetch(ingredient_id: int) -> Any:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise service.EvidenceUnavailableError("일시 오류")
+        return await real_fetch(ingredient_id)
+
+    monkeypatch.setattr(service, "_fetch_evidence", _flaky_fetch)
+
+    result = await service.get_product_summary([1, 2])
+
+    assert result.status == "ok"
+    assert result.summary is not None
+
+
+async def test_product_summary_raises_when_all_fetches_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """모든 성분 조회가 실패하면 장애로 올린다('근거 없음'과 구분)."""
+
+    async def _always_fail(ingredient_id: int) -> Any:
+        raise service.EvidenceUnavailableError("연결 실패")
+
+    monkeypatch.setattr(service, "_fetch_evidence", _always_fail)
+
+    with pytest.raises(service.EvidenceUnavailableError):
+        await service.get_product_summary([1, 2, 3])
