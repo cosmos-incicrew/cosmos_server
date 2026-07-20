@@ -35,7 +35,7 @@ async def search_products(
 
 @product_router.get("/{product_id}/ingredients", response_model=ProductIngredientIdsResponse)
 async def get_product_ingredient_ids(
-    product_id: str,
+    product_id: int,
     user_id: Annotated[str, Depends(verify_jwt)],
     repository: Annotated[IngredientSearchRepository, Depends(get_ingredient_search_repository)],
 ) -> ProductIngredientIdsResponse:

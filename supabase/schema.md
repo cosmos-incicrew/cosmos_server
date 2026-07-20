@@ -81,6 +81,7 @@ erDiagram
 | id | INTEGER PK | 구분용 PK (위 번호대 규칙 적용) |
 | product_name | TEXT NOT NULL | 제품명 |
 | product_num | TEXT | 제품번호 |
+| brand | TEXT | 브랜드 |
 | main_category | TEXT | 대분류 |
 | sub_category | TEXT | 중분류 |
 | detailed_category | TEXT | 소분류 |
