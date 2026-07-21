@@ -21,12 +21,29 @@ from app.modules.ingredient_detail.schemas import (
     IngredientDetailResponse,
     IngredientEvidence,
     ProductSummaryResponse,
+    Restriction,
     TopIngredient,
 )
 
 _SAFETY_UNKNOWN = "안전성 확인 불가"
 _MODULE_TAG = "module:ingredient_detail"
 _TOP_INGREDIENT_COUNT = 3  # 대표 성분(배합순 상위) 개수
+
+
+class IngredientNotFoundError(Exception):
+    """요청한 성분이 DB에 존재하지 않는다. 404로 변환한다.
+
+    "성분은 있으나 해설 근거가 부족한" 경우와 구분한다(그쪽은 정상 응답 + 확인 불가).
+    """
+
+
+class EvidenceUnavailableError(Exception):
+    """근거 조회(Supabase) 실패. 의존 서비스 문제이므로 503으로 변환한다."""
+
+
+class GenerationFailedError(Exception):
+    """생성(Gemini) 호출 실패. 외부 서비스 문제이므로 502로 변환한다."""
+
 
 _SOURCE_PATTERNS = [
     re.compile(r"PMID[:\s]*\d+", re.IGNORECASE),
@@ -40,15 +57,22 @@ async def get_ingredient_detail(ingredient_id: int) -> IngredientDetailResponse:
     """개별 성분 해설·주의사항 생성 (엔드포인트 진입점)."""
     evidence = await _fetch_evidence(ingredient_id)
 
-    # 근거 기반 생성 규칙: 근거 없으면 생성 호출 자체를 건너뛰고 "확인 불가"
-    if evidence is None or not evidence.has_explanation_basis():
-        reason = "성분 근거 없음" if evidence is None else "해설 근거(효능·특성) 없음"
+    # 성분 자체가 없으면 잘못된 요청이다(404). 아래 "근거 부족"과 구분한다.
+    if evidence is None:
+        raise IngredientNotFoundError(str(ingredient_id))
+
+    # 근거 기반 생성 규칙: 해설 근거가 없으면 생성 호출 자체를 건너뛰고 "확인 불가".
+    # 성분은 실재하므로 오류가 아니라 정상 응답이다.
+    if not evidence.has_explanation_basis():
         return IngredientDetailResponse(
-            status="확인 불가", ingredient_id=ingredient_id, reason=reason
+            status="확인 불가",
+            ingredient_id=ingredient_id,
+            name=evidence.name_kr,
+            reason="해설 근거(효능·특성) 없음",
         )
 
-    safety = evidence.safety_note or _SAFETY_UNKNOWN
-    safety_unknown = evidence.safety_note is None
+    safety = _build_safety_text(evidence)
+    safety_unknown = not evidence.has_safety_basis()
 
     raw_body = await _generate_explanation(evidence, safety_unknown)
     clean_body, verified = _verify_sources(raw_body, evidence)
@@ -66,16 +90,33 @@ async def get_ingredient_detail(ingredient_id: int) -> IngredientDetailResponse:
 
 async def _fetch_evidence(ingredient_id: int) -> IngredientEvidence | None:
     """ingredients + rec_efficacy를 ingredient_id로 조인해 근거 조립."""
-    client = await get_supabase()
-    eff_rows = (
-        await client.table("rec_efficacy").select("*").eq("ingredient_id", ingredient_id).execute()
-    )
-    ing_rows = (
-        await client.table("ingredients")
-        .select("origin_definition, name_kr, name_en")
-        .eq("id", ingredient_id)
-        .execute()
-    )
+    try:
+        client = await get_supabase()
+        eff_rows = (
+            await client.table("rec_efficacy")
+            .select("*")
+            .eq("ingredient_id", ingredient_id)
+            .execute()
+        )
+        ing_rows = (
+            await client.table("ingredients")
+            .select("origin_definition, name_kor, name_eng")
+            .eq("ingredient_id", ingredient_id)
+            .execute()
+        )
+        # 공식 규제(식약처 등). 성분당 여러 건일 수 있다.
+        restriction_rows = (
+            await client.table("restrictions")
+            .select(
+                "restriction_id, regulate_type, notice_ingr_name, "
+                "provis_atrcl, limit_cond, is_registered_korea"
+            )
+            .eq("ingredient_id", ingredient_id)
+            .execute()
+        )
+    except Exception as exc:
+        # 근거를 못 읽으면 "근거 없음"과 구분되어야 한다(빈 해설이 아니라 장애).
+        raise EvidenceUnavailableError(str(exc)) from exc
     if not eff_rows.data and not ing_rows.data:
         return None
 
@@ -90,10 +131,27 @@ async def _fetch_evidence(ingredient_id: int) -> IngredientEvidence | None:
                 return str(value)
         return None
 
+    restrictions = [
+        Restriction(
+            restriction_id=row.get("restriction_id")
+            if isinstance(row.get("restriction_id"), int)
+            else None,
+            regulate_type=pick(row.get("regulate_type")),
+            notice_ingr_name=pick(row.get("notice_ingr_name")),
+            provis_atrcl=pick(row.get("provis_atrcl")),
+            limit_cond=pick(row.get("limit_cond")),
+            is_registered_korea=row.get("is_registered_korea")
+            if isinstance(row.get("is_registered_korea"), bool)
+            else None,
+        )
+        for row in (restriction_rows.data or [])
+        if isinstance(row, dict)
+    ]
+
     return IngredientEvidence(
         ingredient_id=ingredient_id,
-        name_kr=pick(eff.get("name_kr"), ing.get("name_kr")),
-        inci=pick(eff.get("inci"), ing.get("name_en")),
+        name_kr=pick(eff.get("name_kr"), ing.get("name_kor")),
+        inci=pick(eff.get("inci"), ing.get("name_eng")),
         origin_definition=pick(ing.get("origin_definition")),
         efficacy=pick(eff.get("efficacy")),
         product_traits=pick(eff.get("product_traits")),
@@ -103,7 +161,33 @@ async def _fetch_evidence(ingredient_id: int) -> IngredientEvidence | None:
         regulation_note=pick(eff.get("regulation_note")),
         recommended_concentration=pick(eff.get("recommended_concentration")),
         reference_source=pick(eff.get("reference_source")),
+        restrictions=restrictions,
     )
+
+
+def _build_safety_text(evidence: IngredientEvidence) -> str:
+    """주의사항 문구 조립. 공식 규제(restrictions)를 우선하고 safety_note를 보조로 붙인다.
+
+    근거가 하나도 없으면 "안전성 확인 불가"로 명시한다(안전하다고 단정하지 않는다).
+    """
+    parts: list[str] = []
+    for restriction in evidence.restrictions:
+        if not restriction.has_content():
+            continue
+        detail = " / ".join(
+            text
+            for text in (
+                restriction.regulate_type,
+                restriction.limit_cond,
+                restriction.provis_atrcl,
+            )
+            if text
+        )
+        if detail:
+            parts.append(f"[공식 규제] {detail}")
+    if evidence.safety_note:
+        parts.append(evidence.safety_note)
+    return " ".join(parts) if parts else _SAFETY_UNKNOWN
 
 
 def _build_evidence_block(evidence: IngredientEvidence, safety_unknown: bool) -> str:
@@ -119,10 +203,25 @@ def _build_evidence_block(evidence: IngredientEvidence, safety_unknown: bool) ->
         lines.append(f"- 정의·기원: {evidence.origin_definition}")
     if evidence.reference_source:
         lines.append(f"- 출처: {evidence.reference_source}")
+    # 공식 규제는 사실이므로 근거에 명확히 포함한다(있으면 반드시 안내되어야 함).
+    for restriction in evidence.restrictions:
+        if not restriction.has_content():
+            continue
+        detail = " / ".join(
+            text
+            for text in (
+                restriction.regulate_type,
+                restriction.limit_cond,
+                restriction.provis_atrcl,
+            )
+            if text
+        )
+        if detail:
+            lines.append(f"- 공식 규제(식약처 등): {detail}")
     if safety_unknown:
         lines.append("- 안전성: 확인 불가 (안전하다고 단정하지 말 것)")
     elif evidence.safety_note:
-        lines.append(f"- 안전성: {evidence.safety_note}")
+        lines.append(f"- 안전성 참고: {evidence.safety_note}")
     return "\n".join(lines)
 
 
@@ -144,11 +243,15 @@ async def _generate_explanation(evidence: IngredientEvidence, safety_unknown: bo
         metadata={"ingredient_id": evidence.ingredient_id, "module": _MODULE_TAG},
     )
 
-    client = get_gemini()
-    response = await client.aio.models.generate_content(
-        model=model,
-        contents=f"{EXPLANATION_SYSTEM_PROMPT}\n\n{user_prompt}",
-    )
+    try:
+        client = get_gemini()
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=f"{EXPLANATION_SYSTEM_PROMPT}\n\n{user_prompt}",
+        )
+    except Exception as exc:
+        raise GenerationFailedError(str(exc)) from exc
+
     output = response.text or ""
     langfuse.update_current_generation(output=output)
     return output
@@ -195,11 +298,26 @@ async def get_product_summary(ingredient_ids: list[int]) -> ProductSummaryRespon
 
     # 여러 성분의 근거 조회 (배합순 유지)
     evidences: list[IngredientEvidence] = []
+    failed_count = 0
     for iid in ingredient_ids:
-        ev = await _fetch_evidence(iid)
+        try:
+            ev = await _fetch_evidence(iid)
+        except EvidenceUnavailableError:
+            # 성분 하나의 조회 실패로 제품 요약 전체를 실패시키지 않는다.
+            failed_count += 1
+            continue
         if ev is not None:
             evidences.append(ev)
 
+    # 전부 실패했다면 일시적 장애로 보고 상위에 알린다.
+    if failed_count and not evidences:
+        raise EvidenceUnavailableError("모든 성분 근거 조회 실패")
+
+    # 요청한 성분이 하나도 DB에 없으면 잘못된 요청이다(404).
+    if not evidences:
+        raise IngredientNotFoundError(", ".join(str(i) for i in ingredient_ids))
+
+    # 성분은 있으나 해설 근거가 부족한 경우는 정상 응답 + 확인 불가.
     if not any(ev.has_explanation_basis() for ev in evidences):
         return ProductSummaryResponse(status="확인 불가", reason="제품 성분 근거 없음")
 
@@ -234,9 +352,23 @@ def _build_product_evidence_block(evidences: list[IngredientEvidence]) -> str:
         if ev.recommended_skin_types:
             lines.append(f"  권장 피부타입: {ev.recommended_skin_types}")
         if ev.safety_note:
-            lines.append(f"  안전성: {ev.safety_note}")
+            lines.append(f"  안전성 참고: {ev.safety_note}")
         if ev.regulation_note:
             lines.append(f"  주의·제한: {ev.regulation_note}")
+        for restriction in ev.restrictions:
+            if not restriction.has_content():
+                continue
+            detail = " / ".join(
+                text
+                for text in (
+                    restriction.regulate_type,
+                    restriction.limit_cond,
+                    restriction.provis_atrcl,
+                )
+                if text
+            )
+            if detail:
+                lines.append(f"  공식 규제(식약처 등): {detail}")
         if lines:
             blocks.append(f"- {ev.name_kr or ev.ingredient_id}\n" + "\n".join(lines))
     return "\n".join(blocks)
@@ -259,11 +391,15 @@ async def _generate_product_summary(evidences: list[IngredientEvidence]) -> str:
         metadata={"ingredient_count": len(evidences), "module": _MODULE_TAG},
     )
 
-    client = get_gemini()
-    response = await client.aio.models.generate_content(
-        model=model,
-        contents=f"{PRODUCT_SUMMARY_SYSTEM_PROMPT}\n\n{user_prompt}",
-    )
+    try:
+        client = get_gemini()
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=f"{PRODUCT_SUMMARY_SYSTEM_PROMPT}\n\n{user_prompt}",
+        )
+    except Exception as exc:
+        raise GenerationFailedError(str(exc)) from exc
+
     output = response.text or ""
     langfuse.update_current_generation(output=output)
     return output
