@@ -2,15 +2,14 @@
 
 from collections import defaultdict
 
+from app.common.restrictions import restriction_rules_by_ingredient
 from app.modules.product_compare.repository import (
     ProductCompareRepository,
-    RestrictionRow,
 )
 from app.modules.product_compare.schemas import (
     ComparedProduct,
     IngredientPresence,
     ProductCompareResponse,
-    RestrictionRule,
 )
 
 
@@ -56,7 +55,7 @@ async def compare_products(
                 all_ingredient_ids.append(ingredient_id)
 
     ingredient_names = await repository.get_ingredient_names(all_ingredient_ids)
-    restrictions_by_ingredient = _restrictions_by_ingredient(
+    restrictions_by_ingredient = restriction_rules_by_ingredient(
         await repository.get_restrictions(all_ingredient_ids)
     )
     product_ids_by_ingredient: dict[int, list[int]] = defaultdict(list)
@@ -102,20 +101,3 @@ def _presence_type(product_count: int, total_product_count: int) -> str:
     if product_count == 1:
         return "single"
     return "partial"
-
-
-def _restrictions_by_ingredient(
-    restriction_rows: list[RestrictionRow],
-) -> dict[int, list[RestrictionRule]]:
-    results: dict[int, list[RestrictionRule]] = defaultdict(list)
-    for restriction in restriction_rows:
-        results[restriction.ingredient_id].append(
-            RestrictionRule(
-                restriction_id=restriction.restriction_id,
-                regulate_type=restriction.regulate_type,
-                provis_atrcl=restriction.provis_atrcl,
-                limit_cond=restriction.limit_cond,
-                is_registered_korea=restriction.is_registered_korea,
-            )
-        )
-    return results

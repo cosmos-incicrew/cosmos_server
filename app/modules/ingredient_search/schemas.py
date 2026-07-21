@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel
 
+from app.common.schemas import RestrictionRule
+
 
 class ProductSearchCandidate(BaseModel):
     id: int
@@ -29,9 +31,16 @@ class IngredientSearchResponse(BaseModel):
     results: list[IngredientSearchCandidate]
 
 
+class RestrictedIngredient(BaseModel):
+    ingredient_id: int
+    name_kr: str | None
+    restrictions: list[RestrictionRule]
+
+
 class ProductIngredientIdsResponse(BaseModel):
     id: int
     product_name: str
     ingredient_ids: list[int]
     mapped_ingredient_count: int
     unmapped_ingredient_count: int
+    restricted_ingredients: list[RestrictedIngredient]

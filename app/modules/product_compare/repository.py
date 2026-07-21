@@ -6,6 +6,7 @@ from typing import Any, Protocol
 
 from supabase import AsyncClient
 
+from app.common.restrictions import RestrictionRow, fetch_restriction_rows
 from app.core.supabase import get_supabase
 
 
@@ -14,16 +15,6 @@ class ProductIngredientRows:
     id: int
     product_name: str
     ingredient_ids: list[int | None]
-
-
-@dataclass(frozen=True)
-class RestrictionRow:
-    restriction_id: int
-    ingredient_id: int
-    regulate_type: str | None
-    provis_atrcl: str | None
-    limit_cond: str | None
-    is_registered_korea: bool | None
 
 
 class ProductCompareRepository(Protocol):
@@ -98,34 +89,7 @@ class SupabaseProductCompareRepository:
         }
 
     async def get_restrictions(self, ingredient_ids: list[int]) -> list[RestrictionRow]:
-        if not ingredient_ids:
-            return []
-        response = await (
-            self._client.table("restrictions")
-            .select(
-                "restriction_id,ingredient_id,regulate_type,provis_atrcl,limit_cond,is_registered_korea"
-            )
-            .in_("ingredient_id", ingredient_ids)
-            .order("restriction_id")
-            .execute()
-        )
-        results: list[RestrictionRow] = []
-        for row in _rows(response.data):
-            restriction_id = _integer(row.get("restriction_id"))
-            ingredient_id = _integer(row.get("ingredient_id"))
-            if restriction_id is None or ingredient_id is None:
-                continue
-            results.append(
-                RestrictionRow(
-                    restriction_id=restriction_id,
-                    ingredient_id=ingredient_id,
-                    regulate_type=_optional_text(row.get("regulate_type")),
-                    provis_atrcl=_optional_text(row.get("provis_atrcl")),
-                    limit_cond=_optional_text(row.get("limit_cond")),
-                    is_registered_korea=_optional_bool(row.get("is_registered_korea")),
-                )
-            )
-        return results
+        return await fetch_restriction_rows(self._client, ingredient_ids)
 
 
 async def get_product_compare_repository() -> ProductCompareRepository:
@@ -148,7 +112,3 @@ def _integer(value: Any) -> int | None:
 
 def _optional_text(value: Any) -> str | None:
     return value if isinstance(value, str) else None
-
-
-def _optional_bool(value: Any) -> bool | None:
-    return value if isinstance(value, bool) else None
