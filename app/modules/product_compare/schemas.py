@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.common.schemas import RestrictionRule
+
 MIN_COMPARE_PRODUCT_COUNT = 2
 
 
@@ -14,14 +16,6 @@ class ProductCompareRequest(BaseModel):
 class ComparedProduct(BaseModel):
     id: int
     product_name: str
-
-
-class RestrictionRule(BaseModel):
-    restriction_id: int
-    regulate_type: str | None
-    provis_atrcl: str | None
-    limit_cond: str | None
-    is_registered_korea: bool | None
 
 
 class IngredientPresence(BaseModel):

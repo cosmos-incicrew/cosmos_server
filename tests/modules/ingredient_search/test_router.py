@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 import pytest
 from fastapi.testclient import TestClient
 
+from app.common.restrictions import RestrictionRow
 from app.core.auth import verify_jwt
 from app.main import app
 from app.modules.ingredient_search.repository import (
@@ -50,6 +51,23 @@ class FakeIngredientSearchRepository(IngredientSearchRepository):
             product_name="테스트 세럼",
             ingredient_ids=[2700, 2247, 3851, None],
         )
+
+    async def get_ingredient_names(self, ingredient_ids: list[int]) -> dict[int, str]:
+        assert ingredient_ids == [2700, 2247, 3851]
+        return {2700: "테스트 성분", 2247: "주의 성분", 3851: "일반 성분"}
+
+    async def get_restrictions(self, ingredient_ids: list[int]) -> list[RestrictionRow]:
+        assert ingredient_ids == [2700, 2247, 3851]
+        return [
+            RestrictionRow(
+                restriction_id=10,
+                ingredient_id=2247,
+                regulate_type="한도",
+                provis_atrcl="사용 조건",
+                limit_cond="배합 한도",
+                is_registered_korea=True,
+            )
+        ]
 
 
 @pytest.fixture()
@@ -99,7 +117,9 @@ def test_search_ingredients_returns_alias_candidates(client: TestClient) -> None
     }
 
 
-def test_get_product_ingredient_ids_returns_resolved_integer_ids(client: TestClient) -> None:
+def test_get_product_ingredients_returns_ids_and_restricted_ingredients(
+    client: TestClient,
+) -> None:
     response = client.get("/api/v1/products/1/ingredients")
 
     assert response.status_code == 200
@@ -109,7 +129,39 @@ def test_get_product_ingredient_ids_returns_resolved_integer_ids(client: TestCli
         "ingredient_ids": [2700, 2247, 3851],
         "mapped_ingredient_count": 3,
         "unmapped_ingredient_count": 1,
+        "restricted_ingredients": [
+            {
+                "ingredient_id": 2247,
+                "name_kr": "주의 성분",
+                "restrictions": [
+                    {
+                        "restriction_id": 10,
+                        "regulate_type": "한도",
+                        "provis_atrcl": "사용 조건",
+                        "limit_cond": "배합 한도",
+                        "is_registered_korea": True,
+                    }
+                ],
+            }
+        ],
     }
+
+
+def test_get_product_ingredients_returns_empty_restrictions_when_none_exist(
+    client: TestClient,
+) -> None:
+    class UnrestrictedProductRepository(FakeIngredientSearchRepository):
+        async def get_restrictions(self, ingredient_ids: list[int]) -> list[RestrictionRow]:
+            return []
+
+    app.dependency_overrides[get_ingredient_search_repository] = lambda: (
+        UnrestrictedProductRepository()
+    )
+
+    response = client.get("/api/v1/products/1/ingredients")
+
+    assert response.status_code == 200
+    assert response.json()["restricted_ingredients"] == []
 
 
 def test_product_selection_flow_returns_ids_for_the_selected_candidate(client: TestClient) -> None:

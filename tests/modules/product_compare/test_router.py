@@ -5,12 +5,12 @@ import pytest
 from fastapi.testclient import TestClient
 from supabase import AsyncClient
 
+from app.common.restrictions import RestrictionRow
 from app.core.auth import verify_jwt
 from app.main import app
 from app.modules.product_compare.repository import (
     ProductCompareRepository,
     ProductIngredientRows,
-    RestrictionRow,
     SupabaseProductCompareRepository,
     get_product_compare_repository,
 )

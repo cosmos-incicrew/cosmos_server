@@ -12,7 +12,7 @@ PRODUCT_COMPARE_MOCK_PATH = (
 
 @dataclass(frozen=True)
 class MockResponse:
-    data: list[dict[str, Any]]
+    data: Any
 
 
 class MockSupabaseQuery:
@@ -21,6 +21,7 @@ class MockSupabaseQuery:
         self._selected_columns: tuple[str, ...] | None = None
         self._filters: list[tuple[str, set[Any]]] = []
         self._order_columns: list[str] = []
+        self._maybe_single = False
 
     def select(self, columns: str) -> "MockSupabaseQuery":
         self._selected_columns = tuple(column.strip() for column in columns.split(","))
@@ -30,8 +31,16 @@ class MockSupabaseQuery:
         self._filters.append((column, set(values)))
         return self
 
+    def eq(self, column: str, value: Any) -> "MockSupabaseQuery":
+        self._filters.append((column, {value}))
+        return self
+
     def order(self, column: str) -> "MockSupabaseQuery":
         self._order_columns.append(column)
+        return self
+
+    def maybe_single(self) -> "MockSupabaseQuery":
+        self._maybe_single = True
         return self
 
     async def execute(self) -> MockResponse:
@@ -46,6 +55,8 @@ class MockSupabaseQuery:
             )
         if self._selected_columns is not None:
             rows = [{column: row.get(column) for column in self._selected_columns} for row in rows]
+        if self._maybe_single:
+            return MockResponse(data=rows[0] if rows else None)
         return MockResponse(data=rows)
 
 

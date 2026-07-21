@@ -6,6 +6,7 @@ from typing import Any, Protocol
 
 from supabase import AsyncClient
 
+from app.common.restrictions import RestrictionRow, fetch_restriction_rows
 from app.core.supabase import get_supabase
 from app.modules.ingredient_search.schemas import (
     IngredientSearchCandidate,
@@ -21,6 +22,10 @@ class IngredientSearchRepository(Protocol):
     ) -> list[IngredientSearchCandidate]: ...
 
     async def get_product_ingredients(self, product_id: int) -> "ProductIngredientRows | None": ...
+
+    async def get_ingredient_names(self, ingredient_ids: list[int]) -> dict[int, str]: ...
+
+    async def get_restrictions(self, ingredient_ids: list[int]) -> list[RestrictionRow]: ...
 
 
 @dataclass(frozen=True)
@@ -147,6 +152,25 @@ class SupabaseIngredientSearchRepository:
                 _integer(row.get("ingredient_id")) for row in _rows(ingredient_response.data)
             ],
         )
+
+    async def get_ingredient_names(self, ingredient_ids: list[int]) -> dict[int, str]:
+        if not ingredient_ids:
+            return {}
+        response = await (
+            self._client.table("ingredients")
+            .select("ingredient_id,name_kor")
+            .in_("ingredient_id", ingredient_ids)
+            .execute()
+        )
+        return {
+            ingredient_id: name_kor
+            for row in _rows(response.data)
+            if (ingredient_id := _integer(row.get("ingredient_id"))) is not None
+            and isinstance((name_kor := row.get("name_kor")), str)
+        }
+
+    async def get_restrictions(self, ingredient_ids: list[int]) -> list[RestrictionRow]:
+        return await fetch_restriction_rows(self._client, ingredient_ids)
 
 
 async def get_ingredient_search_repository() -> IngredientSearchRepository:
