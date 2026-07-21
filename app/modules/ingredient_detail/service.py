@@ -34,7 +34,8 @@ _SAFETY_UNKNOWN = "안전성 확인 불가"
 _MODULE_TAG = "module:ingredient_detail"
 _TOP_INGREDIENT_COUNT = 3  # 대표 성분(배합순 상위) 개수
 _MIN_COMPARE_PRODUCTS = 2  # 비교는 제품 2개 이상
-# 전성분을 모두 해설하면 응답이 길고 LLM 비용이 커진다. 비교에 의미 있는 수로 제한.
+# 규제 없는 성분의 상한. 전성분을 모두 해설하면 프롬프트가 길고 LLM 비용이 커진다.
+# 규제가 있는 성분은 안전 정보라 이 상한을 적용하지 않는다.
 _MAX_COMPARE_INGREDIENTS = 12
 
 
@@ -437,18 +438,15 @@ async def get_comparison_summary(
         )
 
     # 해설 대상 성분을 추린다. 전성분을 모두 설명하면 길어지고 LLM 비용도 커진다.
-    # 버리는 기준은 포함 범위가 아니라 "비교에서의 정보 가치"다.
-    #   1순위 규제 있는 성분(안전 정보라 범위와 무관하게 포함)
-    #   2순위 차이를 드러내는 성분(single·partial)
-    #   3순위 공통 성분(all — 정제수처럼 흔해 정보 가치가 낮다)
-    def _priority(presence: IngredientPresence) -> int:
-        if any(r.has_content() for r in presence.restrictions):
-            return 0
-        if presence.presence_type in ("single", "partial"):
-            return 1
-        return 2
-
-    highlighted = sorted(presences, key=_priority)[:_MAX_COMPARE_INGREDIENTS]
+    #
+    # 규제가 있는 성분은 상한에서 제외한다 — 안전 정보가 개수 제한 때문에
+    # 누락되면 사용자에게 실질적 해가 될 수 있다.
+    # 나머지는 정보 가치 순으로 채운다: 차이를 드러내는 성분(single·partial) →
+    # 공통 성분(all — 정제수처럼 흔해 정보 가치가 낮다).
+    restricted = [p for p in presences if any(r.has_content() for r in p.restrictions)]
+    rest = [p for p in presences if not any(r.has_content() for r in p.restrictions)]
+    rest.sort(key=lambda p: 0 if p.presence_type in ("single", "partial") else 1)
+    highlighted = restricted + rest[:_MAX_COMPARE_INGREDIENTS]
 
     # 성분 역할을 설명하려면 효능 근거가 필요하다(compare 응답에는 없다).
     evidence_by_id: dict[int, IngredientEvidence] = {}

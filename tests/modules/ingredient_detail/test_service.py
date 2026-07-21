@@ -941,3 +941,61 @@ async def test_comparison_keeps_partial_ingredients(
 
     assert result.status == "ok"
     assert result.summary is not None
+
+
+async def test_comparison_never_drops_restricted_ingredients(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """규제 성분은 개수 상한을 넘어도 모두 해설 근거에 포함된다.
+
+    안전 정보가 개수 제한 때문에 누락되면 사용자에게 실질적 해가 될 수 있다.
+    """
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [],
+            "ingredients": [],
+            "restrictions": [],
+        },
+    )
+
+    captured: dict[str, str] = {}
+
+    class _CapturingModels:
+        async def generate_content(self, **kwargs: Any) -> Any:
+            captured["contents"] = kwargs.get("contents", "")
+            return type("Resp", (), {"text": "비교 해설입니다."})()
+
+    class _CapturingAio:
+        models = _CapturingModels()
+
+    class _CapturingGemini:
+        aio = _CapturingAio()
+
+    monkeypatch.setattr(service, "get_gemini", lambda: _CapturingGemini())
+    monkeypatch.setattr(service, "gemini_model_for", lambda complex_query=False: "gemini-pro")
+
+    class _FakeLangfuse:
+        def update_current_generation(self, **_: Any) -> None:
+            pass
+
+    monkeypatch.setattr(service, "get_client", lambda: _FakeLangfuse())
+
+    # 규제 성분 15개(상한 12개보다 많음) + 공통 성분 20개
+    presences = [
+        _presence(
+            i,
+            f"규제성분{i}",
+            [101, 102],
+            "all",
+            [{"restriction_id": i, "regulate_type": "한도", "limit_cond": f"{i}% 이하"}],
+        )
+        for i in range(1, 16)
+    ]
+    presences += [_presence(100 + i, f"공통성분{i}", [101, 102], "all") for i in range(1, 21)]
+
+    await service.get_comparison_summary(_products(), presences)
+
+    # 15개 규제 성분이 하나도 빠지지 않아야 한다.
+    for i in range(1, 16):
+        assert f"규제성분{i}" in captured["contents"]
