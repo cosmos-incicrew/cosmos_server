@@ -79,3 +79,40 @@ class ProductSummaryResponse(BaseModel):
     summary: str | None = None
     source_verified: bool = True
     reason: str | None = None
+
+
+# ── 다중 제품 비교 해설 ────────────────────────────────────────
+# 영기님 POST /api/v1/products/compare 응답을 프론트가 그대로 전달한다.
+
+
+class ComparedProduct(BaseModel):
+    """비교 대상 제품."""
+
+    id: int
+    product_name: str | None = None
+
+
+class IngredientPresence(BaseModel):
+    """성분별 제품 포함 관계 + 구조화된 주의사항."""
+
+    ingredient_id: int
+    name_kr: str | None = None
+    product_ids: list[int] = []
+    presence_type: str | None = None  # all | partial | single
+    restrictions: list[Restriction] = []
+
+
+class ComparisonSummaryRequest(BaseModel):
+    """비교 해설 요청. 검색엔진 compare 응답을 그대로 전달받는다."""
+
+    products: list[ComparedProduct]
+    ingredient_presence: list[IngredientPresence]
+
+
+class ComparisonSummaryResponse(BaseModel):
+    """비교 해설 응답."""
+
+    status: str
+    summary: str | None = None
+    source_verified: bool = True
+    reason: str | None = None

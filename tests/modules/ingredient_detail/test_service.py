@@ -690,3 +690,254 @@ async def test_product_summary_raises_when_all_fetches_fail(
 
     with pytest.raises(service.EvidenceUnavailableError):
         await service.get_product_summary([1, 2, 3])
+
+
+# ── 다중 제품 비교 해설 ────────────────────────────────────────
+
+
+def _presence(
+    ingredient_id: int,
+    name: str,
+    product_ids: list[int],
+    presence_type: str,
+    restrictions: list[dict[str, Any]] | None = None,
+) -> Any:
+    from app.modules.ingredient_detail.schemas import (
+        IngredientPresence,
+        Restriction,
+    )
+
+    return IngredientPresence(
+        ingredient_id=ingredient_id,
+        name_kr=name,
+        product_ids=product_ids,
+        presence_type=presence_type,
+        restrictions=[Restriction(**r) for r in (restrictions or [])],
+    )
+
+
+def _products() -> Any:
+    from app.modules.ingredient_detail.schemas import ComparedProduct
+
+    return [
+        ComparedProduct(id=101, product_name="제품 A"),
+        ComparedProduct(id=102, product_name="제품 B"),
+    ]
+
+
+async def test_generates_comparison_summary(monkeypatch: pytest.MonkeyPatch) -> None:
+    """비교 결과를 받아 자연어 해설을 생성한다."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [
+                {
+                    "ingredient_id": 1,
+                    "name_kr": "정제수",
+                    "inci": "WATER",
+                    "efficacy": "용매 역할",
+                }
+            ],
+            "ingredients": [],
+            "restrictions": [],
+        },
+    )
+    _patch_gemini(monkeypatch, "두 제품 모두 정제수를 포함합니다.")
+
+    result = await service.get_comparison_summary(
+        _products(),
+        [
+            _presence(1, "정제수", [101, 102], "all"),
+            _presence(2, "글리세린", [101], "single"),
+        ],
+    )
+
+    assert result.status == "ok"
+    assert result.summary is not None
+
+
+async def test_comparison_requires_two_products(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """제품이 2개 미만이면 비교 해설을 만들지 않는다."""
+    from app.modules.ingredient_detail.schemas import ComparedProduct
+
+    result = await service.get_comparison_summary(
+        [ComparedProduct(id=101, product_name="제품 A")],
+        [_presence(1, "정제수", [101], "single")],
+    )
+
+    assert result.status == "확인 불가"
+    assert result.summary is None
+
+
+async def test_comparison_unconfirmed_without_presence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """성분 포함 정보가 없으면 확인 불가."""
+    result = await service.get_comparison_summary(_products(), [])
+
+    assert result.status == "확인 불가"
+    assert result.summary is None
+
+
+async def test_comparison_includes_restrictions_in_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """전달받은 주의사항이 근거 블록에 포함된다(별도 조회하지 않는다)."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [],
+            "ingredients": [],
+            "restrictions": [],
+        },
+    )
+
+    captured: dict[str, str] = {}
+
+    class _CapturingModels:
+        async def generate_content(self, **kwargs: Any) -> Any:
+            captured["contents"] = kwargs.get("contents", "")
+            return type("Resp", (), {"text": "비교 해설입니다."})()
+
+    class _CapturingAio:
+        models = _CapturingModels()
+
+    class _CapturingGemini:
+        aio = _CapturingAio()
+
+    monkeypatch.setattr(service, "get_gemini", lambda: _CapturingGemini())
+    monkeypatch.setattr(service, "gemini_model_for", lambda complex_query=False: "gemini-pro")
+
+    class _FakeLangfuse:
+        def update_current_generation(self, **_: Any) -> None:
+            pass
+
+    monkeypatch.setattr(service, "get_client", lambda: _FakeLangfuse())
+
+    await service.get_comparison_summary(
+        _products(),
+        [
+            _presence(
+                2,
+                "글리세린",
+                [101],
+                "single",
+                [
+                    {
+                        "restriction_id": 10,
+                        "regulate_type": "한도",
+                        "limit_cond": "배합 한도",
+                        "provis_atrcl": "사용 조건",
+                    }
+                ],
+            ),
+        ],
+    )
+
+    assert "공식 규제" in captured["contents"]
+    assert "배합 한도" in captured["contents"]
+
+
+async def test_comparison_limits_ingredient_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """성분이 많아도 해설 대상은 상한선까지만 사용한다."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [],
+            "ingredients": [],
+            "restrictions": [],
+        },
+    )
+    _patch_gemini(monkeypatch, "비교 해설입니다.")
+
+    many = [_presence(i, f"성분{i}", [101, 102], "all") for i in range(1, 30)]
+
+    result = await service.get_comparison_summary(_products(), many)
+
+    assert result.status == "ok"
+
+
+async def test_comparison_prioritizes_restricted_and_differing_ingredients(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """성분이 상한을 넘으면 규제 성분 → 차이 성분(partial·single) → 공통 순으로 남긴다.
+
+    정제수처럼 모든 제품에 흔한 성분보다, 일부 제품에만 있거나
+    규제가 있는 성분이 비교에서 정보 가치가 크다.
+    """
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [],
+            "ingredients": [],
+            "restrictions": [],
+        },
+    )
+
+    captured: dict[str, str] = {}
+
+    class _CapturingModels:
+        async def generate_content(self, **kwargs: Any) -> Any:
+            captured["contents"] = kwargs.get("contents", "")
+            return type("Resp", (), {"text": "비교 해설입니다."})()
+
+    class _CapturingAio:
+        models = _CapturingModels()
+
+    class _CapturingGemini:
+        aio = _CapturingAio()
+
+    monkeypatch.setattr(service, "get_gemini", lambda: _CapturingGemini())
+    monkeypatch.setattr(service, "gemini_model_for", lambda complex_query=False: "gemini-pro")
+
+    class _FakeLangfuse:
+        def update_current_generation(self, **_: Any) -> None:
+            pass
+
+    monkeypatch.setattr(service, "get_client", lambda: _FakeLangfuse())
+
+    # 공통 성분으로 상한을 채우고, 뒤에 규제 성분과 partial 성분을 배치한다.
+    presences = [_presence(i, f"공통성분{i}", [101, 102], "all") for i in range(1, 20)]
+    presences.append(
+        _presence(
+            98,
+            "규제성분",
+            [101, 102],
+            "all",
+            [{"restriction_id": 1, "regulate_type": "한도", "limit_cond": "1% 이하"}],
+        )
+    )
+    presences.append(_presence(99, "부분성분", [101], "partial"))
+
+    await service.get_comparison_summary(_products(), presences)
+
+    # 뒤쪽에 있어도 우선순위가 높으면 프롬프트에 포함된다.
+    assert "규제성분" in captured["contents"]
+    assert "부분성분" in captured["contents"]
+
+
+async def test_comparison_keeps_partial_ingredients(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """partial(일부 제품에만 포함) 성분도 해설 대상에 포함된다."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "rec_efficacy": [],
+            "ingredients": [],
+            "restrictions": [],
+        },
+    )
+    _patch_gemini(monkeypatch, "비교 해설입니다.")
+
+    result = await service.get_comparison_summary(
+        _products(),
+        [_presence(1, "부분성분", [101], "partial")],
+    )
+
+    assert result.status == "ok"
+    assert result.summary is not None
