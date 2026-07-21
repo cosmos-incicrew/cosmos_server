@@ -27,6 +27,8 @@
   (`uv run lint-imports`).
 - 외부 서비스(Supabase·Gemini·Langfuse)는 반드시 `app/core`의 `get_supabase()`·`get_gemini()`·
   `get_langfuse()`로만 접근한다.
+- 앱 런타임과 설정 수명 주기를 공유하지 않는 운영·평가 스크립트는 예외적으로 `app/core`의
+  비캐시 팩토리를 사용한다. 외부 클라이언트를 스크립트에서 직접 생성하지 않는다.
 - **비동기 주의:** `get_supabase()`는 코루틴이다 — `client = await get_supabase()`로 받고 쿼리도
   `await`한다. Gemini도 `client.aio`(비동기)를 쓴다. async 라우터에서 동기 호출은 이벤트 루프를 막는다.
 

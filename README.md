@@ -135,6 +135,21 @@ uv run lint-imports      # 모듈 독립성 검사
 
 다 통과하면 셀프 리뷰 후 PR을 연다. PR 절차는 [conventions.md](docs/rules/conventions.md).
 
+### 제품명 검색 실DB 평가
+
+`SUPABASE_URL`과 `SUPABASE_SERVICE_ROLE_KEY`만 설정하면 실제 적재 데이터를 대상으로
+완전 일치 40건, 부분 일치 40건, 미등록 제품형 검색어 20건을 평가한다. 카테고리별
+고정 시드 표본을 사용하므로 같은 데이터에서는 평가 대상을 재현할 수 있다. Gemini·Langfuse 및
+아직 적재되지 않은 주의사항 데이터는 사용하지 않는다.
+
+```bash
+uv run python -m scripts.evaluate_product_search
+```
+
+콘솔에는 완전 일치 Hit@20·MRR@20, 부분 검색 결과 존재율·표본 제품 노출률,
+결과 없음 정확도, 성공률과 응답시간(p50·p95·최대)이 출력된다.
+개별 요청 결과는 `artifacts/search-evaluation/baseline.json`에 저장되며 Git에는 포함되지 않는다.
+
 ## 구조
 
 - `app/core/` — 설정·인증·외부 클라이언트 (담당: 김민경)
