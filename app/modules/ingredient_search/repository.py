@@ -94,9 +94,7 @@ class SupabaseIngredientSearchRepository:
         direct_response = None
         direct_latency_ms = 0.0
         if requires_literal_product_lookup(query):
-            direct_query = _direct_product_query(
-                self._client, selection, query, candidate_limit
-            )
+            direct_query = _direct_product_query(self._client, selection, query, candidate_limit)
             timed_responses = await asyncio.gather(
                 _execute_with_latency(tolerant_query, self._product_search_timeout_seconds),
                 _execute_with_latency(direct_query, self._product_search_timeout_seconds),
@@ -109,9 +107,7 @@ class SupabaseIngredientSearchRepository:
             )
         tolerant_count = len(_rows(tolerant_response.data))
         if tolerant_count >= candidate_limit and direct_response is None:
-            direct_query = _direct_product_query(
-                self._client, selection, query, candidate_limit
-            )
+            direct_query = _direct_product_query(self._client, selection, query, candidate_limit)
             direct_response, direct_latency_ms = await _execute_with_latency(
                 direct_query, self._product_search_timeout_seconds
             )

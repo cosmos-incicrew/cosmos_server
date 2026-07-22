@@ -156,9 +156,7 @@ def build_summary(
         ),
         "candidate_diagnostics": {
             "direct": _distribution([item.direct_candidate_count for item in diagnostics]),
-            "tolerant": _distribution(
-                [item.tolerant_candidate_count for item in diagnostics]
-            ),
+            "tolerant": _distribution([item.tolerant_candidate_count for item in diagnostics]),
             "merged": _distribution([item.merged_candidate_count for item in diagnostics]),
             "ranked": _distribution([item.ranked_candidate_count for item in diagnostics]),
         },
@@ -166,13 +164,9 @@ def build_summary(
             "direct": _distribution(
                 [item.direct_query_latency_ms for item in diagnostics if item.direct_query_executed]
             ),
-            "tolerant": _distribution(
-                [item.tolerant_query_latency_ms for item in diagnostics]
-            ),
+            "tolerant": _distribution([item.tolerant_query_latency_ms for item in diagnostics]),
         },
-        "direct_query_execution_count": sum(
-            item.direct_query_executed for item in diagnostics
-        ),
+        "direct_query_execution_count": sum(item.direct_query_executed for item in diagnostics),
         "direct_query_execution_rate": _ratio(
             sum(item.direct_query_executed for item in diagnostics), len(diagnostics)
         ),

@@ -7,6 +7,7 @@ llm-rag-rules.md를 예외 없이 따른다.
 
 import asyncio
 import re
+from typing import Any
 
 from langfuse import get_client, observe
 
@@ -25,6 +26,8 @@ from app.modules.ingredient_detail.schemas import (
     ComparisonSummaryResponse,
     IngredientDetailResponse,
     IngredientEvidence,
+    IngredientName,
+    IngredientNameResponse,
     IngredientPresence,
     ProductSummaryResponse,
     Restriction,
@@ -675,3 +678,52 @@ async def _generate_comparison_summary(
     output = response.text or ""
     langfuse.update_current_generation(output=output)
     return output
+
+
+async def get_ingredient_names(ingredient_ids: list[int]) -> IngredientNameResponse:
+    """성분 id 목록을 이름 목록으로 변환한다.
+
+    해설을 생성하지 않고 이름만 조회하므로 LLM을 호출하지 않는다.
+    프론트가 성분 목록 화면을 그릴 때 사용한다.
+
+    요청 순서(배합순)를 유지하고, DB에 없는 id는 이름을 null로 채워
+    프론트가 요청한 개수와 응답 개수를 맞출 수 있게 한다.
+    """
+    if not ingredient_ids:
+        return IngredientNameResponse(ingredients=[])
+
+    # 중복을 제거해 조회하고, 응답은 요청 순서대로 만든다.
+    unique_ids = list(dict.fromkeys(ingredient_ids))
+
+    try:
+        client = await get_supabase()
+        rows = (
+            await client.table("ingredients")
+            .select("ingredient_id, name_kor, name_eng")
+            .in_("ingredient_id", unique_ids)
+            .execute()
+        )
+    except Exception as exc:
+        raise EvidenceUnavailableError(str(exc)) from exc
+
+    by_id: dict[int, dict[str, Any]] = {}
+    for row in rows.data or []:
+        if not isinstance(row, dict):
+            continue
+        ingredient_id = row.get("ingredient_id")
+        if isinstance(ingredient_id, int):
+            by_id[ingredient_id] = row
+
+    def _text(value: Any) -> str | None:
+        return value if isinstance(value, str) and value.strip() else None
+
+    return IngredientNameResponse(
+        ingredients=[
+            IngredientName(
+                ingredient_id=ingredient_id,
+                name_kr=_text(by_id.get(ingredient_id, {}).get("name_kor")),
+                name_en=_text(by_id.get(ingredient_id, {}).get("name_eng")),
+            )
+            for ingredient_id in unique_ids
+        ]
+    )

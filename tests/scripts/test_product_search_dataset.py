@@ -96,9 +96,7 @@ def test_confirmation_dataset_excludes_existing_products() -> None:
 
     assert len(confirmation.cases) == 100
     assert confirmation.dataset_kind == "confirmation"
-    assert validate_confirmation_dataset(
-        confirmation, excluded_ids, require_approved=False
-    ) == []
+    assert validate_confirmation_dataset(confirmation, excluded_ids, require_approved=False) == []
 
 
 def test_query_drafts_remove_only_the_scenario_specific_parts() -> None:

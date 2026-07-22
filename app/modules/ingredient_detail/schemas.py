@@ -116,3 +116,27 @@ class ComparisonSummaryResponse(BaseModel):
     summary: str | None = None
     source_verified: bool = True
     reason: str | None = None
+
+
+# ── 성분 이름 조회 ────────────────────────────────────────────
+# 프론트가 성분 id 목록만 가지고 있을 때 화면에 이름을 표시하기 위해 사용한다.
+
+
+class IngredientNameRequest(BaseModel):
+    """성분 이름 조회 요청."""
+
+    ingredient_ids: list[int]
+
+
+class IngredientName(BaseModel):
+    """성분 id와 이름."""
+
+    ingredient_id: int
+    name_kr: str | None = None
+    name_en: str | None = None
+
+
+class IngredientNameResponse(BaseModel):
+    """성분 이름 조회 응답. 요청한 순서를 유지한다."""
+
+    ingredients: list[IngredientName] = []
