@@ -1,4 +1,8 @@
-from scripts.evaluate_ingredient_search import SearchObservation, build_summary
+from scripts.evaluate_ingredient_search import (
+    SearchObservation,
+    _fingerprint_digest,
+    build_summary,
+)
 from scripts.ingredient_search_dataset import (
     IngredientEvaluationCase,
     IngredientEvaluationDataset,
@@ -46,3 +50,10 @@ def test_build_summary_calculates_quality_latency_and_consistency() -> None:
     assert summary["not_registered"]["accuracy"] == 1.0
     assert summary["latency_ms"]["p95"] == 38.5
     assert summary["top5_consistency_rate"] == 1.0
+
+
+def test_fingerprint_digest_is_stable_for_dictionary_key_order() -> None:
+    left = [{"ingredient_id": 1, "name_kor": "정제수"}]
+    right = [{"name_kor": "정제수", "ingredient_id": 1}]
+
+    assert _fingerprint_digest(left) == _fingerprint_digest(right)

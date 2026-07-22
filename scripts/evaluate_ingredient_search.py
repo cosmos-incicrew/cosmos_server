@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import math
 import random
@@ -29,12 +30,13 @@ from scripts.ingredient_search_dataset import (
     load_dataset,
 )
 
-DEFAULT_DATASET = Path("evaluation/ingredient_search/datasets/draft-v0.1.0.json")
+DEFAULT_DATASET = Path("evaluation/ingredient_search/datasets/regression-v1.0.0.json")
 DEFAULT_OUTPUT_DIRECTORY = Path("artifacts/ingredient-search-evaluation")
 DEFAULT_REPEAT_COUNT = 5
 DEFAULT_RESULT_LIMIT = 10
 DEFAULT_TIMEOUT_SECONDS = 2.0
 DEFAULT_WARMUP_COUNT = 10
+_DB_PAGE_SIZE = 1_000
 
 
 class EvaluationSettings(BaseSettings):
@@ -57,6 +59,14 @@ class SearchObservation:
     error: str | None = None
     fallback_triggered: bool = False
     candidate_pool_truncated: bool = False
+
+
+@dataclass(frozen=True)
+class DatabaseFingerprint:
+    ingredient_count: int
+    ingredients_sha256: str
+    synonym_count: int
+    synonyms_sha256: str
 
 
 class LegacyExactIngredientSearcher:
@@ -243,6 +253,55 @@ async def _observe(
     )
 
 
+async def database_fingerprint(client: AsyncClient) -> DatabaseFingerprint:
+    ingredient_rows = await _fetch_fingerprint_rows(
+        client,
+        "ingredients",
+        "ingredient_id,name_kor,name_eng",
+        "ingredient_id",
+    )
+    synonym_rows = await _fetch_fingerprint_rows(
+        client,
+        "synonyms",
+        "synonym_id,ingredient_id,synonym,language",
+        "synonym_id",
+    )
+    return DatabaseFingerprint(
+        ingredient_count=len(ingredient_rows),
+        ingredients_sha256=_fingerprint_digest(ingredient_rows),
+        synonym_count=len(synonym_rows),
+        synonyms_sha256=_fingerprint_digest(synonym_rows),
+    )
+
+
+async def _fetch_fingerprint_rows(
+    client: AsyncClient,
+    table: str,
+    columns: str,
+    order_column: str,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        response = await (
+            client.table(table)
+            .select(columns)
+            .order(order_column)
+            .range(offset, offset + _DB_PAGE_SIZE - 1)
+            .execute()
+        )
+        batch = [row for row in (response.data or []) if isinstance(row, dict)]
+        rows.extend(batch)
+        if len(batch) < _DB_PAGE_SIZE:
+            return rows
+        offset += len(batch)
+
+
+def _fingerprint_digest(rows: list[dict[str, Any]]) -> str:
+    payload = json.dumps(rows, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 async def _run(
     args: argparse.Namespace, dataset: IngredientEvaluationDataset
 ) -> dict[str, Any]:
@@ -255,6 +314,7 @@ async def _run(
         if args.strategy == "legacy-exact"
         else SupabaseIngredientSearchRepository(client)
     )
+    start_fingerprint = await database_fingerprint(client)
     for case in dataset.cases[: min(args.warmup, len(dataset.cases))]:
         with suppress(Exception):
             await searcher.search_ingredients(case.query, args.limit)
@@ -266,11 +326,13 @@ async def _run(
             observations.append(
                 await _observe(searcher, case, repeat_index, args.limit, args.timeout)
             )
+    end_fingerprint = await database_fingerprint(client)
     return {
         "evaluated_at": datetime.now(UTC).isoformat(),
         "label": args.label,
         "strategy": args.strategy,
         "dataset_version": dataset.dataset_version,
+        "dataset_kind": dataset.dataset_kind,
         "contains_draft": any(case.review_status != "approved" for case in dataset.cases),
         "search_engine_commit": _git_commit(),
         "config": {
@@ -278,6 +340,11 @@ async def _run(
             "result_limit": args.limit,
             "timeout_seconds": args.timeout,
             "warmup_count": args.warmup,
+        },
+        "database": {
+            "start": asdict(start_fingerprint),
+            "end": asdict(end_fingerprint),
+            "unchanged": start_fingerprint == end_fingerprint,
         },
         "summary": build_summary(dataset, observations),
         "observations": [asdict(item) for item in observations],
@@ -325,6 +392,8 @@ def main() -> None:
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
     print(f"상세 결과: {output}")
+    if not report["database"]["unchanged"]:
+        raise SystemExit("평가 도중 성분 또는 이명 데이터가 변경되어 결과가 무효입니다.")
 
 
 if __name__ == "__main__":

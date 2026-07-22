@@ -18,9 +18,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.core.supabase import create_supabase_client
 from app.modules.ingredient_search.ingredient_matching import normalize_ingredient_text
 
-DEFAULT_OUTPUT = Path("evaluation/ingredient_search/datasets/draft-v0.1.0.json")
+DEFAULT_OUTPUT = Path("evaluation/ingredient_search/datasets/final-candidate-v0.1.0.json")
 DEFAULT_SEED = 20260722
 DATASET_VERSION = "0.1.0"
+DEFAULT_DATASET_KIND = "final_candidate"
 EXACT_STANDARD_SCENARIO = "exact_standard_name"
 PARTIAL_STANDARD_SCENARIO = "partial_standard_name"
 EXACT_SYNONYM_SCENARIO = "exact_synonym"
@@ -144,12 +145,18 @@ def build_dataset(
     ingredients: list[dict[str, Any]],
     synonyms: list[dict[str, Any]],
     seed: int,
+    excluded_ingredient_ids: set[int] | None = None,
+    dataset_version: str = DATASET_VERSION,
+    dataset_kind: str = DEFAULT_DATASET_KIND,
 ) -> IngredientEvaluationDataset:
     rng = random.Random(seed)
+    excluded_ids = excluded_ingredient_ids or set()
+    ingredient_rows = list(ingredients)
     ingredient_by_id = {
         ingredient_id: row
-        for row in ingredients
+        for row in ingredient_rows
         if isinstance((ingredient_id := row.get("ingredient_id")), int)
+        and ingredient_id not in excluded_ids
         and isinstance(row.get("name_kor"), str)
     }
     synonym_rows = [
@@ -175,7 +182,7 @@ def build_dataset(
     for name, ingredient_ids in synonym_ids_by_name.items():
         for ingredient_id in ingredient_ids:
             searchable_names_by_id[ingredient_id].add(name)
-    rng.shuffle(ingredients)
+    rng.shuffle(ingredient_rows)
     rng.shuffle(synonym_rows)
     used_ids: set[int] = set()
     raw_cases: list[tuple[str, str, int, str, str, list[int], str]] = []
@@ -196,10 +203,14 @@ def build_dataset(
         language: str,
     ) -> None:
         added = 0
-        for row in ingredients:
+        for row in ingredient_rows:
             ingredient_id = row.get("ingredient_id")
             name = row.get(column)
-            if not isinstance(ingredient_id, int) or ingredient_id in used_ids:
+            if (
+                not isinstance(ingredient_id, int)
+                or ingredient_id not in ingredient_by_id
+                or ingredient_id in used_ids
+            ):
                 continue
             query = _partial_query(name) if isinstance(name, str) and partial else name
             if not isinstance(name, str) or not query:
@@ -309,8 +320,8 @@ def build_dataset(
         )
     )
     dataset = IngredientEvaluationDataset(
-        dataset_version=DATASET_VERSION,
-        dataset_kind="draft",
+        dataset_version=dataset_version,
+        dataset_kind=dataset_kind,
         sampling_seed=seed,
         generated_at=datetime.now(UTC).isoformat(),
         cases=cases,
@@ -319,14 +330,37 @@ def build_dataset(
     return dataset
 
 
-async def _run(output: Path, seed: int) -> None:
+def _excluded_ids(path: Path | None) -> set[int]:
+    if path is None:
+        return set()
+    return {
+        case.source_ingredient_id
+        for case in load_dataset(path).cases
+        if case.source_ingredient_id is not None
+    }
+
+
+async def _run(
+    output: Path,
+    seed: int,
+    exclude_dataset: Path | None,
+    dataset_version: str,
+    dataset_kind: str,
+) -> None:
     settings = DatasetSettings()
     client = await create_supabase_client(settings.supabase_url, settings.supabase_service_role_key)
     ingredients, synonyms = await asyncio.gather(
         _fetch_all(client, "ingredients", "ingredient_id,name_kor,name_eng"),
         _fetch_all(client, "synonyms", "synonym_id,ingredient_id,synonym,language"),
     )
-    dataset = build_dataset(ingredients, synonyms, seed)
+    dataset = build_dataset(
+        ingredients,
+        synonyms,
+        seed,
+        excluded_ingredient_ids=_excluded_ids(exclude_dataset),
+        dataset_version=dataset_version,
+        dataset_kind=dataset_kind,
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
         json.dumps(asdict(dataset), ensure_ascii=False, indent=2) + "\n",
@@ -339,8 +373,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="성분명 검색 평가 데이터셋 초안 생성")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--exclude-dataset", type=Path)
+    parser.add_argument("--dataset-version", default=DATASET_VERSION)
+    parser.add_argument("--dataset-kind", default=DEFAULT_DATASET_KIND)
     args = parser.parse_args()
-    asyncio.run(_run(args.output, args.seed))
+    asyncio.run(
+        _run(
+            args.output,
+            args.seed,
+            args.exclude_dataset,
+            args.dataset_version,
+            args.dataset_kind,
+        )
+    )
 
 
 if __name__ == "__main__":

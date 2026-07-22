@@ -53,6 +53,24 @@ def test_build_dataset_creates_unique_balanced_cases() -> None:
     }
 
 
+def test_build_dataset_excludes_previous_source_ingredients() -> None:
+    excluded_ids = set(range(1, 31))
+
+    dataset = build_dataset(
+        _ingredients(180),
+        _synonyms(180),
+        seed=7,
+        excluded_ingredient_ids=excluded_ids,
+    )
+
+    source_ids = {
+        case.source_ingredient_id
+        for case in dataset.cases
+        if case.source_ingredient_id is not None
+    }
+    assert source_ids.isdisjoint(excluded_ids)
+
+
 def test_load_dataset_rejects_duplicate_registered_ingredients(tmp_path: Path) -> None:
     case = {
         "case_id": "IS-001",
