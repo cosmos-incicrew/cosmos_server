@@ -13,9 +13,16 @@ service_role 키로 테스트 유저를 만들고 admin 매직링크 토큰을 �
 주의: 운영 DB 에 절대 돌리지 말 것. 테스트 유저를 실제로 생성한다.
 """
 
-from supabase import create_client
+import sys
+from pathlib import Path
 
-from app.core.config import get_settings
+# scripts/ 밖(프로젝트 루트)에서 app 을 import 하려면 루트를 경로에 넣어야 한다.
+# `uv run python scripts/dev_token.py` 처럼 루트가 sys.path 에 없을 때를 위한 것.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from supabase import create_client  # noqa: E402
+
+from app.core.config import get_settings  # noqa: E402
 
 # 고정 테스트 계정. 팀원 누구나 이 스크립트로 같은 토큰 흐름을 재현할 수 있게 상수로 둔다.
 _TEST_EMAIL = "swagger-test@example.com"
