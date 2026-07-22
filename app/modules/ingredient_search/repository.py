@@ -1,5 +1,6 @@
 """ingredient_search 모듈의 Supabase 조회 어댑터."""
 
+import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -8,10 +9,14 @@ from supabase import AsyncClient
 
 from app.common.restrictions import RestrictionRow, fetch_restriction_rows
 from app.core.supabase import get_supabase
+from app.modules.ingredient_search.matching import rank_candidates, search_anchors
 from app.modules.ingredient_search.schemas import (
     IngredientSearchCandidate,
     ProductSearchCandidate,
 )
+
+_CANDIDATE_LIMIT_PER_QUERY = 100
+_COMBINED_ANCHOR_COUNT = 3
 
 
 class IngredientSearchRepository(Protocol):
@@ -38,62 +43,49 @@ class ProductIngredientRows:
 class SupabaseIngredientSearchRepository:
     def __init__(self, client: AsyncClient) -> None:
         self._client = client
+        self.last_candidate_pool_truncated = False
 
     async def search_products(self, query: str, limit: int) -> list[ProductSearchCandidate]:
-        results: list[ProductSearchCandidate] = []
-        offset = 0
-        while len(results) < limit:
-            product_response = await (
+        candidate_limit = _CANDIDATE_LIMIT_PER_QUERY
+        selection = (
+            "id,product_name,brand,main_category,sub_category,detailed_category,product_url,"
+            "product_ingredients!inner()"
+        )
+        direct_query = (
+            self._client.table("products")
+            .select(selection)
+            .not_.is_("product_ingredients.ingredient_id", "null")
+            .ilike("product_name", f"%{_escape_like(query)}%")
+            .order("product_name")
+            .order("id")
+            .limit(candidate_limit)
+        )
+        candidate_queries = [direct_query]
+        anchors = search_anchors(query)
+        if anchors:
+            anchor_query = (
                 self._client.table("products")
-                .select(
-                    "id,product_name,brand,main_category,sub_category,detailed_category,product_url"
-                )
-                .ilike("product_name", f"%{_escape_like(query)}%")
-                .order("product_name")
-                .order("id")
-                .range(offset, offset + limit - 1)
-                .execute()
+                .select(selection)
+                .not_.is_("product_ingredients.ingredient_id", "null")
             )
-            product_rows = _rows(product_response.data)
-            product_ids = [
-                product_id
-                for row in product_rows
-                if (product_id := _integer(row.get("id"))) is not None
-            ]
-            if not product_ids:
-                break
+            for anchor in anchors[:_COMBINED_ANCHOR_COUNT]:
+                anchor_query = anchor_query.ilike("product_name", f"%{_escape_like(anchor)}%")
+            candidate_queries.append(
+                anchor_query.order("product_name").order("id").limit(candidate_limit)
+            )
 
-            mapped_response = await (
-                self._client.table("product_ingredients")
-                .select("product_id")
-                .in_("product_id", product_ids)
-                .not_.is_("ingredient_id", "null")
-                .execute()
-            )
-            analyzable_product_ids = {
-                product_id
-                for row in _rows(mapped_response.data)
-                if (product_id := _integer(row.get("product_id"))) is not None
-            }
-            results.extend(
-                ProductSearchCandidate(
-                    id=product_id,
-                    product_name=row["product_name"],
-                    brand=_optional_text(row.get("brand")),
-                    main_category=_optional_text(row.get("main_category")),
-                    sub_category=_optional_text(row.get("sub_category")),
-                    detailed_category=_optional_text(row.get("detailed_category")),
-                    product_url=_optional_text(row.get("product_url")),
-                )
-                for row in product_rows
-                if (product_id := _integer(row.get("id"))) in analyzable_product_ids
-                and isinstance(row.get("product_name"), str)
-            )
-            if len(product_rows) < limit:
-                break
-            offset += len(product_rows)
-
-        return results[:limit]
+        responses = await asyncio.gather(*(item.execute() for item in candidate_queries))
+        candidates_by_id: dict[int, ProductSearchCandidate] = {}
+        for response in responses:
+            for candidate in _product_candidates(_rows(response.data)):
+                candidates_by_id.setdefault(candidate.id, candidate)
+        self.last_candidate_pool_truncated = len(candidates_by_id) >= (
+            _CANDIDATE_LIMIT_PER_QUERY * len(candidate_queries)
+        )
+        ranked = rank_candidates(query, list(candidates_by_id.values()))
+        if not ranked:
+            return []
+        return ranked[:limit]
 
     async def search_ingredients(self, query: str, limit: int) -> list[IngredientSearchCandidate]:
         synonym_response = await (
@@ -181,6 +173,23 @@ def _rows(data: Any) -> Sequence[dict[str, Any]]:
     if not isinstance(data, list):
         return []
     return [row for row in data if isinstance(row, dict)]
+
+
+def _product_candidates(rows: Sequence[dict[str, Any]]) -> list[ProductSearchCandidate]:
+    return [
+        ProductSearchCandidate(
+            id=product_id,
+            product_name=product_name,
+            brand=_optional_text(row.get("brand")),
+            main_category=_optional_text(row.get("main_category")),
+            sub_category=_optional_text(row.get("sub_category")),
+            detailed_category=_optional_text(row.get("detailed_category")),
+            product_url=_optional_text(row.get("product_url")),
+        )
+        for row in rows
+        if (product_id := _integer(row.get("id"))) is not None
+        and isinstance((product_name := row.get("product_name")), str)
+    ]
 
 
 def _optional_text(value: Any) -> str | None:

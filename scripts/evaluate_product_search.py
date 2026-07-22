@@ -47,6 +47,7 @@ class SearchObservation:
     result_ids: list[int]
     latency_ms: float
     error: str | None = None
+    candidate_pool_truncated: bool = False
 
 
 @dataclass(frozen=True)
@@ -142,6 +143,9 @@ def build_summary(
         "top5_consistency_rate": _ratio(len(consistent_case_ids), len(dataset.cases)),
         "inconsistent_case_ids": sorted(set(cases_by_id) - set(consistent_case_ids)),
         "repeated_failure_case_ids": repeated_failure_case_ids,
+        "candidate_pool_truncated_case_ids": sorted(
+            {item.case_id for item in observations if item.candidate_pool_truncated}
+        ),
     }
 
 
@@ -224,6 +228,7 @@ async def _observe(
         repeat_index,
         [result.id for result in results],
         (perf_counter() - started) * 1_000,
+        candidate_pool_truncated=repository.last_candidate_pool_truncated,
     )
 
 

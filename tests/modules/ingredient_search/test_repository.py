@@ -15,6 +15,7 @@ class FakeResponse:
 class FakeQuery:
     def __init__(self, data: Any) -> None:
         self._data = data
+        self._limit: int | None = None
 
     def select(self, *columns: str) -> "FakeQuery":
         return self
@@ -22,10 +23,14 @@ class FakeQuery:
     def ilike(self, column: str, pattern: str) -> "FakeQuery":
         return self
 
+    def or_(self, filters: str) -> "FakeQuery":
+        return self
+
     def order(self, column: str) -> "FakeQuery":
         return self
 
     def limit(self, count: int) -> "FakeQuery":
+        self._limit = count
         return self
 
     def range(self, from_: int, to: int) -> "FakeQuery":
@@ -48,6 +53,8 @@ class FakeQuery:
         return self
 
     async def execute(self) -> FakeResponse:
+        if isinstance(self._data, list) and self._limit is not None:
+            return FakeResponse(self._data[: self._limit])
         return FakeResponse(self._data)
 
 
@@ -56,7 +63,16 @@ class FakeSupabase:
         self._rows_by_table = rows_by_table
 
     def table(self, table_name: str) -> FakeQuery:
-        return FakeQuery(self._rows_by_table[table_name])
+        data = self._rows_by_table[table_name]
+        if table_name == "products" and isinstance(data, list):
+            mappings = self._rows_by_table.get("product_ingredients", [])
+            mapped_ids = {
+                row.get("product_id")
+                for row in mappings
+                if isinstance(row, dict) and row.get("product_id") is not None
+            }
+            data = [row for row in data if row.get("id") in mapped_ids]
+        return FakeQuery(data)
 
 
 @pytest.mark.asyncio
@@ -144,6 +160,76 @@ async def test_repository_keeps_each_analyzable_product_in_the_same_flagship_gro
     results = await repository.search_products("아이크림", 20)
 
     assert [candidate.id for candidate in results] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_repository_matches_spacing_and_punctuation_variations() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [
+                        {
+                            "id": 7,
+                            "product_name": "[단독기획] 허블룸 데일리 톤업 비건 선스크린 50ml",
+                            "brand": "허블룸",
+                        },
+                        {"id": 8, "product_name": "허블룸 수분 크림", "brand": "허블룸"},
+                    ],
+                    "product_ingredients": [{"product_id": 7}, {"product_id": 8}],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_products("허블룸데일리톤업비건선스크린50ml", 10)
+
+    assert [candidate.id for candidate in results] == [7]
+
+
+@pytest.mark.asyncio
+async def test_repository_prioritizes_core_name_match_over_partial_match() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [
+                        {"id": 1, "product_name": "아토베리어365 크림 미스트"},
+                        {
+                            "id": 2,
+                            "product_name": "[기획] 에스트라 아토베리어365 크림 80ml (+10ml)",
+                        },
+                    ],
+                    "product_ingredients": [{"product_id": 1}, {"product_id": 2}],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_products("에스트라 아토베리어365 크림", 10)
+
+    assert [candidate.id for candidate in results] == [2]
+
+
+@pytest.mark.asyncio
+async def test_repository_removes_capacity_attached_to_product_name() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [{"id": 1, "product_name": "브랜드 에센스200ml"}],
+                    "product_ingredients": [{"product_id": 1}],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_products("브랜드 에센스", 10)
+
+    assert [candidate.id for candidate in results] == [1]
 
 
 @pytest.mark.asyncio
