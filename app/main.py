@@ -13,6 +13,7 @@ from app.modules.ingredient_detail.router import router as ingredient_detail_rou
 from app.modules.ingredient_search.router import router as ingredient_search_router
 from app.modules.product_compare.router import router as product_compare_router
 from app.modules.recommendations.router import router as recommendations_router
+from app.modules.users.router import router as users_router
 
 logging.basicConfig(
     level=get_settings().log_level,
@@ -27,6 +28,7 @@ app.include_router(ingredient_detail_router)
 app.include_router(product_compare_router)
 app.include_router(bsti_router)
 app.include_router(recommendations_router)
+app.include_router(users_router)
 
 
 def _error_json(status_code: int, code: str, message: str) -> JSONResponse:
@@ -69,7 +71,12 @@ async def _supabase_reachable() -> bool:
     settings = get_settings()
     try:
         async with httpx.AsyncClient(timeout=_READINESS_TIMEOUT_SECONDS) as client:
-            resp = await client.get(f"{settings.supabase_url}/auth/v1/health")
+            # apikey 헤더가 없으면 Supabase가 401을 준다 — 도달 가능해도 실패로 읽혀
+            # readiness가 영구히 503에 머문다.
+            resp = await client.get(
+                f"{settings.supabase_url}/auth/v1/health",
+                headers={"apikey": settings.supabase_service_role_key},
+            )
         return resp.is_success
     except httpx.HTTPError:
         return False

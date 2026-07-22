@@ -50,6 +50,7 @@
   | product_compare | `/api/v1/products` |
   | bsti | `/api/v1/bsti` |
   | recommendations | `/api/v1/recommendations` |
+  | users | `/api/v1/users/me` |
 
 - **메서드:** GET은 조회(부작용 없음), POST는 생성·실행형 작업(비교·추천·설문 제출).
 - **상태 코드:** 200 성공 · 201 생성 · 400 잘못된 요청 · 401 인증 실패 · 404 없음 ·

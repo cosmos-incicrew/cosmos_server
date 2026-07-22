@@ -67,4 +67,5 @@ modules = [
     "app.modules.product_compare",
     "app.modules.bsti",
     "app.modules.recommendations",
+    "app.modules.users",
 ]
