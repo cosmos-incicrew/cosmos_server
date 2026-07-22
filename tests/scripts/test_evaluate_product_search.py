@@ -1,115 +1,104 @@
+from datetime import UTC, datetime
+
 import pytest
 
-from scripts.evaluate_product_search import (
-    ProductRow,
-    SearchCase,
-    SearchObservation,
-    _build_cases,
-    build_summary,
-    partial_query_from_product_name,
-)
+from scripts.evaluate_product_search import SearchObservation, build_summary
+from scripts.product_search_dataset import EvaluationCase, EvaluationDataset
 
 
-def test_build_summary_reports_quality_reliability_and_latency() -> None:
-    observations = [
-        SearchObservation(
-            case=SearchCase("exact", "제품 A", 1),
-            result_ids=[2, 1],
-            latency_ms=10.0,
-        ),
-        SearchObservation(
-            case=SearchCase("exact", "제품 B", 3),
-            result_ids=[],
-            latency_ms=20.0,
-        ),
-        SearchObservation(
-            case=SearchCase("partial", "제품", 4),
-            result_ids=[4, 5],
-            latency_ms=30.0,
-        ),
-        SearchObservation(
-            case=SearchCase("no_result", "없는 제품", None),
-            result_ids=[],
-            latency_ms=40.0,
-        ),
-        SearchObservation(
-            case=SearchCase("no_result", "역시 없는 제품", None),
-            result_ids=[9],
-            latency_ms=50.0,
-        ),
-        SearchObservation(
-            case=SearchCase("partial", "오류", 10),
-            result_ids=[],
-            latency_ms=60.0,
-            error="temporary failure",
-        ),
-    ]
-
-    summary = build_summary(observations, result_limit=20)
-
-    assert summary == {
-        "total_queries": 6,
-        "successful_queries": 5,
-        "error_count": 1,
-        "success_rate": pytest.approx(5 / 6),
-        "latency_ms": {"p50": 30.0, "p95": 48.0, "max": 50.0},
-        "exact": {
-            "query_count": 2,
-            "hit_at_20": 0.5,
-            "mrr_at_20": 0.25,
-        },
-        "partial": {
-            "query_count": 1,
-            "non_empty_rate": 1.0,
-            "sample_target_hit_at_20": 1.0,
-            "sample_target_mrr_at_20": 1.0,
-        },
-        "no_result": {
-            "query_count": 2,
-            "accuracy": 0.5,
-        },
-    }
-
-
-@pytest.mark.parametrize(
-    ("product_name", "expected"),
-    [
-        ("[NEW/단독] 바이오던스 리포좀 버블 부스터", "바이오던"),
-        ("에스트라 아토베리어365 크림 80ml", "에스트라"),
-        ("  1,2-헥산다이올 세럼", "헥산다이"),
-    ],
-)
-def test_partial_query_uses_a_readable_product_name_prefix(
-    product_name: str, expected: str
-) -> None:
-    assert partial_query_from_product_name(product_name) == expected
-
-
-def test_build_cases_keeps_counts_uniqueness_and_full_range_sampling() -> None:
-    products = [
-        ProductRow(
-            id=index,
-            product_name=f"P{index:03d} 수분 크림",
-            main_category=f"category-{index % 4}",
-        )
-        for index in range(1, 121)
-    ]
-
-    cases = _build_cases(
-        products,
-        exact_count=40,
-        partial_count=40,
-        no_result_count=20,
-        seed=20260721,
+def _dataset() -> EvaluationDataset:
+    return EvaluationDataset(
+        dataset_version="1.0.0",
+        dataset_kind="development",
+        sampling_seed=1,
+        generated_at=datetime.now(UTC),
+        cases=[
+            EvaluationCase(
+                case_id="DEV-001",
+                query="제품 A",
+                scenario="full_product_name",
+                product_category="스킨케어",
+                source_product_id=1,
+                source_product_name="제품 A",
+                source_brand="브랜드",
+                acceptable_product_ids=[1, 2],
+                expected_result="found",
+                review_note="검수",
+            ),
+            EvaluationCase(
+                case_id="DEV-002",
+                query="제품 B",
+                scenario="core_product_name",
+                product_category="클렌징",
+                source_product_id=3,
+                source_product_name="제품 B",
+                source_brand="브랜드",
+                acceptable_product_ids=[3],
+                expected_result="found",
+                review_note="검수",
+            ),
+            EvaluationCase(
+                case_id="NR-001",
+                query="없는 제품",
+                scenario="not_registered",
+                product_category=None,
+                source_product_id=None,
+                source_product_name=None,
+                source_brand=None,
+                acceptable_product_ids=[],
+                expected_result="empty",
+                review_note="검수",
+            ),
+        ],
     )
 
-    assert [case.kind for case in cases].count("exact") == 40
-    assert [case.kind for case in cases].count("partial") == 40
-    assert [case.kind for case in cases].count("no_result") == 20
-    assert len({case.query for case in cases}) == 100
-    selected_ids = [
-        case.expected_product_id for case in cases if case.expected_product_id is not None
+
+def test_build_summary_reports_quality_latency_and_consistency() -> None:
+    observations = [
+        SearchObservation("DEV-001", repeat, [9, 1, 8], 10.0 + repeat) for repeat in range(1, 6)
     ]
-    assert min(selected_ids) < 10
-    assert max(selected_ids) > 110
-    assert all("cosmos-no-result" not in case.query for case in cases)
+    observations += [
+        SearchObservation("DEV-002", repeat, [], 20.0 + repeat) for repeat in range(1, 6)
+    ]
+    observations += [
+        SearchObservation("NR-001", repeat, [], 30.0 + repeat) for repeat in range(1, 6)
+    ]
+
+    summary = build_summary(_dataset(), observations)
+
+    assert summary["registered"]["hit_at_1"] == 0.0
+    assert summary["registered"]["hit_at_5"] == 0.5
+    assert summary["registered"]["hit_at_10"] == 0.5
+    assert summary["registered"]["mrr_at_5"] == 0.25
+    assert summary["not_registered"]["accuracy"] == 1.0
+    assert summary["request_success_rate"] == 1.0
+    assert summary["top5_consistency_rate"] == 1.0
+    assert summary["latency_ms"]["p90"] == pytest.approx(33.6)
+    assert summary["latency_ms"]["p95"] == pytest.approx(34.3)
+    assert summary["latency_ms"]["p99"] == pytest.approx(34.86)
+    assert summary["by_scenario"]["full_product_name"]["hit_at_5"] == 1.0
+    assert summary["by_category"]["클렌징"]["hit_at_5"] == 0.0
+
+
+def test_build_summary_records_failures_and_unstable_results() -> None:
+    observations = [
+        SearchObservation("DEV-001", 1, [1], 10.0),
+        SearchObservation("DEV-001", 2, [2], 11.0),
+        SearchObservation("DEV-001", 3, [], 2_000.0, "timeout"),
+        SearchObservation("DEV-001", 4, [1], 12.0),
+        SearchObservation("DEV-001", 5, [1], 13.0),
+    ]
+
+    summary = build_summary(
+        EvaluationDataset(
+            **_dataset().model_dump(exclude={"cases"}),
+            cases=[_dataset().cases[0]],
+        ),
+        observations,
+    )
+
+    assert summary["request_success_rate"] == 0.8
+    assert summary["error_count"] == 1
+    assert summary["top5_consistency_rate"] == 0.0
+    assert summary["repeated_failure_case_ids"] == []
+    assert summary["latency_ms"]["sample_count"] == 4

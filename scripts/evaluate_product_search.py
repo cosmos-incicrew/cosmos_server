@@ -1,180 +1,183 @@
-"""실제 Supabase 데이터로 제품명 검색의 기준 성능을 측정한다.
-
-실행:
-    uv run python -m scripts.evaluate_product_search
-
-Gemini나 Langfuse 설정 없이 SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY만 사용한다.
-"""
+"""고정 JSON 데이터셋으로 실제 Supabase 제품명 검색 성능을 측정한다."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import math
 import random
-import re
-from collections import defaultdict
+import subprocess
+from collections import Counter, defaultdict
+from contextlib import suppress
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
-from typing import Literal
+from typing import Any
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from supabase import AsyncClient
 
 from app.core.supabase import create_supabase_client
 from app.modules.ingredient_search.repository import SupabaseIngredientSearchRepository
+from scripts.product_search_dataset import EvaluationCase, EvaluationDataset, load_dataset
 
-CaseKind = Literal["exact", "partial", "no_result"]
+DEFAULT_DATASET = Path("evaluation/product_search/datasets/development-v1.0.0.json")
+DEFAULT_OUTPUT_DIRECTORY = Path("artifacts/search-evaluation")
+DEFAULT_REPEAT_COUNT = 5
+DEFAULT_RESULT_LIMIT = 10
+DEFAULT_TIMEOUT_SECONDS = 2.0
+DEFAULT_WARMUP_COUNT = 10
+_DB_PAGE_SIZE = 1_000
 
 
 class EvaluationSettings(BaseSettings):
-    """검색 평가에 필요한 최소 환경 변수."""
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     supabase_url: str
     supabase_service_role_key: str
 
 
 @dataclass(frozen=True)
-class SearchCase:
-    kind: CaseKind
-    query: str
-    expected_product_id: int | None
-
-
-@dataclass(frozen=True)
 class SearchObservation:
-    case: SearchCase
+    case_id: str
+    repeat_index: int
     result_ids: list[int]
     latency_ms: float
     error: str | None = None
 
 
 @dataclass(frozen=True)
-class ProductRow:
-    id: int
-    product_name: str
-    main_category: str | None
+class DatabaseFingerprint:
+    product_count: int
+    products_sha256: str
+    product_ingredient_count: int
 
 
-_TOKEN_PATTERN = re.compile(r"[0-9A-Za-z가-힣]+")
-_BRACKET_PREFIX_PATTERN = re.compile(r"^(?:\s*\[[^]]+\]\s*)+")
-_IGNORED_TOKENS = {"new", "단독", "증정", "기획", "공식", "올리브영"}
-_NO_RESULT_QUERIES = [
-    "코스모스랩 울트라 수분 장벽 크림 137ml",
-    "문라이트 보태니컬 진정 세럼 83ml",
-    "오로라랩 비타 글로우 토너 142ml",
-    "블루코멧 시카 리페어 앰플 47ml",
-    "그린웨이브 판테놀 보습 로션 126ml",
-    "소프트플래닛 콜라겐 탄력 에센스 61ml",
-    "데일리오빗 약산성 클렌징 폼 173ml",
-    "퓨어노바 히알루론 수분 젤 92ml",
-    "스킨포레스트 세라마이드 장벽 밤 38ml",
-    "라이트블룸 나이아신 톤업 크림 74ml",
-    "어반듀 알로에 진정 미스트 118ml",
-    "클린마스 비타민 수분 패드 67매",
-    "벨벳루트 펩타이드 아이 세럼 29ml",
-    "모닝스타 녹차 밸런싱 토너 151ml",
-    "더마클라우드 마데카 리커버리 크림 88ml",
-    "루미너스랩 레티놀 나이트 앰플 43ml",
-    "코튼스카이 어성초 카밍 로션 133ml",
-    "글로우테라 프로폴리스 영양 에센스 57ml",
-    "아쿠아버스 베타글루칸 수딩 젤 104ml",
-    "네이처오빗 병풀 데일리 선크림 73ml",
-]
+def build_summary(
+    dataset: EvaluationDataset, observations: list[SearchObservation]
+) -> dict[str, Any]:
+    """반복 호출 결과에서 품질·지연시간·안정성 지표를 계산한다."""
 
-
-def partial_query_from_product_name(product_name: str) -> str:
-    """제품명의 장식 문구를 제외하고 읽기 쉬운 첫 토큰 네 글자를 반환한다."""
-
-    normalized = _BRACKET_PREFIX_PATTERN.sub("", product_name).strip()
-    tokens = _TOKEN_PATTERN.findall(normalized)
-    for token in tokens:
-        if token.lower() in _IGNORED_TOKENS or token.isdecimal() or len(token) < 2:
-            continue
-        return token[:4]
-    return normalized[:4]
-
-
-def build_summary(observations: list[SearchObservation], result_limit: int) -> dict[str, object]:
-    """성공한 요청을 기준으로 검색 품질과 지연시간 요약을 만든다."""
+    cases_by_id = {case.case_id: case for case in dataset.cases}
+    observations_by_case: dict[str, list[SearchObservation]] = defaultdict(list)
+    for observation in observations:
+        observations_by_case[observation.case_id].append(observation)
 
     successful = [observation for observation in observations if observation.error is None]
     latencies = [observation.latency_ms for observation in successful]
-    exact = [observation for observation in successful if observation.case.kind == "exact"]
-    partial = [observation for observation in successful if observation.case.kind == "partial"]
-    no_result = [observation for observation in successful if observation.case.kind == "no_result"]
+    canonical_results: dict[str, list[int]] = {}
+    for case_id, case_observations in observations_by_case.items():
+        ordered = sorted(case_observations, key=lambda item: item.repeat_index)
+        if first_success := next((item for item in ordered if item.error is None), None):
+            canonical_results[case_id] = first_success.result_ids
+
+    registered = [case for case in dataset.cases if case.expected_result == "found"]
+    not_registered = [case for case in dataset.cases if case.expected_result == "empty"]
+    maximum_repeat = max((item.repeat_index for item in observations), default=0)
+    consistent_case_ids = [
+        case.case_id
+        for case in dataset.cases
+        if _is_consistent(observations_by_case.get(case.case_id, []), maximum_repeat)
+    ]
+
+    by_scenario = {
+        scenario: _quality_metrics(
+            [case for case in registered if case.scenario == scenario], canonical_results
+        )
+        for scenario in sorted({case.scenario for case in registered})
+    }
+    by_category = {
+        category: _quality_metrics(
+            [case for case in registered if case.product_category == category], canonical_results
+        )
+        for category in sorted(
+            {case.product_category for case in registered if case.product_category is not None}
+        )
+    }
+    per_round_p95 = {
+        str(repeat): _percentile(
+            [item.latency_ms for item in successful if item.repeat_index == repeat], 95
+        )
+        for repeat in range(1, maximum_repeat + 1)
+    }
+    repeated_failure_case_ids = sorted(
+        case_id
+        for case_id, items in observations_by_case.items()
+        if sum(item.error is not None for item in items) >= 2
+    )
 
     return {
-        "total_queries": len(observations),
-        "successful_queries": len(successful),
+        "dataset_case_count": len(dataset.cases),
+        "total_requests": len(observations),
+        "successful_requests": len(successful),
         "error_count": len(observations) - len(successful),
-        "success_rate": _ratio(len(successful), len(observations)),
-        "latency_ms": {
-            "p50": _percentile(latencies, 50),
-            "p95": _percentile(latencies, 95),
-            "max": max(latencies, default=0.0),
-        },
-        "exact": _retrieval_summary(exact, result_limit),
-        "partial": _partial_retrieval_summary(partial, result_limit),
-        "no_result": {
-            "query_count": len(no_result),
+        "errors_by_type": dict(
+            sorted(Counter(item.error for item in observations if item.error).items())
+        ),
+        "request_success_rate": _ratio(len(successful), len(observations)),
+        "registered": _quality_metrics(registered, canonical_results),
+        "by_scenario": by_scenario,
+        "by_category": by_category,
+        "not_registered": {
+            "query_count": len(not_registered),
+            "correct_count": sum(
+                canonical_results.get(case.case_id) == [] for case in not_registered
+            ),
             "accuracy": _ratio(
-                sum(not observation.result_ids for observation in no_result), len(no_result)
+                sum(canonical_results.get(case.case_id) == [] for case in not_registered),
+                len(not_registered),
             ),
         },
+        "latency_ms": {
+            "sample_count": len(latencies),
+            "p90": _percentile(latencies, 90),
+            "p95": _percentile(latencies, 95),
+            "p99": _percentile(latencies, 99),
+            "per_round_p95": per_round_p95,
+        },
+        "top5_consistent_case_count": len(consistent_case_ids),
+        "top5_consistency_rate": _ratio(len(consistent_case_ids), len(dataset.cases)),
+        "inconsistent_case_ids": sorted(set(cases_by_id) - set(consistent_case_ids)),
+        "repeated_failure_case_ids": repeated_failure_case_ids,
     }
 
 
-def _retrieval_summary(
-    observations: list[SearchObservation], result_limit: int
-) -> dict[str, object]:
-    ranks = [_expected_rank(observation) for observation in observations]
+def _quality_metrics(
+    cases: list[EvaluationCase], canonical_results: dict[str, list[int]]
+) -> dict[str, Any]:
+    ranks = [
+        _acceptable_rank(canonical_results.get(case.case_id, []), case.acceptable_product_ids)
+        for case in cases
+    ]
     return {
-        "query_count": len(observations),
-        f"hit_at_{result_limit}": _ratio(sum(rank is not None for rank in ranks), len(ranks)),
-        f"mrr_at_{result_limit}": _ratio(
-            sum(1 / rank for rank in ranks if rank is not None), len(ranks)
+        "query_count": len(cases),
+        "hit_at_1_count": sum(rank is not None and rank <= 1 for rank in ranks),
+        "hit_at_1": _ratio(sum(rank is not None and rank <= 1 for rank in ranks), len(cases)),
+        "hit_at_5_count": sum(rank is not None and rank <= 5 for rank in ranks),
+        "hit_at_5": _ratio(sum(rank is not None and rank <= 5 for rank in ranks), len(cases)),
+        "hit_at_10_count": sum(rank is not None and rank <= 10 for rank in ranks),
+        "hit_at_10": _ratio(sum(rank is not None and rank <= 10 for rank in ranks), len(cases)),
+        "mrr_at_5": _ratio(
+            sum(1 / rank for rank in ranks if rank is not None and rank <= 5), len(cases)
         ),
     }
 
 
-def _partial_retrieval_summary(
-    observations: list[SearchObservation], result_limit: int
-) -> dict[str, object]:
-    """여러 정답이 가능한 부분 검색과 표본 제품의 노출 정도를 함께 표시한다."""
-
-    ranks = [_expected_rank(observation) for observation in observations]
-    return {
-        "query_count": len(observations),
-        "non_empty_rate": _ratio(
-            sum(bool(observation.result_ids) for observation in observations), len(observations)
-        ),
-        f"sample_target_hit_at_{result_limit}": _ratio(
-            sum(rank is not None for rank in ranks), len(ranks)
-        ),
-        f"sample_target_mrr_at_{result_limit}": _ratio(
-            sum(1 / rank for rank in ranks if rank is not None), len(ranks)
-        ),
-    }
+def _acceptable_rank(result_ids: list[int], acceptable_ids: list[int]) -> int | None:
+    acceptable = set(acceptable_ids)
+    return next(
+        (index for index, product_id in enumerate(result_ids, 1) if product_id in acceptable), None
+    )
 
 
-def _expected_rank(observation: SearchObservation) -> int | None:
-    expected = observation.case.expected_product_id
-    if expected is None:
-        return None
-    try:
-        return observation.result_ids.index(expected) + 1
-    except ValueError:
-        return None
+def _is_consistent(observations: list[SearchObservation], repeat_count: int) -> bool:
+    if len(observations) != repeat_count or any(item.error for item in observations):
+        return False
+    top_fives = {tuple(item.result_ids[:5]) for item in observations}
+    return len(top_fives) == 1
 
 
 def _ratio(numerator: int | float, denominator: int) -> float:
@@ -186,203 +189,185 @@ def _percentile(values: list[float], percentile: int) -> float:
         return 0.0
     ordered = sorted(values)
     position = (len(ordered) - 1) * percentile / 100
-    lower = math.floor(position)
-    upper = math.ceil(position)
+    lower, upper = math.floor(position), math.ceil(position)
     if lower == upper:
         return ordered[lower]
-    fraction = position - lower
-    return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
 
 
-async def _fetch_products(client: AsyncClient, page_size: int = 1_000) -> list[ProductRow]:
-    products: list[ProductRow] = []
+async def _observe(
+    repository: SupabaseIngredientSearchRepository,
+    case: EvaluationCase,
+    repeat_index: int,
+    limit: int,
+    timeout_seconds: float,
+) -> SearchObservation:
+    started = perf_counter()
+    try:
+        results = await asyncio.wait_for(
+            repository.search_products(case.query, limit), timeout=timeout_seconds
+        )
+    except TimeoutError:
+        return SearchObservation(
+            case.case_id, repeat_index, [], (perf_counter() - started) * 1_000, "timeout"
+        )
+    except Exception as exc:  # 한 요청 오류가 전체 진단 결과를 없애지 않게 기록한다.
+        return SearchObservation(
+            case.case_id,
+            repeat_index,
+            [],
+            (perf_counter() - started) * 1_000,
+            type(exc).__name__,
+        )
+    return SearchObservation(
+        case.case_id,
+        repeat_index,
+        [result.id for result in results],
+        (perf_counter() - started) * 1_000,
+    )
+
+
+async def database_fingerprint(client: AsyncClient) -> DatabaseFingerprint:
+    products: list[tuple[int, str]] = []
     offset = 0
     while True:
         response = await (
             client.table("products")
-            .select("id,product_name,main_category")
+            .select("id,product_name")
             .order("id")
-            .range(offset, offset + page_size - 1)
+            .range(offset, offset + _DB_PAGE_SIZE - 1)
             .execute()
         )
-        rows = response.data if isinstance(response.data, list) else []
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            product_id = row.get("id")
-            product_name = row.get("product_name")
-            category = row.get("main_category")
-            if isinstance(product_id, int) and isinstance(product_name, str):
-                products.append(
-                    ProductRow(
-                        id=product_id,
-                        product_name=product_name,
-                        main_category=category if isinstance(category, str) else None,
-                    )
-                )
-        if len(rows) < page_size:
-            return products
+        rows = _rows(response.data)
+        products.extend(
+            (product_id, product_name)
+            for row in rows
+            if isinstance((product_id := row.get("id")), int)
+            and isinstance((product_name := row.get("product_name")), str)
+        )
+        if len(rows) < _DB_PAGE_SIZE:
+            break
         offset += len(rows)
 
-
-def _category_round_robin(products: list[ProductRow], seed: int) -> list[ProductRow]:
-    """특정 대분류에 평가 제품이 몰리지 않도록 결정론적으로 섞는다."""
-
-    groups: dict[str, list[ProductRow]] = defaultdict(list)
-    for product in products:
-        groups[product.main_category or "(미분류)"].append(product)
-    categories = sorted(groups)
-    randomizer = random.Random(seed)
-    for category in categories:
-        randomizer.shuffle(groups[category])
-    ordered: list[ProductRow] = []
-    index = 0
+    ingredient_row_count = 0
+    offset = 0
     while True:
-        added = False
-        for category in categories:
-            if index < len(groups[category]):
-                ordered.append(groups[category][index])
-                added = True
-        if not added:
-            return ordered
-        index += 1
-
-
-def _build_cases(
-    products: list[ProductRow],
-    exact_count: int,
-    partial_count: int,
-    no_result_count: int,
-    seed: int,
-) -> list[SearchCase]:
-    ordered = _category_round_robin(products, seed)
-    if len(ordered) < exact_count + partial_count:
-        raise ValueError("요청한 평가 건수보다 products 데이터가 적습니다.")
-
-    exact_products = ordered[:exact_count]
-    exact_cases = [
-        SearchCase("exact", product.product_name, product.id) for product in exact_products
-    ]
-
-    partial_cases: list[SearchCase] = []
-    seen_queries: set[str] = set()
-    for product in ordered[exact_count:]:
-        query = partial_query_from_product_name(product.product_name)
-        if len(query) < 2 or query in seen_queries:
-            continue
-        partial_cases.append(SearchCase("partial", query, product.id))
-        seen_queries.add(query)
-        if len(partial_cases) == partial_count:
-            break
-    if len(partial_cases) < partial_count:
-        raise ValueError("서로 다른 부분 검색어를 충분히 만들지 못했습니다.")
-
-    if no_result_count > len(_NO_RESULT_QUERIES):
-        raise ValueError(f"결과 없음 평가는 최대 {len(_NO_RESULT_QUERIES)}건까지 지원합니다.")
-    no_result_cases = [
-        SearchCase("no_result", query, None) for query in _NO_RESULT_QUERIES[:no_result_count]
-    ]
-    return [*exact_cases, *partial_cases, *no_result_cases]
-
-
-async def _observe(
-    repository: SupabaseIngredientSearchRepository, case: SearchCase, limit: int
-) -> SearchObservation:
-    started = perf_counter()
-    try:
-        results = await repository.search_products(case.query, limit)
-    except Exception as exc:  # 평가 실행은 한 요청 실패 때문에 전체를 중단하지 않는다.
-        return SearchObservation(
-            case=case,
-            result_ids=[],
-            latency_ms=(perf_counter() - started) * 1_000,
-            error=type(exc).__name__,
+        response = await (
+            client.table("product_ingredients")
+            .select("id")
+            .order("id")
+            .range(offset, offset + _DB_PAGE_SIZE - 1)
+            .execute()
         )
-    return SearchObservation(
-        case=case,
-        result_ids=[result.id for result in results],
-        latency_ms=(perf_counter() - started) * 1_000,
-    )
+        rows = _rows(response.data)
+        ingredient_row_count += len(rows)
+        if len(rows) < _DB_PAGE_SIZE:
+            break
+        offset += len(rows)
+
+    digest = hashlib.sha256(
+        json.dumps(products, ensure_ascii=False, separators=(",", ":")).encode()
+    ).hexdigest()
+    return DatabaseFingerprint(len(products), digest, ingredient_row_count)
 
 
-async def _run(args: argparse.Namespace) -> dict[str, object]:
-    settings = EvaluationSettings()  # type: ignore[call-arg]
+async def _run(args: argparse.Namespace, dataset: EvaluationDataset) -> dict[str, Any]:
+    if not args.allow_draft:
+        unapproved = [case.case_id for case in dataset.cases if case.review_status != "approved"]
+        if unapproved:
+            raise SystemExit(
+                f"승인되지 않은 평가 케이스가 {len(unapproved)}개 있습니다. "
+                "개발 진단만 수행할 때는 --allow-draft를 사용하세요."
+            )
+
+    settings = EvaluationSettings()
     client = await create_supabase_client(settings.supabase_url, settings.supabase_service_role_key)
     repository = SupabaseIngredientSearchRepository(client)
-    products = await _fetch_products(client)
-    cases = _build_cases(
-        products,
-        exact_count=args.exact_count,
-        partial_count=args.partial_count,
-        no_result_count=args.no_result_count,
-        seed=args.seed,
-    )
+    start_fingerprint = await database_fingerprint(client)
 
-    for _ in range(args.warmup):
-        await repository.search_products("크림", args.limit)
+    for case in dataset.cases[: min(args.warmup, len(dataset.cases))]:
+        with suppress(Exception):
+            await asyncio.wait_for(
+                repository.search_products(case.query, args.limit), timeout=args.timeout
+            )
 
-    observations = [await _observe(repository, case, args.limit) for case in cases]
+    observations: list[SearchObservation] = []
+    for repeat_index in range(1, args.repeats + 1):
+        cases = list(dataset.cases)
+        random.Random(dataset.sampling_seed + repeat_index).shuffle(cases)
+        for case in cases:
+            observations.append(
+                await _observe(repository, case, repeat_index, args.limit, args.timeout)
+            )
+
+    end_fingerprint = await database_fingerprint(client)
+    summary = build_summary(dataset, observations)
     return {
-        "generated_at": datetime.now(UTC).isoformat(),
-        "config": {
-            "exact_count": args.exact_count,
-            "partial_count": args.partial_count,
-            "no_result_count": args.no_result_count,
-            "result_limit": args.limit,
-            "warmup_count": args.warmup,
-            "sampling_seed": args.seed,
-            "product_source_count": len(products),
+        "evaluated_at": datetime.now(UTC).isoformat(),
+        "label": args.label,
+        "dataset": {
+            "path": str(args.dataset),
+            "version": dataset.dataset_version,
+            "kind": dataset.dataset_kind,
+            "case_count": len(dataset.cases),
+            "contains_draft": any(case.review_status != "approved" for case in dataset.cases),
         },
-        "summary": build_summary(observations, args.limit),
-        "observations": [
-            {
-                "case": asdict(observation.case),
-                "result_ids": observation.result_ids,
-                "latency_ms": observation.latency_ms,
-                "error": observation.error,
-            }
-            for observation in observations
-        ],
+        "config": {
+            "repeat_count": args.repeats,
+            "result_limit": args.limit,
+            "timeout_seconds": args.timeout,
+            "warmup_count": args.warmup,
+            "sequential_requests": True,
+        },
+        "search_engine_commit": _git_commit(),
+        "database": {
+            "start": asdict(start_fingerprint),
+            "end": asdict(end_fingerprint),
+            "unchanged": start_fingerprint == end_fingerprint,
+        },
+        "summary": summary,
+        "observations": [asdict(observation) for observation in observations],
     }
 
 
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Supabase 제품명 검색 기준 성능 평가")
-    parser.add_argument("--exact-count", type=int, default=40)
-    parser.add_argument("--partial-count", type=int, default=40)
-    parser.add_argument("--no-result-count", type=int, default=20)
-    parser.add_argument("--limit", type=int, default=20)
-    parser.add_argument("--warmup", type=int, default=3)
-    parser.add_argument("--seed", type=int, default=20260721)
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("artifacts/search-evaluation/baseline.json"),
+def _git_commit() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, check=True, text=True
     )
+    return result.stdout.strip()
+
+
+def _rows(data: Any) -> list[dict[str, Any]]:
+    return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="고정 데이터셋 기반 제품명 검색 성능 평가")
+    parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
+    parser.add_argument("--label", default="baseline")
+    parser.add_argument("--repeats", type=int, default=DEFAULT_REPEAT_COUNT)
+    parser.add_argument("--limit", type=int, default=DEFAULT_RESULT_LIMIT)
+    parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
+    parser.add_argument("--warmup", type=int, default=DEFAULT_WARMUP_COUNT)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--allow-draft", action="store_true")
     return parser.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
-    if (
-        min(
-            args.exact_count,
-            args.partial_count,
-            args.no_result_count,
-            args.limit,
-            args.warmup,
-        )
-        < 0
-        or args.limit == 0
-    ):
-        raise SystemExit("평가 건수와 warmup은 0 이상, limit은 1 이상이어야 합니다.")
-    report = asyncio.run(_run(args))
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    if args.repeats < 1 or args.limit < 10 or args.timeout <= 0 or args.warmup < 0:
+        raise SystemExit("repeats는 1 이상, limit은 10 이상, timeout은 양수여야 합니다.")
+    dataset = load_dataset(args.dataset)
+    report = asyncio.run(_run(args, dataset))
+    output = args.output or DEFAULT_OUTPUT_DIRECTORY / (
+        f"{args.label}-{dataset.dataset_kind}-v{dataset.dataset_version}.json"
     )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8") as target:
+        target.write(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
-    print(f"상세 결과: {args.output}")
+    print(f"상세 결과: {output}")
 
 
 if __name__ == "__main__":
