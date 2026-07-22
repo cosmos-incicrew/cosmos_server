@@ -143,7 +143,7 @@ class SupabaseIngredientSearchRepository:
     async def search_ingredients(self, query: str, limit: int) -> list[IngredientSearchCandidate]:
         synonym_response = await (
             self._client.table("synonyms")
-            .select("ingredient_id,ingredients!inner(ingredient_id,name_kr,name_en)")
+            .select("ingredient_id,ingredients!inner(ingredient_id,name_kor,name_eng)")
             .ilike("synonym", _escape_like(query))
             .order("ingredient_id")
             .limit(limit)
@@ -153,15 +153,15 @@ class SupabaseIngredientSearchRepository:
         for row in _rows(synonym_response.data):
             ingredient = _embedded_row(row.get("ingredients"))
             ingredient_id = _integer(ingredient.get("ingredient_id"))
-            name_kr = ingredient.get("name_kr")
-            if ingredient_id is None or not isinstance(name_kr, str):
+            name_kor = ingredient.get("name_kor")
+            if ingredient_id is None or not isinstance(name_kor, str):
                 continue
             results_by_id.setdefault(
                 ingredient_id,
                 IngredientSearchCandidate(
                     ingredient_id=ingredient_id,
-                    name_kr=name_kr,
-                    name_en=_optional_text(ingredient.get("name_en")),
+                    name_kr=name_kor,
+                    name_en=_optional_text(ingredient.get("name_eng")),
                 ),
             )
         return list(results_by_id.values())

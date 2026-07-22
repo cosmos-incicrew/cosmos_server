@@ -399,16 +399,16 @@ async def test_repository_deduplicates_alias_matches_by_integer_ingredient_id() 
                             "ingredient_id": "2700",
                             "ingredients": {
                                 "ingredient_id": "2700",
-                                "name_kr": "테스트 성분",
-                                "name_en": "Test Ingredient",
+                                "name_kor": "테스트 성분",
+                                "name_eng": "Test Ingredient",
                             },
                         },
                         {
                             "ingredient_id": "2700",
                             "ingredients": {
                                 "ingredient_id": "2700",
-                                "name_kr": "테스트 성분",
-                                "name_en": "Test Ingredient",
+                                "name_kor": "테스트 성분",
+                                "name_eng": "Test Ingredient",
                             },
                         },
                     ]
