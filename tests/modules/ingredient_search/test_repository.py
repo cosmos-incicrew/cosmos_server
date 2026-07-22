@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -15,17 +16,25 @@ class FakeResponse:
 class FakeQuery:
     def __init__(self, data: Any) -> None:
         self._data = data
+        self._limit: int | None = None
+        self._ilike_patterns: list[str] = []
 
     def select(self, *columns: str) -> "FakeQuery":
         return self
 
     def ilike(self, column: str, pattern: str) -> "FakeQuery":
+        if column == "product_name":
+            self._ilike_patterns.append(pattern)
+        return self
+
+    def or_(self, filters: str) -> "FakeQuery":
         return self
 
     def order(self, column: str) -> "FakeQuery":
         return self
 
     def limit(self, count: int) -> "FakeQuery":
+        self._limit = count
         return self
 
     def range(self, from_: int, to: int) -> "FakeQuery":
@@ -48,7 +57,29 @@ class FakeQuery:
         return self
 
     async def execute(self) -> FakeResponse:
-        return FakeResponse(self._data)
+        data = self._data
+        if isinstance(data, list) and self._ilike_patterns:
+            data = [
+                row
+                for row in data
+                if isinstance(row, dict)
+                and isinstance(row.get("product_name"), str)
+                and all(
+                    _ilike_matches(pattern, row["product_name"])
+                    for pattern in self._ilike_patterns
+                )
+            ]
+        if isinstance(data, list) and self._limit is not None:
+            return FakeResponse(data[: self._limit])
+        return FakeResponse(data)
+
+
+def _ilike_matches(pattern: str, value: str) -> bool:
+    regex = "".join(
+        ".*" if character == "%" else "." if character == "_" else re.escape(character)
+        for character in pattern
+    )
+    return re.fullmatch(regex, value, re.IGNORECASE) is not None
 
 
 class FakeSupabase:
@@ -56,7 +87,16 @@ class FakeSupabase:
         self._rows_by_table = rows_by_table
 
     def table(self, table_name: str) -> FakeQuery:
-        return FakeQuery(self._rows_by_table[table_name])
+        data = self._rows_by_table[table_name]
+        if table_name == "products" and isinstance(data, list):
+            mappings = self._rows_by_table.get("product_ingredients", [])
+            mapped_ids = {
+                row.get("product_id")
+                for row in mappings
+                if isinstance(row, dict) and row.get("product_id") is not None
+            }
+            data = [row for row in data if row.get("id") in mapped_ids]
+        return FakeQuery(data)
 
 
 @pytest.mark.asyncio
@@ -144,6 +184,98 @@ async def test_repository_keeps_each_analyzable_product_in_the_same_flagship_gro
     results = await repository.search_products("아이크림", 20)
 
     assert [candidate.id for candidate in results] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_repository_matches_spacing_and_punctuation_variations() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [
+                        {
+                            "id": 7,
+                            "product_name": "[단독기획] 허블룸 데일리 톤업 비건 선스크린 50ml",
+                            "brand": "허블룸",
+                        },
+                        {"id": 8, "product_name": "허블룸 수분 크림", "brand": "허블룸"},
+                    ],
+                    "product_ingredients": [{"product_id": 7}, {"product_id": 8}],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_products("허블룸데일리톤업비건선스크린50ml", 10)
+
+    assert [candidate.id for candidate in results] == [7]
+
+
+@pytest.mark.asyncio
+async def test_repository_does_not_require_every_anchor_to_match() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [
+                        {"id": 9, "product_name": "더샘 내추럴 마스크팩 알로에"},
+                        {"id": 10, "product_name": "다른 브랜드 수분 크림"},
+                    ],
+                    "product_ingredients": [{"product_id": 9}, {"product_id": 10}],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_products("더샘내추럴마스크팩알로에", 10)
+
+    assert [candidate.id for candidate in results] == [9]
+
+
+@pytest.mark.asyncio
+async def test_repository_prioritizes_core_name_match_over_partial_match() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [
+                        {"id": 1, "product_name": "아토베리어365 크림 미스트"},
+                        {
+                            "id": 2,
+                            "product_name": "[기획] 에스트라 아토베리어365 크림 80ml (+10ml)",
+                        },
+                    ],
+                    "product_ingredients": [{"product_id": 1}, {"product_id": 2}],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_products("에스트라 아토베리어365 크림", 10)
+
+    assert [candidate.id for candidate in results] == [2]
+
+
+@pytest.mark.asyncio
+async def test_repository_removes_capacity_attached_to_product_name() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [{"id": 1, "product_name": "브랜드 에센스200ml"}],
+                    "product_ingredients": [{"product_id": 1}],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_products("브랜드 에센스", 10)
+
+    assert [candidate.id for candidate in results] == [1]
 
 
 @pytest.mark.asyncio

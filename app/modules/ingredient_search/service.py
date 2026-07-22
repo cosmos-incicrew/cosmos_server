@@ -1,6 +1,7 @@
 """제품·성분 검색 비즈니스 로직."""
 
 from app.common.restrictions import restriction_rules_by_ingredient
+from app.modules.ingredient_search.matching import normalize_product_text
 from app.modules.ingredient_search.repository import IngredientSearchRepository
 from app.modules.ingredient_search.schemas import (
     IngredientSearchResponse,
@@ -8,6 +9,9 @@ from app.modules.ingredient_search.schemas import (
     ProductSearchResponse,
     RestrictedIngredient,
 )
+
+MIN_PRODUCT_QUERY_LENGTH = 2
+MAX_PRODUCT_QUERY_LENGTH = 100
 
 
 class ProductNotFoundError(Exception):
@@ -18,9 +22,21 @@ class ProductNotAnalyzableError(Exception):
     """Raised when a product has no mapped ingredient identifiers."""
 
 
+class ProductQueryTooShortError(Exception):
+    """Raised when a normalized product query has fewer than two characters."""
+
+
+class ProductQueryTooLongError(Exception):
+    """Raised when the raw product query exceeds one hundred characters."""
+
+
 async def search_products(
     repository: IngredientSearchRepository, query: str, limit: int
 ) -> ProductSearchResponse:
+    if len(query) > MAX_PRODUCT_QUERY_LENGTH:
+        raise ProductQueryTooLongError
+    if len(normalize_product_text(query)) < MIN_PRODUCT_QUERY_LENGTH:
+        raise ProductQueryTooShortError
     return ProductSearchResponse(
         query=query,
         results=await repository.search_products(query, limit),

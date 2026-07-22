@@ -30,7 +30,18 @@ async def search_products(
 ) -> ProductSearchResponse:
     """분석 가능한 제품 후보를 제품명으로 검색한다."""
     del user_id
-    return await service.search_products(repository, q, limit)
+    try:
+        return await service.search_products(repository, q, limit)
+    except service.ProductQueryTooLongError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "QUERY_TOO_LONG", "message": "검색어는 100자 이하여야 합니다."},
+        ) from None
+    except service.ProductQueryTooShortError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "QUERY_TOO_SHORT", "message": "검색어는 2자 이상이어야 합니다."},
+        ) from None
 
 
 @product_router.get("/{product_id}/ingredients", response_model=ProductIngredientIdsResponse)

@@ -226,6 +226,19 @@ def test_search_products_rejects_invalid_query_parameters(
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
+@pytest.mark.parametrize(
+    ("query", "error_code"),
+    [("가", "QUERY_TOO_SHORT"), ("가" * 101, "QUERY_TOO_LONG")],
+)
+def test_search_products_reports_the_query_length_contract(
+    client: TestClient, query: str, error_code: str
+) -> None:
+    response = client.get("/api/v1/products/search", params={"q": query})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == error_code
+
+
 def test_search_products_requires_jwt(client: TestClient) -> None:
     app.dependency_overrides.pop(verify_jwt)
 

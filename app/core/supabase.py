@@ -9,16 +9,24 @@ from app.core.config import get_settings
 _client: AsyncClient | None = None
 
 
+async def create_supabase_client(supabase_url: str, supabase_service_role_key: str) -> AsyncClient:
+    """명시한 설정으로 캐시되지 않는 Supabase 비동기 클라이언트를 만든다."""
+    return await acreate_client(supabase_url, supabase_service_role_key)
+
+
 async def get_supabase() -> AsyncClient:
     """서버용 Supabase 비동기 클라이언트 (service role).
 
     service role 키는 RLS를 우회하므로, user 소유 데이터를 다루는 쿼리는
     반드시 user_id로 직접 필터링해야 한다 (docs/conventions.md 참고).
+
     """
     global _client
     if _client is None:
         settings = get_settings()
-        _client = await acreate_client(settings.supabase_url, settings.supabase_service_role_key)
+        _client = await create_supabase_client(
+            settings.supabase_url, settings.supabase_service_role_key
+        )
     return _client
 
 
