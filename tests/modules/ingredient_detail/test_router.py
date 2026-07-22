@@ -1,6 +1,7 @@
 """ingredient_detail router 테스트. 엔드포인트가 service를 호출해 응답을 반환하는지."""
 
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -228,3 +229,58 @@ def test_product_summary_returns_404_when_all_absent(
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "INGREDIENT_NOT_FOUND"
+
+
+def test_comparison_summary_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """비교 해설 엔드포인트가 service 결과를 반환한다."""
+    from app.modules.ingredient_detail.schemas import ComparisonSummaryResponse
+
+    async def _fake_summary(products: list[Any], presences: list[Any]) -> Any:
+        return ComparisonSummaryResponse(
+            status="ok", summary="두 제품은 보습 성분을 공통으로 가집니다."
+        )
+
+    monkeypatch.setattr(detail_router.service, "get_comparison_summary", _fake_summary)
+
+    response = client.post(
+        "/api/v1/ingredients/comparison-summary",
+        json={
+            "products": [
+                {"id": 101, "product_name": "제품 A"},
+                {"id": 102, "product_name": "제품 B"},
+            ],
+            "ingredient_presence": [
+                {
+                    "ingredient_id": 1,
+                    "name_kr": "정제수",
+                    "product_ids": [101, 102],
+                    "presence_type": "all",
+                    "restrictions": [],
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_comparison_summary_requires_jwt(client: TestClient) -> None:
+    """비교 해설도 인증이 필요하다."""
+    app.dependency_overrides.pop(verify_jwt)
+
+    response = client.post(
+        "/api/v1/ingredients/comparison-summary",
+        json={"products": [], "ingredient_presence": []},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTH_MISSING_TOKEN"
+
+
+def test_comparison_summary_rejects_invalid_body(client: TestClient) -> None:
+    """필수 필드가 없으면 422."""
+    response = client.post("/api/v1/ingredients/comparison-summary", json={})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"

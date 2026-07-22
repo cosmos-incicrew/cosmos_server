@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.core.auth import verify_jwt
 from app.modules.ingredient_detail import service
 from app.modules.ingredient_detail.schemas import (
+    ComparisonSummaryRequest,
+    ComparisonSummaryResponse,
     IngredientDetailResponse,
     ProductSummaryRequest,
     ProductSummaryResponse,
@@ -40,7 +42,7 @@ async def get_ingredient_detail(
     ingredient_id: int,
     user_id: Annotated[str, Depends(verify_jwt)],
 ) -> IngredientDetailResponse:
-    """개별 성분 해설·주의사항 — 근거 기반 생성 + 출처 인용. 담당: 호영
+    """개별 성분 해설·주의사항 — 근거 기반 생성 + 출처 인용.
 
     성분 해설은 공용(카탈로그) 데이터라 user_id로 필터링하지 않는다.
     로그인 인증만 요구한다.
@@ -61,13 +63,34 @@ async def get_product_summary(
     body: ProductSummaryRequest,
     user_id: Annotated[str, Depends(verify_jwt)],
 ) -> ProductSummaryResponse:
-    """제품 요약 — 전성분(배합순)을 종합해 대표성분 + 제품 해설 요약. 담당: 호영
+    """제품 요약 — 전성분(배합순)을 종합해 대표성분 + 제품 해설 요약.
 
     공용 데이터라 user_id로 필터링하지 않고, 로그인 인증만 요구한다.
     """
     del user_id
     try:
         return await service.get_product_summary(body.ingredient_ids)
+    except service.IngredientNotFoundError:
+        raise _INGREDIENT_NOT_FOUND from None
+    except service.EvidenceUnavailableError:
+        raise _EVIDENCE_UNAVAILABLE from None
+    except service.GenerationFailedError:
+        raise _GENERATION_FAILED from None
+
+
+@router.post("/comparison-summary", response_model=ComparisonSummaryResponse)
+async def get_comparison_summary(
+    body: ComparisonSummaryRequest,
+    user_id: Annotated[str, Depends(verify_jwt)],
+) -> ComparisonSummaryResponse:
+    """다중 제품 비교 해설 — 검색엔진 비교 결과를 자연어로 설명.
+
+    프론트가 제품 비교 API 응답(products·ingredient_presence)을 그대로 전달한다.
+    배합 비율은 공개되지 않으므로 제품 간 우열은 판단하지 않는다.
+    """
+    del user_id
+    try:
+        return await service.get_comparison_summary(body.products, body.ingredient_presence)
     except service.IngredientNotFoundError:
         raise _INGREDIENT_NOT_FOUND from None
     except service.EvidenceUnavailableError:

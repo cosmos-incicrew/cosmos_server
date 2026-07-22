@@ -12,14 +12,19 @@ from langfuse import get_client, observe
 from app.core.gemini import gemini_model_for, get_gemini
 from app.core.supabase import get_supabase
 from app.modules.ingredient_detail.prompts import (
+    COMPARISON_SYSTEM_PROMPT,
+    COMPARISON_USER_TEMPLATE,
     EXPLANATION_SYSTEM_PROMPT,
     EXPLANATION_USER_TEMPLATE,
     PRODUCT_SUMMARY_SYSTEM_PROMPT,
     PRODUCT_SUMMARY_USER_TEMPLATE,
 )
 from app.modules.ingredient_detail.schemas import (
+    ComparedProduct,
+    ComparisonSummaryResponse,
     IngredientDetailResponse,
     IngredientEvidence,
+    IngredientPresence,
     ProductSummaryResponse,
     Restriction,
     TopIngredient,
@@ -28,6 +33,10 @@ from app.modules.ingredient_detail.schemas import (
 _SAFETY_UNKNOWN = "안전성 확인 불가"
 _MODULE_TAG = "module:ingredient_detail"
 _TOP_INGREDIENT_COUNT = 3  # 대표 성분(배합순 상위) 개수
+_MIN_COMPARE_PRODUCTS = 2  # 비교는 제품 2개 이상
+# 규제 없는 성분의 상한. 전성분을 모두 해설하면 프롬프트가 길고 LLM 비용이 커진다.
+# 규제가 있는 성분은 안전 정보라 이 상한을 적용하지 않는다.
+_MAX_COMPARE_INGREDIENTS = 12
 
 
 class IngredientNotFoundError(Exception):
@@ -412,3 +421,126 @@ def _verify_sources_multi(text: str, evidences: list[IngredientEvidence]) -> tup
         ingredient_id=0, name_kr=None, inci=None, reference_source=merged or None
     )
     return _verify_sources(text, merged_evidence)
+
+
+async def get_comparison_summary(
+    products: list[ComparedProduct],
+    presences: list[IngredientPresence],
+) -> ComparisonSummaryResponse:
+    """다중 제품 비교 해설 생성 (검색엔진 compare 결과를 자연어로).
+
+    배합 비율은 공개되지 않으므로 효능의 우열은 판단하지 않는다.
+    성분 구성의 차이와 주의 성분만 설명한다.
+    """
+    if len(products) < _MIN_COMPARE_PRODUCTS or not presences:
+        return ComparisonSummaryResponse(
+            status="확인 불가", reason="비교할 제품 또는 성분 정보 없음"
+        )
+
+    # 해설 대상 성분을 추린다. 전성분을 모두 설명하면 길어지고 LLM 비용도 커진다.
+    #
+    # 규제가 있는 성분은 상한에서 제외한다 — 안전 정보가 개수 제한 때문에
+    # 누락되면 사용자에게 실질적 해가 될 수 있다.
+    # 나머지는 정보 가치 순으로 채운다: 차이를 드러내는 성분(single·partial) →
+    # 공통 성분(all — 정제수처럼 흔해 정보 가치가 낮다).
+    restricted = [p for p in presences if any(r.has_content() for r in p.restrictions)]
+    rest = [p for p in presences if not any(r.has_content() for r in p.restrictions)]
+    rest.sort(key=lambda p: 0 if p.presence_type in ("single", "partial") else 1)
+    highlighted = restricted + rest[:_MAX_COMPARE_INGREDIENTS]
+
+    # 성분 역할을 설명하려면 효능 근거가 필요하다(compare 응답에는 없다).
+    evidence_by_id: dict[int, IngredientEvidence] = {}
+    for presence in highlighted:
+        try:
+            evidence = await _fetch_evidence(presence.ingredient_id)
+        except EvidenceUnavailableError:
+            continue
+        if evidence is not None:
+            evidence_by_id[presence.ingredient_id] = evidence
+
+    raw_summary = await _generate_comparison_summary(products, highlighted, evidence_by_id)
+    clean_summary, verified = _verify_sources_multi(raw_summary, list(evidence_by_id.values()))
+
+    return ComparisonSummaryResponse(status="ok", summary=clean_summary, source_verified=verified)
+
+
+def _build_comparison_evidence_block(
+    products: list[ComparedProduct],
+    presences: list[IngredientPresence],
+    evidence_by_id: dict[int, IngredientEvidence],
+) -> str:
+    """비교 결과를 프롬프트용 근거 블록으로 조립."""
+    name_by_id = {p.id: (p.product_name or f"제품 {p.id}") for p in products}
+
+    lines: list[str] = ["[비교 대상 제품]"]
+    lines.extend(f"- {name_by_id[p.id]}" for p in products)
+
+    lines.append("")
+    lines.append("[성분별 포함 관계]")
+    for presence in presences:
+        included = ", ".join(name_by_id.get(pid, f"제품 {pid}") for pid in presence.product_ids)
+        scope = {
+            "all": "모든 제품에 포함",
+            "partial": "일부 제품에만 포함",
+            "single": "한 제품에만 포함",
+        }.get(presence.presence_type or "", "포함 범위 불명")
+        lines.append(f"- {presence.name_kr or presence.ingredient_id} ({scope}: {included})")
+
+        evidence = evidence_by_id.get(presence.ingredient_id)
+        if evidence and evidence.efficacy:
+            lines.append(f"    역할: {evidence.efficacy}")
+        if evidence and evidence.recommended_skin_types:
+            lines.append(f"    권장 피부타입: {evidence.recommended_skin_types}")
+
+        for restriction in presence.restrictions:
+            if not restriction.has_content():
+                continue
+            detail = " / ".join(
+                text
+                for text in (
+                    restriction.regulate_type,
+                    restriction.limit_cond,
+                    restriction.provis_atrcl,
+                )
+                if text
+            )
+            if detail:
+                lines.append(f"    공식 규제(식약처 등): {detail}")
+
+    return "\n".join(lines)
+
+
+@observe(as_type="generation")
+async def _generate_comparison_summary(
+    products: list[ComparedProduct],
+    presences: list[IngredientPresence],
+    evidence_by_id: dict[int, IngredientEvidence],
+) -> str:
+    """비교 결과를 종합해 해설 생성. 여러 제품·근거 종합이므로 Pro 모델."""
+    evidence_block = _build_comparison_evidence_block(products, presences, evidence_by_id)
+    user_prompt = COMPARISON_USER_TEMPLATE.format(evidence_block=evidence_block)
+    model = gemini_model_for(complex_query=True)
+
+    langfuse = get_client()
+    langfuse.update_current_generation(
+        model=model,
+        input=user_prompt,
+        metadata={
+            "product_count": len(products),
+            "ingredient_count": len(presences),
+            "module": _MODULE_TAG,
+        },
+    )
+
+    try:
+        client = get_gemini()
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=f"{COMPARISON_SYSTEM_PROMPT}\n\n{user_prompt}",
+        )
+    except Exception as exc:
+        raise GenerationFailedError(str(exc)) from exc
+
+    output = response.text or ""
+    langfuse.update_current_generation(output=output)
+    return output
