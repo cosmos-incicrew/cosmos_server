@@ -70,8 +70,7 @@ class FakeQuery:
                 if isinstance(row, dict)
                 and isinstance(row.get("product_name"), str)
                 and all(
-                    _ilike_matches(pattern, row["product_name"])
-                    for pattern in self._ilike_patterns
+                    _ilike_matches(pattern, row["product_name"]) for pattern in self._ilike_patterns
                 )
             ]
         if isinstance(data, list) and self._limit is not None:
@@ -303,9 +302,7 @@ async def test_repository_runs_direct_query_only_when_tolerant_pool_is_truncated
             FakeSupabase(
                 {
                     "products": products,
-                    "product_ingredients": [
-                        {"product_id": product["id"]} for product in products
-                    ],
+                    "product_ingredients": [{"product_id": product["id"]} for product in products],
                 }
             ),
         )

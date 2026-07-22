@@ -479,9 +479,7 @@ def validate_confirmation_dataset(
     _validate_layout(confirmation.cases, FINAL_LAYOUT, errors, label="확인용")
     if overlap := _all_product_ids(confirmation.cases) & excluded_product_ids:
         errors.append(f"기존 데이터셋과 중복된 제품 ID가 있습니다: {sorted(overlap)}")
-    not_registered_count = sum(
-        case.scenario == "not_registered" for case in confirmation.cases
-    )
+    not_registered_count = sum(case.scenario == "not_registered" for case in confirmation.cases)
     if not_registered_count != len(CONFIRMATION_NOT_REGISTERED_QUERIES):
         errors.append(
             "확인 데이터셋의 미등록 검색어는 "
@@ -1025,9 +1023,7 @@ async def _generate_confirmation(args: argparse.Namespace) -> None:
         excluded_product_ids,
         require_approved=False,
     )
-    errors.extend(
-        await validate_dataset_collection_against_supabase(client, [confirmation])
-    )
+    errors.extend(await validate_dataset_collection_against_supabase(client, [confirmation]))
     if errors:
         raise SystemExit("확인 데이터셋 초안 생성 검증 실패:\n- " + "\n- ".join(errors))
 

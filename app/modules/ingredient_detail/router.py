@@ -8,6 +8,8 @@ from app.modules.ingredient_detail.schemas import (
     ComparisonSummaryRequest,
     ComparisonSummaryResponse,
     IngredientDetailResponse,
+    IngredientNameRequest,
+    IngredientNameResponse,
     ProductSummaryRequest,
     ProductSummaryResponse,
 )
@@ -97,3 +99,20 @@ async def get_comparison_summary(
         raise _EVIDENCE_UNAVAILABLE from None
     except service.GenerationFailedError:
         raise _GENERATION_FAILED from None
+
+
+@router.post("/names", response_model=IngredientNameResponse)
+async def get_ingredient_names(
+    body: IngredientNameRequest,
+    user_id: Annotated[str, Depends(verify_jwt)],
+) -> IngredientNameResponse:
+    """성분 id 목록을 이름 목록으로 변환 — 성분 목록 화면용.
+
+    해설을 생성하지 않으므로 LLM을 호출하지 않는다. 요청 순서를 유지하며,
+    DB에 없는 id는 이름을 null로 반환한다(개수가 어긋나지 않도록).
+    """
+    del user_id
+    try:
+        return await service.get_ingredient_names(body.ingredient_ids)
+    except service.EvidenceUnavailableError:
+        raise _EVIDENCE_UNAVAILABLE from None
