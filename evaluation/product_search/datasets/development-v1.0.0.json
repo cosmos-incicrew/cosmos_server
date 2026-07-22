@@ -16,10 +16,10 @@
         1722
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-002",
@@ -33,10 +33,10 @@
         133
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-003",
@@ -50,10 +50,10 @@
         1556
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-004",
@@ -67,10 +67,10 @@
         490
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-005",
@@ -84,10 +84,10 @@
         7
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-006",
@@ -101,10 +101,10 @@
         3093
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-007",
@@ -118,10 +118,10 @@
         3218
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-008",
@@ -135,10 +135,10 @@
         3776
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-009",
@@ -152,10 +152,10 @@
         4111
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-010",
@@ -169,9 +169,9 @@
         3058
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
       "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
     },
     {
@@ -186,10 +186,10 @@
         4968
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-012",
@@ -203,10 +203,10 @@
         5634
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-013",
@@ -220,10 +220,10 @@
         5383
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-014",
@@ -237,10 +237,10 @@
         4959
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-015",
@@ -254,10 +254,10 @@
         5497
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-016",
@@ -271,10 +271,10 @@
         4748
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-017",
@@ -288,10 +288,10 @@
         4824
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-018",
@@ -305,10 +305,10 @@
         4677
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-019",
@@ -322,10 +322,10 @@
         4442
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     },
     {
       "case_id": "DEV-020",
@@ -339,10 +339,10 @@
         4390
       ],
       "expected_result": "found",
-      "review_status": "draft",
-      "reviewed_by": [],
-      "reviewed_at": null,
-      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
     }
   ]
 }
