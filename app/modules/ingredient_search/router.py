@@ -42,6 +42,14 @@ async def search_products(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"code": "QUERY_TOO_SHORT", "message": "검색어는 2자 이상이어야 합니다."},
         ) from None
+    except service.ProductSearchUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "PRODUCT_SEARCH_UNAVAILABLE",
+                "message": "제품 검색 서비스를 일시적으로 사용할 수 없습니다.",
+            },
+        ) from None
 
 
 @product_router.get("/{product_id}/ingredients", response_model=ProductIngredientIdsResponse)

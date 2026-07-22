@@ -48,6 +48,13 @@ class SearchObservation:
     latency_ms: float
     error: str | None = None
     candidate_pool_truncated: bool = False
+    direct_candidate_count: int = 0
+    tolerant_candidate_count: int = 0
+    merged_candidate_count: int = 0
+    ranked_candidate_count: int = 0
+    direct_query_latency_ms: float = 0.0
+    tolerant_query_latency_ms: float = 0.0
+    direct_query_executed: bool = False
 
 
 @dataclass(frozen=True)
@@ -109,6 +116,7 @@ def build_summary(
         for case_id, items in observations_by_case.items()
         if sum(item.error is not None for item in items) >= 2
     )
+    diagnostics = [item for item in successful]
 
     return {
         "dataset_case_count": len(dataset.cases),
@@ -145,6 +153,28 @@ def build_summary(
         "repeated_failure_case_ids": repeated_failure_case_ids,
         "candidate_pool_truncated_case_ids": sorted(
             {item.case_id for item in observations if item.candidate_pool_truncated}
+        ),
+        "candidate_diagnostics": {
+            "direct": _distribution([item.direct_candidate_count for item in diagnostics]),
+            "tolerant": _distribution(
+                [item.tolerant_candidate_count for item in diagnostics]
+            ),
+            "merged": _distribution([item.merged_candidate_count for item in diagnostics]),
+            "ranked": _distribution([item.ranked_candidate_count for item in diagnostics]),
+        },
+        "query_latency_ms": {
+            "direct": _distribution(
+                [item.direct_query_latency_ms for item in diagnostics if item.direct_query_executed]
+            ),
+            "tolerant": _distribution(
+                [item.tolerant_query_latency_ms for item in diagnostics]
+            ),
+        },
+        "direct_query_execution_count": sum(
+            item.direct_query_executed for item in diagnostics
+        ),
+        "direct_query_execution_rate": _ratio(
+            sum(item.direct_query_executed for item in diagnostics), len(diagnostics)
         ),
     }
 
@@ -199,6 +229,17 @@ def _percentile(values: list[float], percentile: int) -> float:
     return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
 
 
+def _distribution(values: list[int] | list[float]) -> dict[str, float | int]:
+    if not values:
+        return {"sample_count": 0, "mean": 0.0, "p95": 0.0, "max": 0.0}
+    return {
+        "sample_count": len(values),
+        "mean": sum(values) / len(values),
+        "p95": _percentile([float(value) for value in values], 95),
+        "max": max(values),
+    }
+
+
 async def _observe(
     repository: SupabaseIngredientSearchRepository,
     case: EvaluationCase,
@@ -229,6 +270,13 @@ async def _observe(
         [result.id for result in results],
         (perf_counter() - started) * 1_000,
         candidate_pool_truncated=repository.last_candidate_pool_truncated,
+        direct_candidate_count=repository.last_search_diagnostics.direct_candidate_count,
+        tolerant_candidate_count=repository.last_search_diagnostics.tolerant_candidate_count,
+        merged_candidate_count=repository.last_search_diagnostics.merged_candidate_count,
+        ranked_candidate_count=repository.last_search_diagnostics.ranked_candidate_count,
+        direct_query_latency_ms=repository.last_search_diagnostics.direct_query_latency_ms,
+        tolerant_query_latency_ms=repository.last_search_diagnostics.tolerant_query_latency_ms,
+        direct_query_executed=repository.last_search_diagnostics.direct_query_executed,
     )
 
 

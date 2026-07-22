@@ -9,7 +9,7 @@ from enum import IntEnum
 
 from app.modules.ingredient_search.schemas import ProductSearchCandidate
 
-_ALNUM_PATTERN = re.compile(r"[0-9a-z가-힣]+", re.IGNORECASE)
+_TOKEN_PATTERN = re.compile(r"[^\W_]+", re.UNICODE)
 _BRACKET_PATTERN = re.compile(r"\[([^]]+)]")
 _PARENTHESIS_PATTERN = re.compile(r"\(([^()]*)\)")
 _COMBINED_CAPACITY_PATTERN = re.compile(
@@ -45,7 +45,7 @@ class MatchKey:
 
 def normalize_product_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).casefold()
-    return "".join(_ALNUM_PATTERN.findall(normalized))
+    return "".join(character for character in normalized if character.isalnum())
 
 
 def core_product_text(value: str) -> str:
@@ -83,11 +83,18 @@ def format_tolerant_like_pattern(query: str) -> str:
     return "%" + "%".join(normalized) + "%"
 
 
+def requires_literal_product_lookup(query: str) -> bool:
+    """NFKC 변환으로 원문 문자가 달라져 직접 조회가 필요한지 판정한다."""
+
+    folded_alnum = "".join(character for character in query.casefold() if character.isalnum())
+    return folded_alnum != normalize_product_text(query)
+
+
 def rank_candidates(
     query: str, candidates: list[ProductSearchCandidate]
 ) -> list[ProductSearchCandidate]:
     query_normalized = normalize_product_text(query)
-    query_tokens = [normalize_product_text(token) for token in _ALNUM_PATTERN.findall(query)]
+    query_tokens = [normalize_product_text(token) for token in _TOKEN_PATTERN.findall(query)]
     ranked: list[tuple[MatchKey, ProductSearchCandidate]] = []
     for candidate in candidates:
         full = normalize_product_text(candidate.product_name)

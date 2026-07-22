@@ -55,13 +55,44 @@ def _dataset() -> EvaluationDataset:
 
 def test_build_summary_reports_quality_latency_and_consistency() -> None:
     observations = [
-        SearchObservation("DEV-001", repeat, [9, 1, 8], 10.0 + repeat) for repeat in range(1, 6)
+        SearchObservation(
+            "DEV-001",
+            repeat,
+            [9, 1, 8],
+            10.0 + repeat,
+            direct_candidate_count=3,
+            tolerant_candidate_count=5,
+            merged_candidate_count=6,
+            ranked_candidate_count=3,
+            direct_query_latency_ms=7.0,
+            tolerant_query_latency_ms=9.0,
+            direct_query_executed=True,
+        )
+        for repeat in range(1, 6)
     ]
     observations += [
-        SearchObservation("DEV-002", repeat, [], 20.0 + repeat) for repeat in range(1, 6)
+        SearchObservation(
+            "DEV-002",
+            repeat,
+            [],
+            20.0 + repeat,
+            direct_query_latency_ms=7.0,
+            tolerant_query_latency_ms=9.0,
+            direct_query_executed=True,
+        )
+        for repeat in range(1, 6)
     ]
     observations += [
-        SearchObservation("NR-001", repeat, [], 30.0 + repeat) for repeat in range(1, 6)
+        SearchObservation(
+            "NR-001",
+            repeat,
+            [],
+            30.0 + repeat,
+            direct_query_latency_ms=7.0,
+            tolerant_query_latency_ms=9.0,
+            direct_query_executed=True,
+        )
+        for repeat in range(1, 6)
     ]
 
     summary = build_summary(_dataset(), observations)
@@ -78,6 +109,14 @@ def test_build_summary_reports_quality_latency_and_consistency() -> None:
     assert summary["latency_ms"]["p99"] == pytest.approx(34.86)
     assert summary["by_scenario"]["full_product_name"]["hit_at_5"] == 1.0
     assert summary["by_category"]["클렌징"]["hit_at_5"] == 0.0
+    assert summary["candidate_diagnostics"]["direct"]["max"] == 3
+    assert summary["candidate_diagnostics"]["tolerant"]["max"] == 5
+    assert summary["candidate_diagnostics"]["merged"]["max"] == 6
+    assert summary["candidate_diagnostics"]["ranked"]["max"] == 3
+    assert summary["query_latency_ms"]["direct"]["mean"] == 7.0
+    assert summary["query_latency_ms"]["tolerant"]["mean"] == 9.0
+    assert summary["direct_query_execution_count"] == 15
+    assert summary["direct_query_execution_rate"] == 1.0
 
 
 def test_build_summary_records_failures_and_unstable_results() -> None:
