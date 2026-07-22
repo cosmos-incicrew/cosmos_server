@@ -12,6 +12,11 @@ from supabase import AsyncClient
 
 from app.common.restrictions import RestrictionRow, fetch_restriction_rows
 from app.core.supabase import get_supabase
+from app.modules.ingredient_search.ingredient_matching import (
+    IngredientMatchCandidate,
+    ingredient_like_pattern,
+    rank_ingredient_candidates,
+)
 from app.modules.ingredient_search.matching import (
     format_tolerant_like_pattern,
     rank_candidates,
@@ -28,6 +33,10 @@ _PRODUCT_SEARCH_TIMEOUT_SECONDS = 2.0
 
 class ProductSearchDataSourceError(Exception):
     """Supabase 제품 검색을 완료하지 못했습니다."""
+
+
+class IngredientSearchDataSourceError(Exception):
+    """Supabase 성분 검색을 완료하지 못했습니다."""
 
 
 class IngredientSearchRepository(Protocol):
@@ -137,30 +146,77 @@ class SupabaseIngredientSearchRepository:
         return ranked[:limit]
 
     async def search_ingredients(self, query: str, limit: int) -> list[IngredientSearchCandidate]:
-        synonym_response = await (
-            self._client.table("synonyms")
-            .select("ingredient_id,ingredients!inner(ingredient_id,name_kor,name_eng)")
-            .ilike("synonym", _escape_like(query))
-            .order("ingredient_id")
-            .limit(limit)
-            .execute()
+        candidate_limit = _CANDIDATE_LIMIT_PER_QUERY
+        pattern = ingredient_like_pattern(query)
+        ingredient_selection = "ingredient_id,name_kor,name_eng"
+        synonym_selection = (
+            "ingredient_id,synonym,ingredients!inner(ingredient_id,name_kor,name_eng)"
         )
-        results_by_id: dict[int, IngredientSearchCandidate] = {}
+
+        queries = (
+            self._client.table("ingredients")
+            .select(ingredient_selection)
+            .ilike("name_kor", pattern)
+            .order("name_kor")
+            .order("ingredient_id")
+            .limit(candidate_limit),
+            self._client.table("ingredients")
+            .select(ingredient_selection)
+            .ilike("name_eng", pattern)
+            .order("name_eng")
+            .order("ingredient_id")
+            .limit(candidate_limit),
+            self._client.table("synonyms")
+            .select(synonym_selection)
+            .ilike("synonym", pattern)
+            .order("synonym")
+            .order("ingredient_id")
+            .limit(candidate_limit),
+        )
+        timed_responses = await asyncio.gather(
+            *(
+                _execute_with_latency(
+                    candidate_query,
+                    self._product_search_timeout_seconds,
+                    IngredientSearchDataSourceError,
+                )
+                for candidate_query in queries
+            )
+        )
+
+        candidates_by_id: dict[int, IngredientMatchCandidate] = {}
+        for response, _latency_ms in timed_responses[:2]:
+            for row in _rows(response.data):
+                candidate = _ingredient_match_candidate(row)
+                if candidate is not None:
+                    candidates_by_id.setdefault(candidate.ingredient_id, candidate)
+
+        synonym_response, _synonym_latency_ms = timed_responses[2]
         for row in _rows(synonym_response.data):
             ingredient = _embedded_row(row.get("ingredients"))
-            ingredient_id = _integer(ingredient.get("ingredient_id"))
-            name_kor = ingredient.get("name_kor")
-            if ingredient_id is None or not isinstance(name_kor, str):
+            candidate = _ingredient_match_candidate(ingredient)
+            synonym = row.get("synonym")
+            if candidate is None or not isinstance(synonym, str):
                 continue
-            results_by_id.setdefault(
-                ingredient_id,
-                IngredientSearchCandidate(
-                    ingredient_id=ingredient_id,
-                    name_kr=name_kor,
-                    name_en=_optional_text(ingredient.get("name_eng")),
-                ),
+            existing = candidates_by_id.get(candidate.ingredient_id)
+            synonyms = set(existing.synonyms if existing is not None else ())
+            synonyms.add(synonym)
+            candidates_by_id[candidate.ingredient_id] = IngredientMatchCandidate(
+                ingredient_id=candidate.ingredient_id,
+                name_kor=candidate.name_kor,
+                name_eng=candidate.name_eng,
+                synonyms=tuple(sorted(synonyms)),
             )
-        return list(results_by_id.values())
+
+        ranked = rank_ingredient_candidates(query, list(candidates_by_id.values()))
+        return [
+            IngredientSearchCandidate(
+                ingredient_id=candidate.ingredient_id,
+                name_kr=candidate.name_kor,
+                name_en=candidate.name_eng,
+            )
+            for candidate in ranked[:limit]
+        ]
 
     async def get_product_ingredients(self, product_id: int) -> ProductIngredientRows | None:
         product_response = await (
@@ -241,6 +297,18 @@ def _product_candidates(rows: Sequence[dict[str, Any]]) -> list[ProductSearchCan
     ]
 
 
+def _ingredient_match_candidate(row: dict[str, Any]) -> IngredientMatchCandidate | None:
+    ingredient_id = _integer(row.get("ingredient_id"))
+    name_kor = row.get("name_kor")
+    if ingredient_id is None or not isinstance(name_kor, str):
+        return None
+    return IngredientMatchCandidate(
+        ingredient_id=ingredient_id,
+        name_kor=name_kor,
+        name_eng=_optional_text(row.get("name_eng")),
+    )
+
+
 def _optional_text(value: Any) -> str | None:
     return value if isinstance(value, str) else None
 
@@ -277,10 +345,14 @@ def _direct_product_query(client: AsyncClient, selection: str, query: str, limit
     )
 
 
-async def _execute_with_latency(query: Any, timeout_seconds: float) -> tuple[Any, float]:
+async def _execute_with_latency(
+    query: Any,
+    timeout_seconds: float,
+    error_type: type[Exception] = ProductSearchDataSourceError,
+) -> tuple[Any, float]:
     started = perf_counter()
     try:
         response = await asyncio.wait_for(query.execute(), timeout=timeout_seconds)
     except (APIError, httpx.HTTPError, TimeoutError) as exc:
-        raise ProductSearchDataSourceError from exc
+        raise error_type from exc
     return response, (perf_counter() - started) * 1_000

@@ -1,0 +1,278 @@
+"""실제 Supabase 데이터로 성분명 검색 평가 데이터셋 초안을 생성한다."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import math
+import random
+from collections import defaultdict
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.supabase import create_supabase_client
+from app.modules.ingredient_search.ingredient_matching import normalize_ingredient_text
+
+DEFAULT_OUTPUT = Path("evaluation/ingredient_search/datasets/draft-v0.1.0.json")
+DEFAULT_SEED = 20260722
+SCENARIO_COUNTS = {
+    "exact_standard_name": 25,
+    "partial_standard_name": 25,
+    "exact_synonym": 20,
+    "partial_synonym": 20,
+}
+_PAGE_SIZE = 1_000
+
+
+class DatasetSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    supabase_url: str
+    supabase_service_role_key: str
+
+
+@dataclass(frozen=True)
+class IngredientEvaluationCase:
+    case_id: str
+    query: str
+    scenario: str
+    source_ingredient_id: int | None
+    source_standard_name: str | None
+    source_matched_name: str | None
+    acceptable_ingredient_ids: list[int]
+    expected_result: str
+    review_status: str = "draft"
+    review_note: str = "자동 생성 초안—사람 검수 필요"
+
+
+@dataclass(frozen=True)
+class IngredientEvaluationDataset:
+    dataset_version: str
+    dataset_kind: str
+    sampling_seed: int
+    generated_at: str
+    cases: list[IngredientEvaluationCase]
+
+
+def load_dataset(path: Path) -> IngredientEvaluationDataset:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    cases = [IngredientEvaluationCase(**case) for case in raw["cases"]]
+    dataset = IngredientEvaluationDataset(
+        dataset_version=str(raw["dataset_version"]),
+        dataset_kind=str(raw["dataset_kind"]),
+        sampling_seed=int(raw["sampling_seed"]),
+        generated_at=str(raw["generated_at"]),
+        cases=cases,
+    )
+    _validate_dataset(dataset)
+    return dataset
+
+
+def _validate_dataset(dataset: IngredientEvaluationDataset) -> None:
+    case_ids = [case.case_id for case in dataset.cases]
+    if len(case_ids) != len(set(case_ids)):
+        raise ValueError("case_id가 중복되었습니다.")
+    registered_ids = [
+        case.source_ingredient_id
+        for case in dataset.cases
+        if case.expected_result == "found"
+    ]
+    if None in registered_ids or len(registered_ids) != len(set(registered_ids)):
+        raise ValueError("등록 성분 케이스는 서로 다른 source_ingredient_id가 필요합니다.")
+    for case in dataset.cases:
+        if len(normalize_ingredient_text(case.query)) < 2:
+            raise ValueError(f"검색어가 너무 짧습니다: {case.case_id}")
+        if case.expected_result == "found" and not case.acceptable_ingredient_ids:
+            raise ValueError(f"정답 성분 ID가 없습니다: {case.case_id}")
+        if case.expected_result == "empty" and case.acceptable_ingredient_ids:
+            raise ValueError(f"미등록 케이스에 정답 성분 ID가 있습니다: {case.case_id}")
+
+
+async def _fetch_all(client: Any, table: str, columns: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        response = await (
+            client.table(table)
+            .select(columns)
+            .order(columns.split(",", maxsplit=1)[0])
+            .range(offset, offset + _PAGE_SIZE - 1)
+            .execute()
+        )
+        batch = [row for row in (response.data or []) if isinstance(row, dict)]
+        rows.extend(batch)
+        if len(batch) < _PAGE_SIZE:
+            return rows
+        offset += len(batch)
+
+
+def _partial_query(value: str) -> str | None:
+    normalized = normalize_ingredient_text(value)
+    if len(normalized) < 4:
+        return None
+    # 지나치게 짧은 접두어는 사용자의 의도를 특정하지 못해 정답 ID가 임의적이 된다.
+    # 전체 표기의 대부분을 유지하되 완전 일치와는 구분되는 입력을 만든다.
+    length = max(3, min(len(normalized) - 1, math.ceil(len(normalized) * 0.8)))
+    if any(character.isdigit() for character in normalized[length:]):
+        return None
+    return normalized[:length]
+
+
+def build_dataset(
+    ingredients: list[dict[str, Any]],
+    synonyms: list[dict[str, Any]],
+    seed: int,
+) -> IngredientEvaluationDataset:
+    rng = random.Random(seed)
+    ingredient_by_id = {
+        ingredient_id: row
+        for row in ingredients
+        if isinstance((ingredient_id := row.get("ingredient_id")), int)
+        and isinstance(row.get("name_kor"), str)
+    }
+    synonym_rows = [
+        row
+        for row in synonyms
+        if isinstance(row.get("ingredient_id"), int)
+        and row["ingredient_id"] in ingredient_by_id
+        and isinstance(row.get("synonym"), str)
+        and normalize_ingredient_text(row["synonym"])
+    ]
+    standard_ids_by_name: dict[str, set[int]] = defaultdict(set)
+    for ingredient_id, row in ingredient_by_id.items():
+        standard_ids_by_name[normalize_ingredient_text(row["name_kor"])].add(ingredient_id)
+    synonym_ids_by_name: dict[str, set[int]] = defaultdict(set)
+    for row in synonym_rows:
+        synonym_ids_by_name[normalize_ingredient_text(row["synonym"])].add(row["ingredient_id"])
+    rng.shuffle(ingredients)
+    rng.shuffle(synonym_rows)
+    used_ids: set[int] = set()
+    raw_cases: list[tuple[str, str, int, str, str, list[int]]] = []
+
+    def add_standard(scenario: str, count: int, partial: bool) -> None:
+        for row in ingredients:
+            ingredient_id = row.get("ingredient_id")
+            name = row.get("name_kor")
+            if not isinstance(ingredient_id, int) or ingredient_id in used_ids:
+                continue
+            query = _partial_query(name) if isinstance(name, str) and partial else name
+            if not isinstance(name, str) or not query:
+                continue
+            if len(query) > 100:
+                continue
+            used_ids.add(ingredient_id)
+            acceptable_ids = (
+                sorted(standard_ids_by_name[normalize_ingredient_text(name)])
+                if not partial
+                else [ingredient_id]
+            )
+            raw_cases.append((scenario, query, ingredient_id, name, name, acceptable_ids))
+            if sum(item[0] == scenario for item in raw_cases) == count:
+                return
+        raise ValueError(f"{scenario} 후보가 부족합니다.")
+
+    def add_synonyms(scenario: str, count: int, partial: bool) -> None:
+        for row in synonym_rows:
+            ingredient_id = row["ingredient_id"]
+            if ingredient_id in used_ids:
+                continue
+            synonym = row["synonym"].strip()
+            query = _partial_query(synonym) if partial else synonym
+            if not query or len(query) > 100:
+                continue
+            standard_name = ingredient_by_id[ingredient_id]["name_kor"]
+            if normalize_ingredient_text(synonym) == normalize_ingredient_text(standard_name):
+                continue
+            used_ids.add(ingredient_id)
+            acceptable_ids = (
+                sorted(synonym_ids_by_name[normalize_ingredient_text(synonym)])
+                if not partial
+                else [ingredient_id]
+            )
+            raw_cases.append(
+                (scenario, query, ingredient_id, standard_name, synonym, acceptable_ids)
+            )
+            if sum(item[0] == scenario for item in raw_cases) == count:
+                return
+        raise ValueError(f"{scenario} 후보가 부족합니다.")
+
+    add_standard("exact_standard_name", SCENARIO_COUNTS["exact_standard_name"], False)
+    add_standard("partial_standard_name", SCENARIO_COUNTS["partial_standard_name"], True)
+    add_synonyms("exact_synonym", SCENARIO_COUNTS["exact_synonym"], False)
+    add_synonyms("partial_synonym", SCENARIO_COUNTS["partial_synonym"], True)
+
+    cases = [
+        IngredientEvaluationCase(
+            case_id=f"IS-{index:03d}",
+            query=query,
+            scenario=scenario,
+            source_ingredient_id=ingredient_id,
+            source_standard_name=standard_name,
+            source_matched_name=matched_name,
+            acceptable_ingredient_ids=acceptable_ids,
+            expected_result="found",
+        )
+        for index, (
+            scenario,
+            query,
+            ingredient_id,
+            standard_name,
+            matched_name,
+            acceptable_ids,
+        ) in enumerate(raw_cases, 1)
+    ]
+    cases.extend(
+        IngredientEvaluationCase(
+            case_id=f"IS-{index:03d}",
+            query=f"미등록성분검색{index}xyz",
+            scenario="not_registered",
+            source_ingredient_id=None,
+            source_standard_name=None,
+            source_matched_name=None,
+            acceptable_ingredient_ids=[],
+            expected_result="empty",
+        )
+        for index in range(91, 101)
+    )
+    dataset = IngredientEvaluationDataset(
+        dataset_version="0.1.0",
+        dataset_kind="draft",
+        sampling_seed=seed,
+        generated_at=datetime.now(UTC).isoformat(),
+        cases=cases,
+    )
+    _validate_dataset(dataset)
+    return dataset
+
+
+async def _run(output: Path, seed: int) -> None:
+    settings = DatasetSettings()
+    client = await create_supabase_client(settings.supabase_url, settings.supabase_service_role_key)
+    ingredients, synonyms = await asyncio.gather(
+        _fetch_all(client, "ingredients", "ingredient_id,name_kor,name_eng"),
+        _fetch_all(client, "synonyms", "synonym_id,ingredient_id,synonym,language"),
+    )
+    dataset = build_dataset(ingredients, synonyms, seed)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(asdict(dataset), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(f"성분 검색 평가 초안 {len(dataset.cases)}건: {output}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="성분명 검색 평가 데이터셋 초안 생성")
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    args = parser.parse_args()
+    asyncio.run(_run(args.output, args.seed))
+
+
+if __name__ == "__main__":
+    main()

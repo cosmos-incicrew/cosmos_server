@@ -7,6 +7,7 @@ from app.common.restrictions import RestrictionRow
 from app.core.auth import verify_jwt
 from app.main import app
 from app.modules.ingredient_search.repository import (
+    IngredientSearchDataSourceError,
     IngredientSearchRepository,
     ProductIngredientRows,
     ProductSearchDataSourceError,
@@ -137,6 +138,43 @@ def test_search_ingredients_returns_alias_candidates(client: TestClient) -> None
                 "name_en": "Test Ingredient",
             }
         ],
+    }
+
+
+@pytest.mark.parametrize(
+    ("query", "error_code"),
+    [("가", "QUERY_TOO_SHORT"), ("가" * 101, "QUERY_TOO_LONG")],
+)
+def test_search_ingredients_reports_the_query_length_contract(
+    client: TestClient, query: str, error_code: str
+) -> None:
+    response = client.get("/api/v1/ingredients/search", params={"q": query})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == error_code
+
+
+def test_search_ingredients_returns_service_unavailable_for_supabase_failure(
+    client: TestClient,
+) -> None:
+    class UnavailableIngredientRepository(FakeIngredientSearchRepository):
+        async def search_ingredients(
+            self, query: str, limit: int
+        ) -> list[IngredientSearchCandidate]:
+            raise IngredientSearchDataSourceError
+
+    app.dependency_overrides[get_ingredient_search_repository] = lambda: (
+        UnavailableIngredientRepository()
+    )
+
+    response = client.get("/api/v1/ingredients/search", params={"q": "테스트 이명"})
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "error": {
+            "code": "INGREDIENT_SEARCH_UNAVAILABLE",
+            "message": "성분 검색 서비스를 일시적으로 사용할 수 없습니다.",
+        }
     }
 
 

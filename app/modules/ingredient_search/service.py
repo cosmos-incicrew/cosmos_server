@@ -3,8 +3,10 @@
 import logging
 
 from app.common.restrictions import restriction_rules_by_ingredient
+from app.modules.ingredient_search.ingredient_matching import normalize_ingredient_text
 from app.modules.ingredient_search.matching import normalize_product_text
 from app.modules.ingredient_search.repository import (
+    IngredientSearchDataSourceError,
     IngredientSearchRepository,
     ProductSearchDataSourceError,
 )
@@ -17,6 +19,8 @@ from app.modules.ingredient_search.schemas import (
 
 MIN_PRODUCT_QUERY_LENGTH = 2
 MAX_PRODUCT_QUERY_LENGTH = 100
+MIN_INGREDIENT_QUERY_LENGTH = 2
+MAX_INGREDIENT_QUERY_LENGTH = 100
 logger = logging.getLogger(__name__)
 
 
@@ -40,6 +44,18 @@ class ProductSearchUnavailableError(Exception):
     """Raised when the product data source cannot complete a search."""
 
 
+class IngredientQueryTooShortError(Exception):
+    """Raised when a normalized ingredient query has fewer than two characters."""
+
+
+class IngredientQueryTooLongError(Exception):
+    """Raised when the raw ingredient query exceeds one hundred characters."""
+
+
+class IngredientSearchUnavailableError(Exception):
+    """Raised when the ingredient data source cannot complete a search."""
+
+
 async def search_products(
     repository: IngredientSearchRepository, query: str, limit: int
 ) -> ProductSearchResponse:
@@ -58,10 +74,16 @@ async def search_products(
 async def search_ingredients(
     repository: IngredientSearchRepository, query: str, limit: int
 ) -> IngredientSearchResponse:
-    return IngredientSearchResponse(
-        query=query,
-        results=await repository.search_ingredients(query, limit),
-    )
+    if len(query) > MAX_INGREDIENT_QUERY_LENGTH:
+        raise IngredientQueryTooLongError
+    if len(normalize_ingredient_text(query)) < MIN_INGREDIENT_QUERY_LENGTH:
+        raise IngredientQueryTooShortError
+    try:
+        results = await repository.search_ingredients(query, limit)
+    except IngredientSearchDataSourceError as exc:
+        logger.warning("Supabase 성분명 검색 실패", exc_info=True)
+        raise IngredientSearchUnavailableError from exc
+    return IngredientSearchResponse(query=query, results=results)
 
 
 async def get_product_ingredient_ids(

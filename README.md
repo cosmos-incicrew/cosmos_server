@@ -147,7 +147,7 @@ uv run lint-imports      # 모듈 독립성 검사
 
 | 모듈 | 기능 | 담당 |
 |---|---|---|
-| `ingredient_search` | 제품명 검색·제품→성분 ID 확장 / 성분 이명 검색 | 제품: 박영기 / 성분: 재지정 필요 |
+| `ingredient_search` | 제품명 검색·제품→성분 ID 확장 / 성분 표준명·이명 검색 | 박영기 |
 | `ingredient_detail` | 개별 성분 해설·주의사항 | 이호영 |
 | `product_compare` | 2개 이상 제품의 구조화 성분 비교 | 박영기 |
 | `bsti` | BSTI 16타입 검사 | 박금별 |

@@ -11,6 +11,7 @@ __pycache__/
 
 # 실제 DB 검색 평가 결과 (환경별 생성물)
 artifacts/search-evaluation/
+artifacts/ingredient-search-evaluation/
 
 # 환경 변수 — 절대 커밋 금지
 .env
