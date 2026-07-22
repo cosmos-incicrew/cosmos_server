@@ -11,7 +11,7 @@ def _ingredients(count: int = 120) -> list[dict[str, object]]:
         {
             "ingredient_id": index,
             "name_kor": f"테스트표준성분{index}추출물",
-            "name_eng": f"Test Ingredient {index}",
+            "name_eng": f"Test Ingredient {index} Extract",
         }
         for index in range(1, count + 1)
     ]
@@ -22,8 +22,12 @@ def _synonyms(count: int = 120) -> list[dict[str, object]]:
         {
             "synonym_id": index,
             "ingredient_id": index,
-            "synonym": f"별칭성분{index}추출물",
-            "language": "kor",
+            "synonym": (
+                f"AliasIngredient{index}Extract"
+                if index % 2
+                else f"별칭성분{index}추출물"
+            ),
+            "language": "eng" if index % 2 else "kor",
         }
         for index in range(1, count + 1)
     ]
@@ -36,6 +40,7 @@ def test_build_dataset_creates_unique_balanced_cases() -> None:
     assert len({case.case_id for case in dataset.cases}) == 100
     registered = [case for case in dataset.cases if case.expected_result == "found"]
     assert len({case.source_ingredient_id for case in registered}) == 90
+    assert all(case.source_ingredient_id in case.acceptable_ingredient_ids for case in registered)
     assert {scenario: sum(case.scenario == scenario for case in dataset.cases) for scenario in {
         "exact_standard_name", "partial_standard_name", "exact_synonym", "partial_synonym",
         "not_registered",

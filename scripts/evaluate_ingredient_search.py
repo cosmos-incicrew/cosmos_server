@@ -22,6 +22,8 @@ from supabase import AsyncClient
 from app.core.supabase import create_supabase_client
 from app.modules.ingredient_search.repository import SupabaseIngredientSearchRepository
 from scripts.ingredient_search_dataset import (
+    EXPECTED_EMPTY,
+    EXPECTED_FOUND,
     IngredientEvaluationCase,
     IngredientEvaluationDataset,
     load_dataset,
@@ -29,6 +31,10 @@ from scripts.ingredient_search_dataset import (
 
 DEFAULT_DATASET = Path("evaluation/ingredient_search/datasets/draft-v0.1.0.json")
 DEFAULT_OUTPUT_DIRECTORY = Path("artifacts/ingredient-search-evaluation")
+DEFAULT_REPEAT_COUNT = 5
+DEFAULT_RESULT_LIMIT = 10
+DEFAULT_TIMEOUT_SECONDS = 2.0
+DEFAULT_WARMUP_COUNT = 10
 
 
 class EvaluationSettings(BaseSettings):
@@ -49,6 +55,8 @@ class SearchObservation:
     result_ids: list[int]
     latency_ms: float
     error: str | None = None
+    fallback_triggered: bool = False
+    candidate_pool_truncated: bool = False
 
 
 class LegacyExactIngredientSearcher:
@@ -94,8 +102,8 @@ def build_summary(
         for case_id, items in by_case.items()
         if items and all(item.error is None for item in items)
     }
-    found = [case for case in dataset.cases if case.expected_result == "found"]
-    empty = [case for case in dataset.cases if case.expected_result == "empty"]
+    found = [case for case in dataset.cases if case.expected_result == EXPECTED_FOUND]
+    empty = [case for case in dataset.cases if case.expected_result == EXPECTED_EMPTY]
     repeat_count = max((item.repeat_index for item in observations), default=0)
     consistent = [
         case
@@ -131,6 +139,12 @@ def build_summary(
             "p99": _percentile(latencies, 99),
         },
         "top5_consistency_rate": _ratio(len(consistent), len(dataset.cases)),
+        "fallback_triggered_case_ids": sorted(
+            {item.case_id for item in observations if item.fallback_triggered}
+        ),
+        "candidate_pool_truncated_case_ids": sorted(
+            {item.case_id for item in observations if item.candidate_pool_truncated}
+        ),
         "inconsistent_case_ids": sorted(
             set(case.case_id for case in dataset.cases)
             - set(case.case_id for case in consistent)
@@ -220,6 +234,12 @@ async def _observe(
         repeat_index,
         [result.ingredient_id for result in results],
         (perf_counter() - started) * 1_000,
+        fallback_triggered=bool(
+            getattr(searcher, "last_ingredient_fallback_triggered", False)
+        ),
+        candidate_pool_truncated=bool(
+            getattr(searcher, "last_ingredient_candidate_pool_truncated", False)
+        ),
     )
 
 
@@ -280,10 +300,10 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
     parser.add_argument("--label", default="ingredient-search")
     parser.add_argument("--strategy", choices=("legacy-exact", "improved"), default="improved")
-    parser.add_argument("--repeats", type=int, default=5)
-    parser.add_argument("--limit", type=int, default=10)
-    parser.add_argument("--timeout", type=float, default=2.0)
-    parser.add_argument("--warmup", type=int, default=10)
+    parser.add_argument("--repeats", type=int, default=DEFAULT_REPEAT_COUNT)
+    parser.add_argument("--limit", type=int, default=DEFAULT_RESULT_LIMIT)
+    parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
+    parser.add_argument("--warmup", type=int, default=DEFAULT_WARMUP_COUNT)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--allow-draft", action="store_true")
     return parser.parse_args()
@@ -291,7 +311,12 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
-    if args.repeats < 1 or args.limit < 10 or args.timeout <= 0 or args.warmup < 0:
+    if (
+        args.repeats < 1
+        or args.limit < DEFAULT_RESULT_LIMIT
+        or args.timeout <= 0
+        or args.warmup < 0
+    ):
         raise SystemExit("repeats는 1 이상, limit은 10 이상, timeout은 양수여야 합니다.")
     dataset = load_dataset(args.dataset)
     report = asyncio.run(_run(args, dataset))

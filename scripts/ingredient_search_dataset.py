@@ -20,12 +20,25 @@ from app.modules.ingredient_search.ingredient_matching import normalize_ingredie
 
 DEFAULT_OUTPUT = Path("evaluation/ingredient_search/datasets/draft-v0.1.0.json")
 DEFAULT_SEED = 20260722
-SCENARIO_COUNTS = {
-    "exact_standard_name": 25,
-    "partial_standard_name": 25,
-    "exact_synonym": 20,
-    "partial_synonym": 20,
-}
+DATASET_VERSION = "0.1.0"
+EXACT_STANDARD_SCENARIO = "exact_standard_name"
+PARTIAL_STANDARD_SCENARIO = "partial_standard_name"
+EXACT_SYNONYM_SCENARIO = "exact_synonym"
+PARTIAL_SYNONYM_SCENARIO = "partial_synonym"
+NOT_REGISTERED_SCENARIO = "not_registered"
+EXPECTED_FOUND = "found"
+EXPECTED_EMPTY = "empty"
+STANDARD_CASE_COUNTS = {"kor": 15, "eng": 10}
+SYNONYM_CASE_COUNTS = {"kor": 10, "eng": 10}
+NOT_REGISTERED_CASE_COUNT = 10
+REGISTERED_CASE_COUNT = 2 * (
+    sum(STANDARD_CASE_COUNTS.values()) + sum(SYNONYM_CASE_COUNTS.values())
+)
+MIN_SEARCH_QUERY_LENGTH = 2
+MAX_SEARCH_QUERY_LENGTH = 100
+MIN_PARTIAL_SOURCE_LENGTH = 4
+MIN_PARTIAL_QUERY_LENGTH = 3
+PARTIAL_QUERY_RATIO = 0.8
 _PAGE_SIZE = 1_000
 
 
@@ -46,6 +59,7 @@ class IngredientEvaluationCase:
     source_matched_name: str | None
     acceptable_ingredient_ids: list[int]
     expected_result: str
+    source_language: str | None = None
     review_status: str = "draft"
     review_note: str = "자동 생성 초안—사람 검수 필요"
 
@@ -80,16 +94,16 @@ def _validate_dataset(dataset: IngredientEvaluationDataset) -> None:
     registered_ids = [
         case.source_ingredient_id
         for case in dataset.cases
-        if case.expected_result == "found"
+        if case.expected_result == EXPECTED_FOUND
     ]
     if None in registered_ids or len(registered_ids) != len(set(registered_ids)):
         raise ValueError("등록 성분 케이스는 서로 다른 source_ingredient_id가 필요합니다.")
     for case in dataset.cases:
-        if len(normalize_ingredient_text(case.query)) < 2:
+        if len(normalize_ingredient_text(case.query)) < MIN_SEARCH_QUERY_LENGTH:
             raise ValueError(f"검색어가 너무 짧습니다: {case.case_id}")
-        if case.expected_result == "found" and not case.acceptable_ingredient_ids:
+        if case.expected_result == EXPECTED_FOUND and not case.acceptable_ingredient_ids:
             raise ValueError(f"정답 성분 ID가 없습니다: {case.case_id}")
-        if case.expected_result == "empty" and case.acceptable_ingredient_ids:
+        if case.expected_result == EXPECTED_EMPTY and case.acceptable_ingredient_ids:
             raise ValueError(f"미등록 케이스에 정답 성분 ID가 있습니다: {case.case_id}")
 
 
@@ -113,11 +127,14 @@ async def _fetch_all(client: Any, table: str, columns: str) -> list[dict[str, An
 
 def _partial_query(value: str) -> str | None:
     normalized = normalize_ingredient_text(value)
-    if len(normalized) < 4:
+    if len(normalized) < MIN_PARTIAL_SOURCE_LENGTH:
         return None
     # 지나치게 짧은 접두어는 사용자의 의도를 특정하지 못해 정답 ID가 임의적이 된다.
     # 전체 표기의 대부분을 유지하되 완전 일치와는 구분되는 입력을 만든다.
-    length = max(3, min(len(normalized) - 1, math.ceil(len(normalized) * 0.8)))
+    length = max(
+        MIN_PARTIAL_QUERY_LENGTH,
+        min(len(normalized) - 1, math.ceil(len(normalized) * PARTIAL_QUERY_RATIO)),
+    )
     if any(character.isdigit() for character in normalized[length:]):
         return None
     return normalized[:length]
@@ -145,66 +162,112 @@ def build_dataset(
     ]
     standard_ids_by_name: dict[str, set[int]] = defaultdict(set)
     for ingredient_id, row in ingredient_by_id.items():
-        standard_ids_by_name[normalize_ingredient_text(row["name_kor"])].add(ingredient_id)
+        for column in ("name_kor", "name_eng"):
+            if isinstance((name := row.get(column)), str):
+                standard_ids_by_name[normalize_ingredient_text(name)].add(ingredient_id)
     synonym_ids_by_name: dict[str, set[int]] = defaultdict(set)
     for row in synonym_rows:
         synonym_ids_by_name[normalize_ingredient_text(row["synonym"])].add(row["ingredient_id"])
+    searchable_names_by_id: dict[int, set[str]] = defaultdict(set)
+    for name, ingredient_ids in standard_ids_by_name.items():
+        for ingredient_id in ingredient_ids:
+            searchable_names_by_id[ingredient_id].add(name)
+    for name, ingredient_ids in synonym_ids_by_name.items():
+        for ingredient_id in ingredient_ids:
+            searchable_names_by_id[ingredient_id].add(name)
     rng.shuffle(ingredients)
     rng.shuffle(synonym_rows)
     used_ids: set[int] = set()
-    raw_cases: list[tuple[str, str, int, str, str, list[int]]] = []
+    raw_cases: list[tuple[str, str, int, str, str, list[int], str]] = []
 
-    def add_standard(scenario: str, count: int, partial: bool) -> None:
+    def partial_acceptable_ids(query: str) -> list[int]:
+        normalized_query = normalize_ingredient_text(query)
+        return sorted(
+            ingredient_id
+            for ingredient_id, names in searchable_names_by_id.items()
+            if any(normalized_query in name for name in names)
+        )
+
+    def add_standard(
+        scenario: str,
+        count: int,
+        partial: bool,
+        column: str,
+        language: str,
+    ) -> None:
+        added = 0
         for row in ingredients:
             ingredient_id = row.get("ingredient_id")
-            name = row.get("name_kor")
+            name = row.get(column)
             if not isinstance(ingredient_id, int) or ingredient_id in used_ids:
                 continue
             query = _partial_query(name) if isinstance(name, str) and partial else name
             if not isinstance(name, str) or not query:
                 continue
-            if len(query) > 100:
+            if len(query) > MAX_SEARCH_QUERY_LENGTH:
                 continue
             used_ids.add(ingredient_id)
             acceptable_ids = (
                 sorted(standard_ids_by_name[normalize_ingredient_text(name)])
                 if not partial
-                else [ingredient_id]
+                else partial_acceptable_ids(query)
             )
-            raw_cases.append((scenario, query, ingredient_id, name, name, acceptable_ids))
-            if sum(item[0] == scenario for item in raw_cases) == count:
+            raw_cases.append(
+                (scenario, query, ingredient_id, name, name, acceptable_ids, language)
+            )
+            added += 1
+            if added == count:
                 return
-        raise ValueError(f"{scenario} 후보가 부족합니다.")
+        raise ValueError(f"{scenario}/{language} 후보가 부족합니다.")
 
-    def add_synonyms(scenario: str, count: int, partial: bool) -> None:
+    def add_synonyms(scenario: str, count: int, partial: bool, language: str) -> None:
+        added = 0
         for row in synonym_rows:
             ingredient_id = row["ingredient_id"]
-            if ingredient_id in used_ids:
+            if ingredient_id in used_ids or row.get("language") != language:
                 continue
             synonym = row["synonym"].strip()
             query = _partial_query(synonym) if partial else synonym
-            if not query or len(query) > 100:
+            if not query or len(query) > MAX_SEARCH_QUERY_LENGTH:
                 continue
             standard_name = ingredient_by_id[ingredient_id]["name_kor"]
             if normalize_ingredient_text(synonym) == normalize_ingredient_text(standard_name):
                 continue
             used_ids.add(ingredient_id)
             acceptable_ids = (
-                sorted(synonym_ids_by_name[normalize_ingredient_text(synonym)])
+                sorted(
+                    synonym_ids_by_name[normalize_ingredient_text(synonym)]
+                    | standard_ids_by_name[normalize_ingredient_text(synonym)]
+                )
                 if not partial
-                else [ingredient_id]
+                else partial_acceptable_ids(query)
             )
             raw_cases.append(
-                (scenario, query, ingredient_id, standard_name, synonym, acceptable_ids)
+                (
+                    scenario,
+                    query,
+                    ingredient_id,
+                    standard_name,
+                    synonym,
+                    acceptable_ids,
+                    language,
+                )
             )
-            if sum(item[0] == scenario for item in raw_cases) == count:
+            added += 1
+            if added == count:
                 return
-        raise ValueError(f"{scenario} 후보가 부족합니다.")
+        raise ValueError(f"{scenario}/{language} 후보가 부족합니다.")
 
-    add_standard("exact_standard_name", SCENARIO_COUNTS["exact_standard_name"], False)
-    add_standard("partial_standard_name", SCENARIO_COUNTS["partial_standard_name"], True)
-    add_synonyms("exact_synonym", SCENARIO_COUNTS["exact_synonym"], False)
-    add_synonyms("partial_synonym", SCENARIO_COUNTS["partial_synonym"], True)
+    for language, count in STANDARD_CASE_COUNTS.items():
+        column = "name_kor" if language == "kor" else "name_eng"
+        add_standard(EXACT_STANDARD_SCENARIO, count, False, column, language)
+    for language, count in STANDARD_CASE_COUNTS.items():
+        column = "name_kor" if language == "kor" else "name_eng"
+        add_standard(PARTIAL_STANDARD_SCENARIO, count, True, column, language)
+    for language, count in SYNONYM_CASE_COUNTS.items():
+        add_synonyms(EXACT_SYNONYM_SCENARIO, count, False, language)
+    for language, count in SYNONYM_CASE_COUNTS.items():
+        add_synonyms(PARTIAL_SYNONYM_SCENARIO, count, True, language)
 
     cases = [
         IngredientEvaluationCase(
@@ -215,7 +278,8 @@ def build_dataset(
             source_standard_name=standard_name,
             source_matched_name=matched_name,
             acceptable_ingredient_ids=acceptable_ids,
-            expected_result="found",
+            expected_result=EXPECTED_FOUND,
+            source_language=source_language,
         )
         for index, (
             scenario,
@@ -224,23 +288,28 @@ def build_dataset(
             standard_name,
             matched_name,
             acceptable_ids,
+            source_language,
         ) in enumerate(raw_cases, 1)
     ]
     cases.extend(
         IngredientEvaluationCase(
             case_id=f"IS-{index:03d}",
             query=f"미등록성분검색{index}xyz",
-            scenario="not_registered",
+            scenario=NOT_REGISTERED_SCENARIO,
             source_ingredient_id=None,
             source_standard_name=None,
             source_matched_name=None,
             acceptable_ingredient_ids=[],
-            expected_result="empty",
+            expected_result=EXPECTED_EMPTY,
+            source_language=None,
         )
-        for index in range(91, 101)
+        for index in range(
+            REGISTERED_CASE_COUNT + 1,
+            REGISTERED_CASE_COUNT + NOT_REGISTERED_CASE_COUNT + 1,
+        )
     )
     dataset = IngredientEvaluationDataset(
-        dataset_version="0.1.0",
+        dataset_version=DATASET_VERSION,
         dataset_kind="draft",
         sampling_seed=seed,
         generated_at=datetime.now(UTC).isoformat(),

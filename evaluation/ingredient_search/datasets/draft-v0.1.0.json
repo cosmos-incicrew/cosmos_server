@@ -2,7 +2,7 @@
   "dataset_version": "0.1.0",
   "dataset_kind": "draft",
   "sampling_seed": 20260722,
-  "generated_at": "2026-07-22T14:58:34.103953+00:00",
+  "generated_at": "2026-07-22T15:19:10.398669+00:00",
   "cases": [
     {
       "case_id": "IS-001",
@@ -15,6 +15,7 @@
         4542
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -29,6 +30,7 @@
         11507
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -43,6 +45,7 @@
         6456
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -57,6 +60,7 @@
         17640
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -71,6 +75,7 @@
         11223
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -85,6 +90,7 @@
         13330
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -99,6 +105,7 @@
         1646
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -113,6 +120,7 @@
         22504
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -127,6 +135,7 @@
         11611
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -141,6 +150,7 @@
         8122
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -155,6 +165,7 @@
         5719
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -169,6 +180,7 @@
         14560
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -183,6 +195,7 @@
         5154
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -197,6 +210,7 @@
         70
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -211,160 +225,173 @@
         13409
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-016",
-      "query": "하이드로제네이티드다이머다이리놀레일피이지-41/폴리(1,2-부테인다이올)-18다이메틸에터",
+      "query": "Hydrogenated Dimer Dilinoleyl PEG-41/Poly(1,2-Butanediol)-18 Dimethyl Ether",
       "scenario": "exact_standard_name",
       "source_ingredient_id": 14018,
-      "source_standard_name": "하이드로제네이티드다이머다이리놀레일피이지-41/폴리(1,2-부테인다이올)-18다이메틸에터",
-      "source_matched_name": "하이드로제네이티드다이머다이리놀레일피이지-41/폴리(1,2-부테인다이올)-18다이메틸에터",
+      "source_standard_name": "Hydrogenated Dimer Dilinoleyl PEG-41/Poly(1,2-Butanediol)-18 Dimethyl Ether",
+      "source_matched_name": "Hydrogenated Dimer Dilinoleyl PEG-41/Poly(1,2-Butanediol)-18 Dimethyl Ether",
       "acceptable_ingredient_ids": [
         14018
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-017",
-      "query": "싱아추출물",
+      "query": "Koenigia Alpina Extract",
       "scenario": "exact_standard_name",
       "source_ingredient_id": 23968,
-      "source_standard_name": "싱아추출물",
-      "source_matched_name": "싱아추출물",
+      "source_standard_name": "Koenigia Alpina Extract",
+      "source_matched_name": "Koenigia Alpina Extract",
       "acceptable_ingredient_ids": [
         23968
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-018",
-      "query": "유럽장대추출물",
+      "query": "Sisymbrium Officinale Extract",
       "scenario": "exact_standard_name",
       "source_ingredient_id": 16330,
-      "source_standard_name": "유럽장대추출물",
-      "source_matched_name": "유럽장대추출물",
+      "source_standard_name": "Sisymbrium Officinale Extract",
+      "source_matched_name": "Sisymbrium Officinale Extract",
       "acceptable_ingredient_ids": [
         16330
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-019",
-      "query": "소듐카복시메틸코코폴리프로필아민",
+      "query": "Sodium Carboxymethyl Cocopolypropylamine",
       "scenario": "exact_standard_name",
       "source_ingredient_id": 15143,
-      "source_standard_name": "소듐카복시메틸코코폴리프로필아민",
-      "source_matched_name": "소듐카복시메틸코코폴리프로필아민",
+      "source_standard_name": "Sodium Carboxymethyl Cocopolypropylamine",
+      "source_matched_name": "Sodium Carboxymethyl Cocopolypropylamine",
       "acceptable_ingredient_ids": [
         15143
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-020",
-      "query": "프탈릭안하이드라이드/부틸벤조익애씨드/프로필렌글라이콜코폴리머",
+      "query": "Phthalic Anhydride/Butyl Benzoic Acid/Propylene Glycol Copolymer",
       "scenario": "exact_standard_name",
       "source_ingredient_id": 14556,
-      "source_standard_name": "프탈릭안하이드라이드/부틸벤조익애씨드/프로필렌글라이콜코폴리머",
-      "source_matched_name": "프탈릭안하이드라이드/부틸벤조익애씨드/프로필렌글라이콜코폴리머",
+      "source_standard_name": "Phthalic Anhydride/Butyl Benzoic Acid/Propylene Glycol Copolymer",
+      "source_matched_name": "Phthalic Anhydride/Butyl Benzoic Acid/Propylene Glycol Copolymer",
       "acceptable_ingredient_ids": [
         14556
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-021",
-      "query": "아스퍼질러스/바실러스/콩/벤토나이트발효물",
+      "query": "Undecylenamide DEA",
       "scenario": "exact_standard_name",
-      "source_ingredient_id": 22114,
-      "source_standard_name": "아스퍼질러스/바실러스/콩/벤토나이트발효물",
-      "source_matched_name": "아스퍼질러스/바실러스/콩/벤토나이트발효물",
+      "source_ingredient_id": 10238,
+      "source_standard_name": "Undecylenamide DEA",
+      "source_matched_name": "Undecylenamide DEA",
       "acceptable_ingredient_ids": [
-        22114
+        10238
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-022",
-      "query": "운데실렌아마이드디이에이",
+      "query": "Hydroxyethyl Hydroxypropyl C12-15 Alkoxypropylamine Oxide",
       "scenario": "exact_standard_name",
-      "source_ingredient_id": 10238,
-      "source_standard_name": "운데실렌아마이드디이에이",
-      "source_matched_name": "운데실렌아마이드디이에이",
+      "source_ingredient_id": 12052,
+      "source_standard_name": "Hydroxyethyl Hydroxypropyl C12-15 Alkoxypropylamine Oxide",
+      "source_matched_name": "Hydroxyethyl Hydroxypropyl C12-15 Alkoxypropylamine Oxide",
       "acceptable_ingredient_ids": [
-        10238
+        12052
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-023",
-      "query": "하이드록시에틸하이드록시프로필C12-15알콕시프로필아민옥사이드",
+      "query": "PPG-20 Methyl Glucose Ether",
       "scenario": "exact_standard_name",
-      "source_ingredient_id": 12052,
-      "source_standard_name": "하이드록시에틸하이드록시프로필C12-15알콕시프로필아민옥사이드",
-      "source_matched_name": "하이드록시에틸하이드록시프로필C12-15알콕시프로필아민옥사이드",
+      "source_ingredient_id": 4469,
+      "source_standard_name": "PPG-20 Methyl Glucose Ether",
+      "source_matched_name": "PPG-20 Methyl Glucose Ether",
       "acceptable_ingredient_ids": [
-        12052
+        4469
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-024",
-      "query": "피피지-20메틸글루코오스에터",
+      "query": "Iris Germanica Root Extract",
       "scenario": "exact_standard_name",
-      "source_ingredient_id": 4469,
-      "source_standard_name": "피피지-20메틸글루코오스에터",
-      "source_matched_name": "피피지-20메틸글루코오스에터",
+      "source_ingredient_id": 6297,
+      "source_standard_name": "Iris Germanica Root Extract",
+      "source_matched_name": "Iris Germanica Root Extract",
       "acceptable_ingredient_ids": [
-        4469
+        6297
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-025",
-      "query": "독일붓꽃뿌리추출물",
+      "query": "1,2-Hexanediol",
       "scenario": "exact_standard_name",
-      "source_ingredient_id": 6297,
-      "source_standard_name": "독일붓꽃뿌리추출물",
-      "source_matched_name": "독일붓꽃뿌리추출물",
+      "source_ingredient_id": 4877,
+      "source_standard_name": "1,2-Hexanediol",
+      "source_matched_name": "1,2-Hexanediol",
       "acceptable_ingredient_ids": [
-        6297
+        4877
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-026",
-      "query": "12헥산다이",
+      "query": "아스퍼질러스바실러스콩벤토나이트",
       "scenario": "partial_standard_name",
-      "source_ingredient_id": 4877,
-      "source_standard_name": "1,2-헥산다이올",
-      "source_matched_name": "1,2-헥산다이올",
+      "source_ingredient_id": 22114,
+      "source_standard_name": "아스퍼질러스/바실러스/콩/벤토나이트발효물",
+      "source_matched_name": "아스퍼질러스/바실러스/콩/벤토나이트발효물",
       "acceptable_ingredient_ids": [
-        4877
+        22113,
+        22114
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -379,6 +406,7 @@
         11872
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -393,6 +421,7 @@
         23876
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -407,6 +436,7 @@
         24762
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -421,6 +451,7 @@
         17242
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -432,9 +463,14 @@
       "source_standard_name": "에스에이치-올리고펩타이드-20에스피",
       "source_matched_name": "에스에이치-올리고펩타이드-20에스피",
       "acceptable_ingredient_ids": [
-        22220
+        22220,
+        24515,
+        24552,
+        24595,
+        24639
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -446,9 +482,11 @@
       "source_standard_name": "꽃송이버섯추출물",
       "source_matched_name": "꽃송이버섯추출물",
       "acceptable_ingredient_ids": [
-        6367
+        6367,
+        22559
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -463,6 +501,7 @@
         24380
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -477,6 +516,7 @@
         6041
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -491,6 +531,7 @@
         4273
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -505,6 +546,7 @@
         10874
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -516,9 +558,12 @@
       "source_standard_name": "바실러스/비타민나무열매발효추출물",
       "source_matched_name": "바실러스/비타민나무열매발효추출물",
       "acceptable_ingredient_ids": [
+        9071,
+        9072,
         16367
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -533,6 +578,7 @@
         5382
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -544,9 +590,11 @@
       "source_standard_name": "벤제토늄클로라이드",
       "source_matched_name": "벤제토늄클로라이드",
       "acceptable_ingredient_ids": [
-        503
+        503,
+        14335
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -561,193 +609,188 @@
         8416
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-041",
-      "query": "엘더싹추출",
+      "query": "sambucusnigrabudext",
       "scenario": "partial_standard_name",
       "source_ingredient_id": 16998,
-      "source_standard_name": "엘더싹추출물",
-      "source_matched_name": "엘더싹추출물",
+      "source_standard_name": "Sambucus Nigra Bud Extract",
+      "source_matched_name": "Sambucus Nigra Bud Extract",
       "acceptable_ingredient_ids": [
         16998
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-042",
-      "query": "아세틸레이티드하이드로제네이티드캐",
+      "query": "acetylatedhydrogenatedcas",
       "scenario": "partial_standard_name",
       "source_ingredient_id": 1699,
-      "source_standard_name": "아세틸레이티드하이드로제네이티드캐스터오일",
-      "source_matched_name": "아세틸레이티드하이드로제네이티드캐스터오일",
+      "source_standard_name": "Acetylated Hydrogenated Castor Oil",
+      "source_matched_name": "Acetylated Hydrogenated Castor Oil",
       "acceptable_ingredient_ids": [
-        1699
+        1699,
+        8587
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-043",
-      "query": "벤조트라이아",
+      "query": "benzotriazo",
       "scenario": "partial_standard_name",
       "source_ingredient_id": 11870,
-      "source_standard_name": "벤조트라이아졸",
-      "source_matched_name": "벤조트라이아졸",
+      "source_standard_name": "Benzotriazole",
+      "source_matched_name": "Benzotriazole",
       "acceptable_ingredient_ids": [
+        179,
+        1117,
+        5578,
         11870
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-044",
-      "query": "잇꽃씨오",
+      "query": "carthamustinctoriussafflower",
       "scenario": "partial_standard_name",
       "source_ingredient_id": 2589,
-      "source_standard_name": "잇꽃씨오일",
-      "source_matched_name": "잇꽃씨오일",
+      "source_standard_name": "Carthamus Tinctorius (Safflower) Seed Oil",
+      "source_matched_name": "Carthamus Tinctorius (Safflower) Seed Oil",
       "acceptable_ingredient_ids": [
-        2589
+        2589,
+        2590,
+        2591,
+        4953,
+        5864,
+        6888,
+        7766,
+        7767,
+        8370,
+        10054,
+        10481
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-045",
-      "query": "알로에베라잎폴리사카라",
+      "query": "aloebarbadensisleafpolysacch",
       "scenario": "partial_standard_name",
       "source_ingredient_id": 1840,
-      "source_standard_name": "알로에베라잎폴리사카라이드",
-      "source_matched_name": "알로에베라잎폴리사카라이드",
+      "source_standard_name": "Aloe Barbadensis Leaf Polysaccharides",
+      "source_matched_name": "Aloe Barbadensis Leaf Polysaccharides",
       "acceptable_ingredient_ids": [
         1840
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-046",
-      "query": "소듐알",
+      "query": "sodiumal",
       "scenario": "partial_standard_name",
       "source_ingredient_id": 11453,
-      "source_standard_name": "소듐알룸",
-      "source_matched_name": "소듐알룸",
+      "source_standard_name": "Sodium Alum",
+      "source_matched_name": "Sodium Alum",
       "acceptable_ingredient_ids": [
-        11453
+        5674,
+        11450,
+        11451,
+        11452,
+        11453,
+        11454,
+        15013,
+        15718,
+        15963,
+        16668,
+        17210,
+        17590
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-047",
-      "query": "진들딸기씨추출",
+      "query": "rubuschamaemorusseedex",
       "scenario": "partial_standard_name",
       "source_ingredient_id": 6928,
-      "source_standard_name": "진들딸기씨추출물",
-      "source_matched_name": "진들딸기씨추출물",
+      "source_standard_name": "Rubus Chamaemorus Seed Extract",
+      "source_matched_name": "Rubus Chamaemorus Seed Extract",
       "acceptable_ingredient_ids": [
         6928
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-048",
-      "query": "다마스크장미캘러스배양추",
+      "query": "rosadamascenacallusculturee",
       "scenario": "partial_standard_name",
       "source_ingredient_id": 6794,
-      "source_standard_name": "다마스크장미캘러스배양추출물",
-      "source_matched_name": "다마스크장미캘러스배양추출물",
+      "source_standard_name": "Rosa Damascena Callus Culture Extract",
+      "source_matched_name": "Rosa Damascena Callus Culture Extract",
       "acceptable_ingredient_ids": [
         6794
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-049",
-      "query": "카프릴로일실크아미",
+      "query": "capryloylsilkaminoa",
       "scenario": "partial_standard_name",
       "source_ingredient_id": 16004,
-      "source_standard_name": "카프릴로일실크아미노산",
-      "source_matched_name": "카프릴로일실크아미노산",
+      "source_standard_name": "Capryloyl Silk Amino Acids",
+      "source_matched_name": "Capryloyl Silk Amino Acids",
       "acceptable_ingredient_ids": [
         16004
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-050",
-      "query": "셀룰로오스석시네",
+      "query": "cellulosesuccin",
       "scenario": "partial_standard_name",
       "source_ingredient_id": 15969,
-      "source_standard_name": "셀룰로오스석시네이트",
-      "source_matched_name": "셀룰로오스석시네이트",
+      "source_standard_name": "Cellulose Succinate",
+      "source_matched_name": "Cellulose Succinate",
       "acceptable_ingredient_ids": [
-        15969
+        15969,
+        18256
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-051",
-      "query": "Ethyl Ester of Hydrolyzed Animal Protein",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 4729,
-      "source_standard_name": "하이드롤라이즈드동물성단백질에틸에스터",
-      "source_matched_name": "Ethyl Ester of Hydrolyzed Animal Protein",
-      "acceptable_ingredient_ids": [
-        4729
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-052",
-      "query": "Hydrolyzed Jojoba Protein",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 4814,
-      "source_standard_name": "하이드롤라이즈드호호바단백질",
-      "source_matched_name": "Hydrolyzed Jojoba Protein",
-      "acceptable_ingredient_ids": [
-        4814
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-053",
-      "query": "Methoxy Amodimethicone/Silsesquioxane Copolymer",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 233,
-      "source_standard_name": "메톡시아모다이메티콘/실세스퀴옥세인코폴리머",
-      "source_matched_name": "Methoxy Amodimethicone/Silsesquioxane Copolymer",
-      "acceptable_ingredient_ids": [
-        233
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-054",
       "query": "비트잎추출물",
       "scenario": "exact_synonym",
       "source_ingredient_id": 6800,
@@ -757,11 +800,12 @@
         6800
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-055",
+      "case_id": "IS-052",
       "query": "상황버섯균사체/인삼발효추출여과물",
       "scenario": "exact_synonym",
       "source_ingredient_id": 7556,
@@ -771,11 +815,12 @@
         7556
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-056",
+      "case_id": "IS-053",
       "query": "산양유",
       "scenario": "exact_synonym",
       "source_ingredient_id": 6469,
@@ -785,11 +830,12 @@
         6469
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-057",
+      "case_id": "IS-054",
       "query": "월귤열매추출물",
       "scenario": "exact_synonym",
       "source_ingredient_id": 7492,
@@ -799,25 +845,12 @@
         7492
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-058",
-      "query": "Polyethylene adipate",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 3895,
-      "source_standard_name": "폴리에틸렌아디페이트",
-      "source_matched_name": "Polyethylene adipate",
-      "acceptable_ingredient_ids": [
-        3895
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-059",
+      "case_id": "IS-055",
       "query": "프로필렌글라이콜디카프릴레이트/디카프레이트",
       "scenario": "exact_synonym",
       "source_ingredient_id": 4001,
@@ -827,11 +860,12 @@
         4001
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-060",
+      "case_id": "IS-056",
       "query": "스테아트리모늄브로마이드",
       "scenario": "exact_synonym",
       "source_ingredient_id": 1479,
@@ -841,95 +875,28 @@
         1479
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-061",
+      "case_id": "IS-057",
       "query": "지치뿌리추출물",
       "scenario": "exact_synonym",
       "source_ingredient_id": 2755,
       "source_standard_name": "그롬웰뿌리추출물",
       "source_matched_name": "지치뿌리추출물",
       "acceptable_ingredient_ids": [
+        2597,
         2755
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-062",
-      "query": "Phaseolus Vulgaris (Kidney Bean) Phytoplacenta Extract",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 8192,
-      "source_standard_name": "강낭콩피토플라센타추출물",
-      "source_matched_name": "Phaseolus Vulgaris (Kidney Bean) Phytoplacenta Extract",
-      "acceptable_ingredient_ids": [
-        8192
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-063",
-      "query": "TEA-C12-13 Pareth-3 Sulfate",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 17366,
-      "source_standard_name": "티이에이-C12-13알케스-3설페이트",
-      "source_matched_name": "TEA-C12-13 Pareth-3 Sulfate",
-      "acceptable_ingredient_ids": [
-        17366
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-064",
-      "query": "Sucrose Stearate",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 1373,
-      "source_standard_name": "수크로오스스테아레이트",
-      "source_matched_name": "Sucrose Stearate",
-      "acceptable_ingredient_ids": [
-        1373
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-065",
-      "query": "Pantethine",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 3533,
-      "source_standard_name": "판테틴",
-      "source_matched_name": "Pantethine",
-      "acceptable_ingredient_ids": [
-        3533
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-066",
-      "query": "Tri-C12-15 Pareth-2 Phosphate",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 3412,
-      "source_standard_name": "트라이-C12-15알케스-2포스페이트",
-      "source_matched_name": "Tri-C12-15 Pareth-2 Phosphate",
-      "acceptable_ingredient_ids": [
-        3412
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-067",
+      "case_id": "IS-058",
       "query": "일당귀수",
       "scenario": "exact_synonym",
       "source_ingredient_id": 2580,
@@ -939,39 +906,12 @@
         2580
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-068",
-      "query": "Euterpe Oleracea Sterols",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 7415,
-      "source_standard_name": "아사이팜스테롤",
-      "source_matched_name": "Euterpe Oleracea Sterols",
-      "acceptable_ingredient_ids": [
-        7415
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-069",
-      "query": "Cedrus Atlantica Wood Oil",
-      "scenario": "exact_synonym",
-      "source_ingredient_id": 8624,
-      "source_standard_name": "아틀라스시다목부오일",
-      "source_matched_name": "Cedrus Atlantica Wood Oil",
-      "acceptable_ingredient_ids": [
-        8624
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-070",
+      "case_id": "IS-059",
       "query": "에필로비움 플레이스케리꽃/잎/줄기추출물",
       "scenario": "exact_synonym",
       "source_ingredient_id": 23296,
@@ -981,13 +921,14 @@
         23296
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-071",
-      "query": "라이신라우로일메치오네",
-      "scenario": "partial_synonym",
+      "case_id": "IS-060",
+      "query": "라이신라우로일메치오네이트",
+      "scenario": "exact_synonym",
       "source_ingredient_id": 7590,
       "source_standard_name": "라이신라우로일메티오네이트",
       "source_matched_name": "라이신라우로일메치오네이트",
@@ -995,11 +936,162 @@
         7590
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-072",
+      "case_id": "IS-061",
+      "query": "Ethyl Ester of Hydrolyzed Animal Protein",
+      "scenario": "exact_synonym",
+      "source_ingredient_id": 4729,
+      "source_standard_name": "하이드롤라이즈드동물성단백질에틸에스터",
+      "source_matched_name": "Ethyl Ester of Hydrolyzed Animal Protein",
+      "acceptable_ingredient_ids": [
+        4729
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-062",
+      "query": "Hydrolyzed Jojoba Protein",
+      "scenario": "exact_synonym",
+      "source_ingredient_id": 4814,
+      "source_standard_name": "하이드롤라이즈드호호바단백질",
+      "source_matched_name": "Hydrolyzed Jojoba Protein",
+      "acceptable_ingredient_ids": [
+        4814
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-063",
+      "query": "Methoxy Amodimethicone/Silsesquioxane Copolymer",
+      "scenario": "exact_synonym",
+      "source_ingredient_id": 233,
+      "source_standard_name": "메톡시아모다이메티콘/실세스퀴옥세인코폴리머",
+      "source_matched_name": "Methoxy Amodimethicone/Silsesquioxane Copolymer",
+      "acceptable_ingredient_ids": [
+        233
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-064",
+      "query": "Polyethylene adipate",
+      "scenario": "exact_synonym",
+      "source_ingredient_id": 3895,
+      "source_standard_name": "폴리에틸렌아디페이트",
+      "source_matched_name": "Polyethylene adipate",
+      "acceptable_ingredient_ids": [
+        3895
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-065",
+      "query": "Phaseolus Vulgaris (Kidney Bean) Phytoplacenta Extract",
+      "scenario": "exact_synonym",
+      "source_ingredient_id": 8192,
+      "source_standard_name": "강낭콩피토플라센타추출물",
+      "source_matched_name": "Phaseolus Vulgaris (Kidney Bean) Phytoplacenta Extract",
+      "acceptable_ingredient_ids": [
+        8192
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-066",
+      "query": "TEA-C12-13 Pareth-3 Sulfate",
+      "scenario": "exact_synonym",
+      "source_ingredient_id": 17366,
+      "source_standard_name": "티이에이-C12-13알케스-3설페이트",
+      "source_matched_name": "TEA-C12-13 Pareth-3 Sulfate",
+      "acceptable_ingredient_ids": [
+        17366
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-067",
+      "query": "Sucrose Stearate",
+      "scenario": "exact_synonym",
+      "source_ingredient_id": 1373,
+      "source_standard_name": "수크로오스스테아레이트",
+      "source_matched_name": "Sucrose Stearate",
+      "acceptable_ingredient_ids": [
+        1373
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-068",
+      "query": "Pantethine",
+      "scenario": "exact_synonym",
+      "source_ingredient_id": 3533,
+      "source_standard_name": "판테틴",
+      "source_matched_name": "Pantethine",
+      "acceptable_ingredient_ids": [
+        3533
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-069",
+      "query": "Tri-C12-15 Pareth-2 Phosphate",
+      "scenario": "exact_synonym",
+      "source_ingredient_id": 3412,
+      "source_standard_name": "트라이-C12-15알케스-2포스페이트",
+      "source_matched_name": "Tri-C12-15 Pareth-2 Phosphate",
+      "acceptable_ingredient_ids": [
+        3412
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-070",
+      "query": "Euterpe Oleracea Sterols",
+      "scenario": "exact_synonym",
+      "source_ingredient_id": 7415,
+      "source_standard_name": "아사이팜스테롤",
+      "source_matched_name": "Euterpe Oleracea Sterols",
+      "acceptable_ingredient_ids": [
+        7415
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-071",
       "query": "알루미늄트리스테아레",
       "scenario": "partial_synonym",
       "source_ingredient_id": 1869,
@@ -1009,11 +1101,12 @@
         1869
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-073",
+      "case_id": "IS-072",
       "query": "루테아용담뿌리줄기뿌리추",
       "scenario": "partial_synonym",
       "source_ingredient_id": 15967,
@@ -1023,11 +1116,12 @@
         15967
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-074",
+      "case_id": "IS-073",
       "query": "하이드록시프로필테트라하이드로피",
       "scenario": "partial_synonym",
       "source_ingredient_id": 4693,
@@ -1037,11 +1131,12 @@
         4693
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-075",
+      "case_id": "IS-074",
       "query": "다이소듐c1214sec파레스3설포석",
       "scenario": "partial_synonym",
       "source_ingredient_id": 14171,
@@ -1051,11 +1146,12 @@
         14171
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-076",
+      "case_id": "IS-075",
       "query": "로그우드추출",
       "scenario": "partial_synonym",
       "source_ingredient_id": 5496,
@@ -1065,53 +1161,28 @@
         5496
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-077",
-      "query": "bispolyglyceryl3oxyphenylpropyldim",
-      "scenario": "partial_synonym",
-      "source_ingredient_id": 699,
-      "source_standard_name": "비스-(폴리글리세릴-3옥시페닐프로필)다이메티콘",
-      "source_matched_name": "Bis-(Polyglyceryl-3 Oxyphenylpropyl) Dimethicone",
-      "acceptable_ingredient_ids": [
-        699
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-078",
+      "case_id": "IS-076",
       "query": "사이클로테트라실",
       "scenario": "partial_synonym",
       "source_ingredient_id": 768,
       "source_standard_name": "사이클로테트라실록세인",
       "source_matched_name": "사이클로테트라실록산",
       "acceptable_ingredient_ids": [
-        768
+        768,
+        3425
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-079",
-      "query": "moringapterygospermase",
-      "scenario": "partial_synonym",
-      "source_ingredient_id": 7622,
-      "source_standard_name": "드럼스틱씨오일",
-      "source_matched_name": "Moringa Pterygosperma Seed Oil",
-      "acceptable_ingredient_ids": [
-        7622
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-080",
+      "case_id": "IS-077",
       "query": "철피석곡꽃추출",
       "scenario": "partial_synonym",
       "source_ingredient_id": 10505,
@@ -1121,11 +1192,12 @@
         10505
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-081",
+      "case_id": "IS-078",
       "query": "백렴뿌리추출",
       "scenario": "partial_synonym",
       "source_ingredient_id": 438,
@@ -1135,11 +1207,12 @@
         438
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-082",
+      "case_id": "IS-079",
       "query": "디이소세틸도데칸디오에",
       "scenario": "partial_synonym",
       "source_ingredient_id": 5200,
@@ -1149,25 +1222,12 @@
         5200
       ],
       "expected_result": "found",
+      "source_language": "kor",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-083",
-      "query": "chlorophyllincopperco",
-      "scenario": "partial_synonym",
-      "source_ingredient_id": 3195,
-      "source_standard_name": "클로로필린-카퍼컴플렉스",
-      "source_matched_name": "Chlorophyllin-Copper Complex",
-      "acceptable_ingredient_ids": [
-        3195
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-084",
+      "case_id": "IS-080",
       "query": "에칠퍼플루오로부틸",
       "scenario": "partial_synonym",
       "source_ingredient_id": 2069,
@@ -1177,25 +1237,74 @@
         2069
       ],
       "expected_result": "found",
+      "source_language": "kor",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-081",
+      "query": "cedrusatlanticawoo",
+      "scenario": "partial_synonym",
+      "source_ingredient_id": 8624,
+      "source_standard_name": "아틀라스시다목부오일",
+      "source_matched_name": "Cedrus Atlantica Wood Oil",
+      "acceptable_ingredient_ids": [
+        8624,
+        20697
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-082",
+      "query": "bispolyglyceryl3oxyphenylpropyldim",
+      "scenario": "partial_synonym",
+      "source_ingredient_id": 699,
+      "source_standard_name": "비스-(폴리글리세릴-3옥시페닐프로필)다이메티콘",
+      "source_matched_name": "Bis-(Polyglyceryl-3 Oxyphenylpropyl) Dimethicone",
+      "acceptable_ingredient_ids": [
+        699
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-083",
+      "query": "moringapterygospermase",
+      "scenario": "partial_synonym",
+      "source_ingredient_id": 7622,
+      "source_standard_name": "드럼스틱씨오일",
+      "source_matched_name": "Moringa Pterygosperma Seed Oil",
+      "acceptable_ingredient_ids": [
+        7622,
+        8041
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-084",
+      "query": "chlorophyllincopperco",
+      "scenario": "partial_synonym",
+      "source_ingredient_id": 3195,
+      "source_standard_name": "클로로필린-카퍼컴플렉스",
+      "source_matched_name": "Chlorophyllin-Copper Complex",
+      "acceptable_ingredient_ids": [
+        3195
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
       "case_id": "IS-085",
-      "query": "디부틸옥틸세바케",
-      "scenario": "partial_synonym",
-      "source_ingredient_id": 7607,
-      "source_standard_name": "다이부틸옥틸세바케이트",
-      "source_matched_name": "디부틸옥틸세바케이트",
-      "acceptable_ingredient_ids": [
-        7607
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-086",
       "query": "sodiumacrylatesvinylisodecanoatecros",
       "scenario": "partial_synonym",
       "source_ingredient_id": 1154,
@@ -1205,53 +1314,28 @@
         1154
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-087",
+      "case_id": "IS-086",
       "query": "lactobacillusginsengrootfermentf",
       "scenario": "partial_synonym",
       "source_ingredient_id": 6021,
       "source_standard_name": "락토바실러스/인삼뿌리발효여과물",
       "source_matched_name": "Lactobacillus/Ginseng Root Ferment Filtrate",
       "acceptable_ingredient_ids": [
-        6021
+        6021,
+        7076
       ],
       "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
     {
-      "case_id": "IS-088",
-      "query": "베헨아미도프로필디메칠",
-      "scenario": "partial_synonym",
-      "source_ingredient_id": 493,
-      "source_standard_name": "베헨아미도프로필다이메틸아민",
-      "source_matched_name": "베헨아미도프로필디메칠아민",
-      "acceptable_ingredient_ids": [
-        493
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-089",
-      "query": "알루미늄파우",
-      "scenario": "partial_synonym",
-      "source_ingredient_id": 1846,
-      "source_standard_name": "알루미늄",
-      "source_matched_name": "알루미늄파우더",
-      "acceptable_ingredient_ids": [
-        1846
-      ],
-      "expected_result": "found",
-      "review_status": "draft",
-      "review_note": "자동 생성 초안—사람 검수 필요"
-    },
-    {
-      "case_id": "IS-090",
+      "case_id": "IS-087",
       "query": "tricetylmoniumchlo",
       "scenario": "partial_synonym",
       "source_ingredient_id": 3366,
@@ -1261,6 +1345,54 @@
         3366
       ],
       "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-088",
+      "query": "juniperusoxycedrusfru",
+      "scenario": "partial_synonym",
+      "source_ingredient_id": 8784,
+      "source_standard_name": "카드향나무열매오일",
+      "source_matched_name": "Juniperus Oxycedrus Fruit Oil",
+      "acceptable_ingredient_ids": [
+        8784,
+        16136
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-089",
+      "query": "crataegusoxyacanthafruite",
+      "scenario": "partial_synonym",
+      "source_ingredient_id": 852,
+      "source_standard_name": "서양산사자열매추출물",
+      "source_matched_name": "Crataegus Oxyacantha Fruit Extract",
+      "acceptable_ingredient_ids": [
+        852,
+        8796
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
+      "review_status": "draft",
+      "review_note": "자동 생성 초안—사람 검수 필요"
+    },
+    {
+      "case_id": "IS-090",
+      "query": "hydrolyzedvegetableproteinpgpropylsi",
+      "scenario": "partial_synonym",
+      "source_ingredient_id": 4762,
+      "source_standard_name": "하이드롤라이즈드식물성단백질피지-프로필실란트라이올",
+      "source_matched_name": "Hydrolyzed Vegetable Protein PG-Propyl Silanetriol",
+      "acceptable_ingredient_ids": [
+        4762
+      ],
+      "expected_result": "found",
+      "source_language": "eng",
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -1273,6 +1405,7 @@
       "source_matched_name": null,
       "acceptable_ingredient_ids": [],
       "expected_result": "empty",
+      "source_language": null,
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -1285,6 +1418,7 @@
       "source_matched_name": null,
       "acceptable_ingredient_ids": [],
       "expected_result": "empty",
+      "source_language": null,
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -1297,6 +1431,7 @@
       "source_matched_name": null,
       "acceptable_ingredient_ids": [],
       "expected_result": "empty",
+      "source_language": null,
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -1309,6 +1444,7 @@
       "source_matched_name": null,
       "acceptable_ingredient_ids": [],
       "expected_result": "empty",
+      "source_language": null,
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -1321,6 +1457,7 @@
       "source_matched_name": null,
       "acceptable_ingredient_ids": [],
       "expected_result": "empty",
+      "source_language": null,
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -1333,6 +1470,7 @@
       "source_matched_name": null,
       "acceptable_ingredient_ids": [],
       "expected_result": "empty",
+      "source_language": null,
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -1345,6 +1483,7 @@
       "source_matched_name": null,
       "acceptable_ingredient_ids": [],
       "expected_result": "empty",
+      "source_language": null,
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -1357,6 +1496,7 @@
       "source_matched_name": null,
       "acceptable_ingredient_ids": [],
       "expected_result": "empty",
+      "source_language": null,
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -1369,6 +1509,7 @@
       "source_matched_name": null,
       "acceptable_ingredient_ids": [],
       "expected_result": "empty",
+      "source_language": null,
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     },
@@ -1381,6 +1522,7 @@
       "source_matched_name": null,
       "acceptable_ingredient_ids": [],
       "expected_result": "empty",
+      "source_language": null,
       "review_status": "draft",
       "review_note": "자동 생성 초안—사람 검수 필요"
     }
