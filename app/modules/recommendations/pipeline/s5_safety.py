@@ -69,7 +69,6 @@ async def apply_safety_filters(
         if _drop_for_restriction(candidate, key, lookup):
             continue
 
-        _warn_bsti_caution(candidate, key, profile)
         _warn_allergen(candidate, key, profile)
         _warn_notes(candidate)
         _warn_concern_conflict(candidate, context.concerns)
@@ -82,8 +81,6 @@ class _SafetyProfile(NamedTuple):
 
     expecting: bool
     unknown_pregnancy: bool
-    bsti_caution: set[str]
-    bsti_type: str | None
     emphasize_allergy: bool
 
     @classmethod
@@ -95,8 +92,6 @@ class _SafetyProfile(NamedTuple):
         return cls(
             expecting=expecting,
             unknown_pregnancy=unknown,
-            bsti_caution=set(context.bsti_caution),
-            bsti_type=context.bsti_type,
             emphasize_allergy=bsti_traits.is_sensitive(context.bsti_type),
         )
 
@@ -148,16 +143,6 @@ def _drop_for_restriction(candidate: Candidate, key: str, lookup: RestrictionLoo
             )
         )
     return False
-
-
-def _warn_bsti_caution(candidate: Candidate, key: str, profile: _SafetyProfile) -> None:
-    """개인 적합성 경고이므로 제거하지 않는다."""
-    if key in profile.bsti_caution:
-        candidate.warnings.append(
-            IngredientWarning(
-                type="BSTI기피", text=f"{profile.bsti_type} 타입은 주의가 필요한 성분입니다."
-            )
-        )
 
 
 def _warn_allergen(candidate: Candidate, key: str, profile: _SafetyProfile) -> None:

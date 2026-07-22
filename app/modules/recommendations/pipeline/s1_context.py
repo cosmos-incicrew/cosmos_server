@@ -3,17 +3,16 @@
 프로필·BSTI·화장대를 읽어 추천의 입력을 만든다. 설계 01 §2-①.
 
 **우아한 축소가 이 단계의 핵심 불변식이다.** 프로필은 없으면 409로 막지만, BSTI와
-화장대는 아직 DB에 테이블조차 없으므로 없으면 해당 요소만 생략하고 진행한다.
+화장대는 검사 전·비어 있음이 정상 상태이므로 없으면 해당 요소만 생략하고 진행한다.
 안전성 검사와 달리 이 둘은 빠져도 위해가 없기 때문이다.
 """
 
-import asyncio
 import logging
 from typing import Any
 
 from app.common.skin_concerns import CONCERN_LABEL_BY_CODE
 from app.core.supabase import get_supabase, rows
-from app.modules.recommendations import errors
+from app.modules.recommendations import bsti_ingredients, errors
 from app.modules.recommendations.constants import MAX_CONCERNS
 from app.modules.recommendations.names import normalize_ingredient_name
 from app.modules.recommendations.schemas import UserContext
@@ -27,7 +26,7 @@ async def build_context(user_id: str) -> UserContext:
         client = await get_supabase()
         profile_rows = rows(
             await client.table("user_profiles")
-            .select("age, gender, skin_concerns, is_pregnant, is_nursing")
+            .select("age, gender, skin_concerns, is_pregnant, is_nursing, bsti_type")
             .eq("user_id", user_id)  # RLS 미적용(service_role) — user_id 필터 필수
             .limit(1)
             .execute()
@@ -40,68 +39,20 @@ async def build_context(user_id: str) -> UserContext:
     if not profile.get("age") or not concerns:
         raise errors.onboarding_required()
 
-    # 서로 독립이라 순차로 기다릴 이유가 없다. 둘 다 내부에서 예외를 삼키고 빈 값을
-    # 돌려주므로 gather 가 중간에 깨지지 않는다.
-    (bsti_type, bsti_recommended, bsti_caution), (owned, owned_products) = await asyncio.gather(
-        _fetch_bsti(client, user_id), _fetch_shelf(client, user_id)
-    )
+    owned, owned_products = await _fetch_shelf(client, user_id)
 
     return UserContext(
         user_id=user_id,
         age=profile.get("age"),
         gender=profile.get("gender"),
-        bsti_type=bsti_type,
-        bsti_recommended=bsti_recommended,
-        bsti_caution=bsti_caution,
+        bsti_type=profile.get("bsti_type"),
+        bsti_recommended=bsti_ingredients.recommended_for(profile.get("bsti_type")),
         owned_ingredients=owned,
         owned_products_by_ingredient=owned_products,
         is_pregnant=profile.get("is_pregnant"),
         is_nursing=profile.get("is_nursing"),
         concerns=concerns[:MAX_CONCERNS],  # 검색 호출 상한을 6회로 고정
     )
-
-
-async def _fetch_bsti(client: Any, user_id: str) -> tuple[str | None, list[str], list[str]]:
-    """최근 BSTI 진단과 타입별 권장·기피 성분을 읽는다.
-
-    성분 매핑은 박금별의 BSTI 테이블을 단일 소스로 소비한다(01 §2-①). 설계가 말한
-    `bsti_results` 는 존재하지 않고 실제로는 3테이블 조인이며, 그마저 아직 미머지라
-    DB에 없다. 실패하면 BSTI 요소만 생략하고 진행한다.
-    """
-    try:
-        diagnoses = rows(
-            await client.table("bsti_user_diagnoses")
-            .select("result_code")
-            .eq("user_id", user_id)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        type_code = diagnoses[0].get("result_code") if diagnoses else None
-        if not type_code:
-            return None, [], []
-
-        mappings = rows(
-            await client.table("bsti_type_ingredients")
-            .select("relation, bsti_ingredients(name_ko)")
-            .eq("type_code", type_code)
-            .execute()
-        )
-    except Exception:
-        logger.info("BSTI 조회 불가 — BSTI 요소 생략하고 진행", exc_info=True)
-        return None, [], []
-
-    recommended: list[str] = []
-    caution: list[str] = []
-    for row in mappings:
-        ingredient = row.get("bsti_ingredients") or {}
-        name = ingredient.get("name_ko") if isinstance(ingredient, dict) else None
-        if not name:
-            continue
-        # 후보명과 같은 키로 비교해야 가점·기피 경고가 걸린다
-        target = caution if row.get("relation") == "avoid" else recommended
-        target.append(normalize_ingredient_name(str(name)))
-    return type_code, recommended, caution
 
 
 async def _fetch_shelf(client: Any, user_id: str) -> tuple[list[str], dict[str, list[str]]]:

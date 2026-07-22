@@ -203,17 +203,6 @@ async def test_allergen_warning_emphasized_for_sensitive_type(_no_restrictions):
     assert "첩포" in warning.text
 
 
-async def test_bsti_caution_warns_but_keeps(_no_restrictions):
-    candidates = [Candidate(name_kor="알코올", score=0.9, ingredient_id=1)]
-
-    kept = await safety.apply_safety_filters(
-        candidates, _context(bsti_type="OSPW", bsti_caution=["알코올"])
-    )
-
-    assert len(kept) == 1  # 개인 적합성 경고이므로 제거하지 않는다
-    assert any(w.type == "BSTI기피" for w in kept[0].warnings)
-
-
 async def test_concern_conflict_warning(_no_restrictions):
     candidates = [
         Candidate(

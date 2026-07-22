@@ -28,7 +28,7 @@ class RetrievedChunk(BaseModel):
 
 
 class IngredientWarning(BaseModel):
-    # 한도 | BSTI기피 | 알레르기유발 | 주의사항 | 안전성확인불가 | 임신수유주의 | 고민상충
+    # 한도 | 알레르기유발 | 주의사항 | 안전성확인불가 | 임신수유주의 | 고민상충
     type: str
     text: str
 
@@ -92,7 +92,6 @@ class UserContext(BaseModel):
     gender: str | None = None
     bsti_type: str | None = None
     bsti_recommended: list[str] = Field(default_factory=list)
-    bsti_caution: list[str] = Field(default_factory=list)
     owned_ingredients: list[str] = Field(default_factory=list)
     owned_products_by_ingredient: dict[str, list[str]] = Field(default_factory=dict)
     is_pregnant: bool | None = None  # None = 온보딩 미수집(unknown)
