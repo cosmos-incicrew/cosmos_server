@@ -81,9 +81,28 @@ async def search_ingredients(
     repository: Annotated[IngredientSearchRepository, Depends(get_ingredient_search_repository)],
     limit: Annotated[int, Query(ge=1, le=MAX_SEARCH_LIMIT)] = DEFAULT_SEARCH_LIMIT,
 ) -> IngredientSearchResponse:
-    """성분 이명으로 후보 성분을 검색한다."""
+    """성분 표준명 또는 이명으로 후보 성분을 검색한다."""
     del user_id
-    return await service.search_ingredients(repository, q, limit)
+    try:
+        return await service.search_ingredients(repository, q, limit)
+    except service.IngredientQueryTooLongError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "QUERY_TOO_LONG", "message": "검색어는 100자 이하여야 합니다."},
+        ) from None
+    except service.IngredientQueryTooShortError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "QUERY_TOO_SHORT", "message": "검색어는 2자 이상이어야 합니다."},
+        ) from None
+    except service.IngredientSearchUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "INGREDIENT_SEARCH_UNAVAILABLE",
+                "message": "성분 검색 서비스를 일시적으로 사용할 수 없습니다.",
+            },
+        ) from None
 
 
 router.include_router(product_router)

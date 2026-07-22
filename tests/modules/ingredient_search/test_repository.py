@@ -8,6 +8,7 @@ import pytest
 from supabase import AsyncClient
 
 from app.modules.ingredient_search.repository import (
+    IngredientSearchDataSourceError,
     ProductSearchDataSourceError,
     SupabaseIngredientSearchRepository,
 )
@@ -22,14 +23,13 @@ class FakeQuery:
     def __init__(self, data: Any) -> None:
         self._data = data
         self._limit: int | None = None
-        self._ilike_patterns: list[str] = []
+        self._ilike_patterns: list[tuple[str, str]] = []
 
     def select(self, *columns: str) -> "FakeQuery":
         return self
 
     def ilike(self, column: str, pattern: str) -> "FakeQuery":
-        if column == "product_name":
-            self._ilike_patterns.append(pattern)
+        self._ilike_patterns.append((column, pattern))
         return self
 
     def or_(self, filters: str) -> "FakeQuery":
@@ -68,9 +68,10 @@ class FakeQuery:
                 row
                 for row in data
                 if isinstance(row, dict)
-                and isinstance(row.get("product_name"), str)
                 and all(
-                    _ilike_matches(pattern, row["product_name"]) for pattern in self._ilike_patterns
+                    isinstance(row.get(column), str)
+                    and _ilike_matches(pattern, row[column])
+                    for column, pattern in self._ilike_patterns
                 )
             ]
         if isinstance(data, list) and self._limit is not None:
@@ -116,6 +117,13 @@ class FailingFakeSupabase(FakeSupabase):
         return super().table(table_name)
 
 
+class FailingIngredientFakeSupabase(FakeSupabase):
+    def table(self, table_name: str) -> FakeQuery:
+        if table_name in {"ingredients", "synonyms"}:
+            return FailingFakeQuery([])
+        return super().table(table_name)
+
+
 class SlowFakeQuery(FakeQuery):
     async def execute(self) -> FakeResponse:
         await asyncio.sleep(0.02)
@@ -125,6 +133,13 @@ class SlowFakeQuery(FakeQuery):
 class SlowFakeSupabase(FakeSupabase):
     def table(self, table_name: str) -> FakeQuery:
         if table_name == "products":
+            return SlowFakeQuery([])
+        return super().table(table_name)
+
+
+class SlowIngredientFakeSupabase(FakeSupabase):
+    def table(self, table_name: str) -> FakeQuery:
+        if table_name in {"ingredients", "synonyms"}:
             return SlowFakeQuery([])
         return super().table(table_name)
 
@@ -333,7 +348,7 @@ async def test_repository_maps_supabase_timeout_and_resets_diagnostics() -> None
 async def test_repository_enforces_product_search_timeout() -> None:
     repository = SupabaseIngredientSearchRepository(
         cast(AsyncClient, SlowFakeSupabase({"products": []})),
-        product_search_timeout_seconds=0.001,
+        search_timeout_seconds=0.001,
     )
 
     with pytest.raises(ProductSearchDataSourceError):
@@ -391,9 +406,11 @@ async def test_repository_deduplicates_alias_matches_by_integer_ingredient_id() 
             AsyncClient,
             FakeSupabase(
                 {
+                    "ingredients": [],
                     "synonyms": [
                         {
                             "ingredient_id": "2700",
+                            "synonym": "테스트 이명",
                             "ingredients": {
                                 "ingredient_id": "2700",
                                 "name_kor": "테스트 성분",
@@ -402,6 +419,7 @@ async def test_repository_deduplicates_alias_matches_by_integer_ingredient_id() 
                         },
                         {
                             "ingredient_id": "2700",
+                            "synonym": "테스트 이명",
                             "ingredients": {
                                 "ingredient_id": "2700",
                                 "name_kor": "테스트 성분",
@@ -423,6 +441,164 @@ async def test_repository_deduplicates_alias_matches_by_integer_ingredient_id() 
             "name_en": "Test Ingredient",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_repository_searches_partial_standard_names_and_synonyms() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "ingredients": [
+                        {
+                            "ingredient_id": 1,
+                            "name_kor": "판테놀",
+                            "name_eng": "Panthenol",
+                        },
+                        {
+                            "ingredient_id": 2,
+                            "name_kor": "덱스판테놀",
+                            "name_eng": "Dexpanthenol",
+                        },
+                    ],
+                    "synonyms": [
+                        {
+                            "ingredient_id": 3,
+                            "synonym": "판테놀 전구체",
+                            "ingredients": {
+                                "ingredient_id": 3,
+                                "name_kor": "디판테놀",
+                                "name_eng": "D-Panthenol",
+                            },
+                        }
+                    ],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_ingredients("판테", 20)
+
+    assert [candidate.ingredient_id for candidate in results] == [1, 3, 2]
+
+
+@pytest.mark.asyncio
+async def test_repository_prioritizes_exact_synonym_over_partial_standard_name() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "ingredients": [
+                        {
+                            "ingredient_id": 1,
+                            "name_kor": "비타민C유도체",
+                            "name_eng": None,
+                        }
+                    ],
+                    "synonyms": [
+                        {
+                            "ingredient_id": 2,
+                            "synonym": "비타민 C",
+                            "ingredients": {
+                                "ingredient_id": 2,
+                                "name_kor": "아스코빅애씨드",
+                                "name_eng": "Ascorbic Acid",
+                            },
+                        }
+                    ],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_ingredients("비타민C", 20)
+
+    assert [candidate.ingredient_id for candidate in results] == [2, 1]
+
+
+@pytest.mark.asyncio
+async def test_repository_maps_ingredient_search_supabase_failure() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FailingIngredientFakeSupabase({"ingredients": [], "synonyms": []}),
+        )
+    )
+
+    with pytest.raises(IngredientSearchDataSourceError):
+        await repository.search_ingredients("판테놀", 20)
+
+
+@pytest.mark.asyncio
+async def test_repository_recovers_exact_ingredient_after_partial_pool_truncation() -> None:
+    ingredients = [
+        {
+            "ingredient_id": ingredient_id,
+            "name_kor": f"오{ingredient_id}이",
+            "name_eng": None,
+        }
+        for ingredient_id in range(1, 101)
+    ]
+    ingredients.append({"ingredient_id": 101, "name_kor": "오이", "name_eng": None})
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase({"ingredients": ingredients, "synonyms": []}),
+        )
+    )
+
+    results = await repository.search_ingredients("오이", 10)
+
+    assert results[0].ingredient_id == 101
+    assert repository.last_ingredient_fallback_triggered is True
+    assert repository.last_ingredient_candidate_pool_truncated is False
+
+
+@pytest.mark.asyncio
+async def test_repository_expands_truncated_pool_for_format_tolerant_partial_match() -> None:
+    ingredients = [
+        {
+            "ingredient_id": ingredient_id,
+            "name_kor": f"테스트성분{ingredient_id}",
+            "name_eng": f"S{ingredient_id}o{ingredient_id}diumal",
+        }
+        for ingredient_id in range(1, 151)
+    ]
+    ingredients.append(
+        {
+            "ingredient_id": 151,
+            "name_kor": "소듐알룸",
+            "name_eng": "Sodium Alum",
+        }
+    )
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase({"ingredients": ingredients, "synonyms": []}),
+        )
+    )
+
+    results = await repository.search_ingredients("sodiumal", 10)
+
+    assert results[0].ingredient_id == 151
+    assert repository.last_ingredient_fallback_triggered is True
+    assert repository.last_ingredient_candidate_pool_truncated is False
+
+
+@pytest.mark.asyncio
+async def test_repository_enforces_total_ingredient_search_timeout() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            SlowIngredientFakeSupabase({"ingredients": [], "synonyms": []}),
+        ),
+        search_timeout_seconds=0.001,
+    )
+
+    with pytest.raises(IngredientSearchDataSourceError):
+        await repository.search_ingredients("판테놀", 20)
 
 
 @pytest.mark.asyncio
