@@ -76,6 +76,7 @@ app/main.py                  앱 조립 — 라우터 등록, 전역 예외 핸�
 | `product_compare` | 2개 이상 제품의 구조화 성분 비교 | `/api/v1/products` | 박영기 |
 | `bsti` | BSTI 16타입 검사 | `/api/v1/bsti` | 박금별 |
 | `recommendations` | 성분 추천 Agent | `/api/v1/recommendations` | 김민경 |
+| `users` | 온보딩 프로필 저장·조회 (마이페이지) | `/api/v1/users/me` | 김민경 |
 
 현재 각 모듈의 라우터는 501(미구현) 스텁 1개만 두어 등록 배선을 검증한 상태다.
 실제 엔드포인트는 API 명세서 확정 후 담당자가 채운다.

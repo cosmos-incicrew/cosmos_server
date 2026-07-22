@@ -14,6 +14,10 @@ __pycache__/
 .env.*
 !.env.example
 
+# GCP 서비스 계정 키 — 절대 커밋 금지
+# 경로 무관하게 걸리도록 디렉터리명으로 잡는다 (app/core/credentials/ 등)
+credentials/
+
 # Supabase 로컬
 supabase/.temp/
 

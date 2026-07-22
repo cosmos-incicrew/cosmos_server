@@ -1,7 +1,8 @@
 """① 컨텍스트 조립 테스트 — 온보딩 게이트와 BSTI·화장대의 우아한 축소.
 
-BSTI(`bsti_*`)와 화장대(`user_shelf`)는 아직 DB 에 없다. 없을 때 추천이 죽지 않고
-해당 요소만 생략하는지가 이 단계의 핵심 불변식이다.
+화장대(`user_shelf`)는 아직 DB 에 없고, BSTI 는 타입 코드만 `user_profiles.bsti_type`
+에 있다(성분 매핑은 클라이언트 상수). 없을 때 추천이 죽지 않고 해당 요소만 생략하는지가
+이 단계의 핵심 불변식이다.
 """
 
 import pytest
@@ -92,48 +93,45 @@ async def test_missing_bsti_and_shelf_tables_degrade(patch_supabase):
 
     assert ctx.age == 32
     assert ctx.bsti_type is None
-    assert ctx.bsti_recommended == [] and ctx.bsti_caution == []
+    assert ctx.bsti_recommended == []
     assert ctx.owned_ingredients == []
 
 
-async def test_bsti_splits_recommend_and_avoid(patch_supabase):
-    patch_supabase(
-        {
-            "user_profiles": [_PROFILE],
-            "bsti_user_diagnoses": [{"result_code": "OSPW"}],
-            "bsti_type_ingredients": [
-                {"relation": "recommend", "bsti_ingredients": {"name_ko": "나이아신아마이드"}},
-                {"relation": "avoid", "bsti_ingredients": {"name_ko": "알코올"}},
-            ],
-        }
-    )
+async def test_bsti_type_comes_from_profile(patch_supabase):
+    """BSTI 타입의 단일 출처는 user_profiles.bsti_type 이다."""
+    patch_supabase({"user_profiles": [{**_PROFILE, "bsti_type": "OSPW"}]})
 
     ctx = await context.build_context(_USER)
 
     assert ctx.bsti_type == "OSPW"
-    assert ctx.bsti_recommended == ["나이아신아마이드"]
-    assert ctx.bsti_caution == ["알코올"]
 
 
-async def test_bsti_names_normalized_like_candidates(patch_supabase):
-    """후보명은 정규화되므로 BSTI 목록도 같은 키여야 가점·경고가 걸린다."""
-    patch_supabase(
-        {
-            "user_profiles": [_PROFILE],
-            "bsti_user_diagnoses": [{"result_code": "OSPW"}],
-            "bsti_type_ingredients": [
-                {"relation": "avoid", "bsti_ingredients": {"name_ko": "레티놀\n(비타민 A)"}},
-            ],
-        }
-    )
+async def test_bsti_recommended_filled_from_type(patch_supabase):
+    """타입이 있으면 ④ 가점이 쓸 권장 성분이 채워져야 한다.
+
+    비어 있으면 BSTI_BOOST 가 조용히 무력화된다 — 실제로 그런 기간이 있었다.
+    """
+    patch_supabase({"user_profiles": [{**_PROFILE, "bsti_type": "OSPW"}]})
 
     ctx = await context.build_context(_USER)
 
-    assert ctx.bsti_caution == ["레티놀"]
+    assert ctx.bsti_type == "OSPW"
+    assert "나이아신아마이드" in ctx.bsti_recommended
+    assert "살리실릭애씨드" in ctx.bsti_recommended  # DB 표기로 번역돼 나온다
 
 
-async def test_no_bsti_diagnosis_keeps_going(patch_supabase):
-    patch_supabase({"user_profiles": [_PROFILE], "bsti_user_diagnoses": []})
+async def test_unknown_bsti_type_degrades(patch_supabase):
+    """DB 제약을 통과하지만 표에 없는 코드가 와도 500 이 아니라 빈 목록이다."""
+    patch_supabase({"user_profiles": [{**_PROFILE, "bsti_type": "OSPX"}]})
+
+    ctx = await context.build_context(_USER)
+
+    assert ctx.bsti_recommended == []
+
+
+async def test_no_bsti_type_keeps_going(patch_supabase):
+    """검사 전 사용자도 추천은 돌아야 한다 — BSTI 요소만 빠진다."""
+    patch_supabase({"user_profiles": [{**_PROFILE, "bsti_type": None}]})
 
     ctx = await context.build_context(_USER)
 

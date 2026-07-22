@@ -20,12 +20,19 @@ cp .env.example .env    # 환경 변수 채우기
 
 | 변수 | 어디서 |
 |---|---|
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` | 공유 Supabase 프로젝트 → Settings → API (접근 요청: 김민경) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | 공유 Supabase 프로젝트 → Settings → API (접근 요청: 김민경) |
+| `KAKAO_ADMIN_KEY` | Kakao Developers → 앱 설정 → 앱 키 → Admin 키. 회원 탈퇴 시 카카오 앱 연결 해제에만 쓴다. 비워도 기동한다 |
 | `GEMINI_API_KEY` | 팀 공유 키 (노션 / 김민경) |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | Langfuse 프로젝트 Settings (접근: 김민경) |
 | `GEMINI_MODEL_*`, `LANGFUSE_HOST`, `LOG_LEVEL` | 기본값이 `app/core/config.py`에 있음. 바꿀 때만 지정 |
 
-필수값이 하나라도 비면 서버가 **기동 시점에** 즉시 실패한다. 실행·확인:
+필수값이 하나라도 비면 서버가 **기동 시점에** 즉시 실패한다.
+
+> `SUPABASE_JWT_SECRET`은 더 이상 쓰지 않는다 (2026-07-21). Supabase가 액세스 토큰을
+> ES256으로 서명하도록 바뀌어, 서버는 JWKS 공개키로 검증한다 (`app/core/auth.py`).
+> 기존 `.env`에 줄이 남아 있어도 기동에는 문제없다 — 지워도 된다.
+
+실행·확인:
 
 ```bash
 uv run uvicorn app.main:app --reload

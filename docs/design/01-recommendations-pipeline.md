@@ -162,7 +162,10 @@ flowchart TD
   필터의 금기 검사에 넘긴다. 플래그가 아직 없으면(온보딩 미수집) `unknown`으로
   진행 — 금기 성분을 제거하지 않고 경고만 부착한다. 단 정식 공개 전 온보딩
   수집이 필요하다 (§6·§7).
-- 산출: `UserContext { age, gender, bsti_type?, bsti_recommended[], bsti_caution[], owned_ingredients[], is_pregnant?, is_nursing?, concerns[] (≤3) }`
+- 산출: `UserContext { age, gender, bsti_type?, bsti_recommended[], owned_ingredients[], is_pregnant?, is_nursing?, concerns[] (≤3) }`
+- `bsti_recommended` 는 `bsti_ingredients.BSTI_RECOMMENDED`(앱 `kBstiSkinTypes` 복제본)에서
+  타입 코드로 조회한다. 기피 성분 경고는 두지 않는다 — avoid 목록이 향료·에센셜오일 같은
+  범주 위주라 추천 후보로 올라오지 않아 발화하지 않는다 (2026-07-22 결정).
 - 고민이 3개를 초과하면 앞 3개만 사용(`MAX_CONCERNS = 3`) — 검색 호출 상한을
   3고민 × 2컬렉션 = 6회로 고정해 비용을 보호한다.
 
@@ -316,7 +319,7 @@ flowchart TD
 | `badges` | string[] | 기능성 고시 배지 (예: `기능성고시_미백`) |
 | `owned` | boolean | 보유 성분 여부 — 화장대 제품·성분에 이미 포함돼 있으면 true |
 | `owned_products` | string[] | 해당 성분을 담고 있는 보유 제품명 (성분 직접 등록이면 빈 배열, `owned=false`면 빈 배열) |
-| `warnings` | array | `{type, text}` — type: `한도` \| `BSTI기피` \| `알레르기유발` \| `주의사항` \| `안전성확인불가` \| `임신수유주의` \| `고민상충` |
+| `warnings` | array | `{type, text}` — type: `한도` \| `알레르기유발` \| `주의사항` \| `안전성확인불가` \| `임신수유주의` \| `고민상충` |
 | `sources` | array | `{doc_id, title, locator}` — locator 예: `PMID:29061803` |
 
 정상 응답 예시 (200):
