@@ -9,6 +9,7 @@ import random
 import re
 import unicodedata
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -31,7 +32,7 @@ SearchScenario = Literal[
 ]
 ExpectedResult = Literal["found", "empty"]
 ReviewStatus = Literal["draft", "approved", "excluded"]
-DatasetKind = Literal["development", "final"]
+DatasetKind = Literal["development", "final", "confirmation"]
 
 DATASET_VERSION = "1.0.0"
 DEFAULT_SAMPLING_SEED = 20260722
@@ -103,6 +104,19 @@ NOT_REGISTERED_QUERIES = [
     "스킨포레스트 세라마이드 장벽 밤 38ml",
     "라이트블룸 나이아신 톤업 크림 74ml",
 ]
+
+CONFIRMATION_NOT_REGISTERED_QUERIES = (
+    "셀레스티얼랩 프로바이오 장벽 토너 119ml",
+    "마린오로라 펩타이드 탄력 앰플 44ml",
+    "포레스트문 어성초 카밍 젤 78ml",
+    "클라우드베리 세라마이드 보습 크림 53ml",
+    "루미나코스트 비타민 광채 에센스 67ml",
+    "디어플래닛 판테놀 진정 로션 128ml",
+    "블룸스피어 약산성 클렌징 워터 214ml",
+    "아쿠아노바 히알루론 수분 마스크 6매",
+    "소프트코멧 콜라겐 아이 세럼 31ml",
+    "그린오빗 데일리 무기자차 선크림 72ml",
+)
 
 _DEVELOPMENT_CASE_COUNT = sum(
     count for scenarios in DEVELOPMENT_LAYOUT.values() for count in scenarios.values()
@@ -245,6 +259,45 @@ def build_draft_datasets(
         cases=final_cases,
     )
     return development, final
+
+
+def build_confirmation_dataset(
+    products: list[ProductRecord],
+    excluded_product_ids: set[int],
+    seed: int,
+) -> EvaluationDataset:
+    """기존 회귀셋과 제품이 겹치지 않는 미확인 평가 초안을 만든다."""
+
+    grouped: dict[ProductCategory, list[ProductRecord]] = defaultdict(list)
+    for product in products:
+        if (
+            product.id not in excluded_product_ids
+            and product.ingredient_ids
+            and product.product_name.strip()
+        ):
+            grouped[product.main_category].append(product)
+
+    randomizer = random.Random(seed)
+    for category in grouped:
+        grouped[category].sort(key=lambda product: product.id)
+        randomizer.shuffle(grouped[category])
+
+    used_product_ids = set(excluded_product_ids)
+    cases = _allocate_registered_cases(
+        grouped,
+        FINAL_LAYOUT,
+        case_prefix="CONF",
+        used_product_ids=used_product_ids,
+        enforce_brand_limit=True,
+    )
+    cases.extend(_not_registered_cases(CONFIRMATION_NOT_REGISTERED_QUERIES, "CONF-NR"))
+    return EvaluationDataset(
+        dataset_version=DATASET_VERSION,
+        dataset_kind="confirmation",
+        sampling_seed=seed,
+        generated_at=datetime.now(UTC),
+        cases=cases,
+    )
 
 
 def _allocate_registered_cases(
@@ -391,10 +444,12 @@ def _valid_generated_query(query: str) -> bool:
     return meaningful_length >= _MIN_QUERY_LENGTH and len(query) <= _MAX_QUERY_LENGTH
 
 
-def _not_registered_cases() -> list[EvaluationCase]:
+def _not_registered_cases(
+    queries: Sequence[str] = NOT_REGISTERED_QUERIES, case_prefix: str = "NR"
+) -> list[EvaluationCase]:
     return [
         EvaluationCase(
-            case_id=f"NR-{index:03d}",
+            case_id=f"{case_prefix}-{index:03d}",
             query=query,
             scenario="not_registered",
             product_category=None,
@@ -405,8 +460,34 @@ def _not_registered_cases() -> list[EvaluationCase]:
             expected_result="empty",
             review_note="미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요",
         )
-        for index, query in enumerate(NOT_REGISTERED_QUERIES, start=1)
+        for index, query in enumerate(queries, start=1)
     ]
+
+
+def validate_confirmation_dataset(
+    confirmation: EvaluationDataset,
+    excluded_product_ids: set[int],
+    *,
+    require_approved: bool,
+) -> list[str]:
+    errors: list[str] = []
+    if confirmation.dataset_kind != "confirmation":
+        errors.append("확인 데이터셋의 dataset_kind는 confirmation이어야 합니다.")
+    if len(confirmation.cases) != _FINAL_CASE_COUNT:
+        errors.append(f"확인 데이터셋은 {_FINAL_CASE_COUNT}개 케이스여야 합니다.")
+    _validate_cases(confirmation.cases, errors, require_approved=require_approved)
+    _validate_layout(confirmation.cases, FINAL_LAYOUT, errors, label="확인용")
+    if overlap := _all_product_ids(confirmation.cases) & excluded_product_ids:
+        errors.append(f"기존 데이터셋과 중복된 제품 ID가 있습니다: {sorted(overlap)}")
+    not_registered_count = sum(
+        case.scenario == "not_registered" for case in confirmation.cases
+    )
+    if not_registered_count != len(CONFIRMATION_NOT_REGISTERED_QUERIES):
+        errors.append(
+            "확인 데이터셋의 미등록 검색어는 "
+            f"{len(CONFIRMATION_NOT_REGISTERED_QUERIES)}개여야 합니다."
+        )
+    return errors
 
 
 def validate_dataset_pair(
@@ -615,12 +696,14 @@ def replace_excluded_cases(
 
 
 async def fetch_candidate_records(
-    client: AsyncClient, seed: int = DEFAULT_SAMPLING_SEED
+    client: AsyncClient,
+    seed: int = DEFAULT_SAMPLING_SEED,
+    excluded_product_ids: set[int] | None = None,
 ) -> list[ProductRecord]:
     """전체 제품 메타데이터에서 필요한 후보만 고른 뒤 성분 매핑을 결합한다."""
 
     metadata = await _fetch_product_metadata(client)
-    selected = _select_metadata_candidates(metadata, seed)
+    selected = _select_metadata_candidates(metadata, seed, excluded_product_ids or set())
     ingredients_by_product, unmapped_by_product = await _fetch_ingredient_mappings(
         client, [product.id for product in selected]
     )
@@ -713,11 +796,12 @@ async def _fetch_product_metadata(client: AsyncClient) -> list[ProductMetadata]:
 
 
 def _select_metadata_candidates(
-    products: list[ProductMetadata], seed: int
+    products: list[ProductMetadata], seed: int, excluded_product_ids: set[int]
 ) -> list[ProductMetadata]:
     grouped: dict[ProductCategory, list[ProductMetadata]] = defaultdict(list)
     for product in products:
-        grouped[product.main_category].append(product)
+        if product.id not in excluded_product_ids:
+            grouped[product.main_category].append(product)
 
     randomizer = random.Random(seed)
     selected: list[ProductMetadata] = []
@@ -770,8 +854,16 @@ async def validate_datasets_against_supabase(
 ) -> list[str]:
     """현재 DB의 제품·성분 매핑 및 미등록 검색어 정합성을 확인한다."""
 
+    return await validate_dataset_collection_against_supabase(client, [development, final])
+
+
+async def validate_dataset_collection_against_supabase(
+    client: AsyncClient, datasets: list[EvaluationDataset]
+) -> list[str]:
+    """하나 이상의 데이터셋과 현재 DB 사이의 정합성을 확인한다."""
+
     errors: list[str] = []
-    cases = development.cases + final.cases
+    cases = [case for dataset in datasets for case in dataset.cases]
     product_ids = sorted(_all_product_ids(cases))
     products_by_id = await _fetch_products_by_id(client, product_ids)
     missing_ids = sorted(set(product_ids) - set(products_by_id))
@@ -808,7 +900,7 @@ async def validate_datasets_against_supabase(
             errors.append(f"{case.case_id}: 복수 허용 제품의 성분 ID 집합이 다릅니다.")
 
     repository = SupabaseIngredientSearchRepository(client)
-    for case in final.cases:
+    for case in cases:
         if case.expected_result != "empty":
             continue
         if await repository.search_products(case.query, limit=1):
@@ -913,6 +1005,37 @@ async def _generate(args: argparse.Namespace) -> None:
     print(f"후보 검수 참고: {args.candidate_output}")
 
 
+async def _generate_confirmation(args: argparse.Namespace) -> None:
+    output = args.output_dir / f"confirmation-v{DATASET_VERSION}.json"
+    _ensure_outputs_do_not_exist([output])
+    excluded_datasets = [load_dataset(path) for path in args.exclude]
+    excluded_product_ids = _all_product_ids(
+        [case for dataset in excluded_datasets for case in dataset.cases]
+    )
+
+    client = await _client_from_environment()
+    records = await fetch_candidate_records(
+        client,
+        seed=args.seed,
+        excluded_product_ids=excluded_product_ids,
+    )
+    confirmation = build_confirmation_dataset(records, excluded_product_ids, args.seed)
+    errors = validate_confirmation_dataset(
+        confirmation,
+        excluded_product_ids,
+        require_approved=False,
+    )
+    errors.extend(
+        await validate_dataset_collection_against_supabase(client, [confirmation])
+    )
+    if errors:
+        raise SystemExit("확인 데이터셋 초안 생성 검증 실패:\n- " + "\n- ".join(errors))
+
+    write_dataset(confirmation, output)
+    print(f"신규 미확인 평가 초안: {output}")
+    print(f"기존 데이터셋과 제외한 제품 ID: {len(excluded_product_ids)}개")
+
+
 async def _replace(args: argparse.Namespace) -> None:
     development = load_dataset(args.development)
     final = load_dataset(args.final)
@@ -982,6 +1105,23 @@ def _parse_args() -> argparse.Namespace:
     generate.add_argument("--output-dir", type=Path, default=DEFAULT_DATASET_DIRECTORY)
     generate.add_argument("--candidate-output", type=Path, default=DEFAULT_CANDIDATE_OUTPUT)
 
+    confirmation = subparsers.add_parser(
+        "generate-confirmation",
+        help="기존 데이터셋과 제품이 겹치지 않는 확인용 JSON 초안 생성",
+    )
+    confirmation.add_argument("--seed", type=int, default=DEFAULT_SAMPLING_SEED + 1)
+    confirmation.add_argument("--output-dir", type=Path, default=DEFAULT_DATASET_DIRECTORY)
+    confirmation.add_argument(
+        "--exclude",
+        type=Path,
+        nargs="+",
+        default=[
+            DEFAULT_DATASET_DIRECTORY / f"development-v{DATASET_VERSION}.json",
+            DEFAULT_DATASET_DIRECTORY / f"final-v{DATASET_VERSION}.json",
+        ],
+        help="제품 ID 중복을 금지할 기존 데이터셋 경로",
+    )
+
     validate = subparsers.add_parser("validate", help="JSON 구조와 실제 DB 정합성 검증")
     validate.add_argument(
         "--development",
@@ -1030,6 +1170,8 @@ def main() -> None:
     args = _parse_args()
     if args.command == "generate":
         asyncio.run(_generate(args))
+    elif args.command == "generate-confirmation":
+        asyncio.run(_generate_confirmation(args))
     elif args.command == "replace-excluded":
         asyncio.run(_replace(args))
     else:

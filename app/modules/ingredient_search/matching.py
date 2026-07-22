@@ -10,7 +10,6 @@ from enum import IntEnum
 from app.modules.ingredient_search.schemas import ProductSearchCandidate
 
 _ALNUM_PATTERN = re.compile(r"[0-9a-z가-힣]+", re.IGNORECASE)
-_SCRIPT_TOKEN_PATTERN = re.compile(r"[가-힣]+|[a-z]+|\d+", re.IGNORECASE)
 _BRACKET_PATTERN = re.compile(r"\[([^]]+)]")
 _PARENTHESIS_PATTERN = re.compile(r"\(([^()]*)\)")
 _COMBINED_CAPACITY_PATTERN = re.compile(
@@ -25,10 +24,7 @@ _MARKETING_PATTERN = re.compile(
     r"(?:더블\s*)?기획|단독|추가\s*증정|증정|\bnew\b|공식|한정|올리브영|\bpick\b|단품",
     re.IGNORECASE,
 )
-_DEFAULT_MAXIMUM_ANCHORS = 12
 _MINIMUM_ANCHOR_LENGTH = 2
-_KOREAN_ANCHOR_LENGTH = 3
-_OTHER_ANCHOR_LENGTH = 4
 
 
 class MatchTier(IntEnum):
@@ -53,19 +49,23 @@ def normalize_product_text(value: str) -> str:
 
 
 def core_product_text(value: str) -> str:
+    def clean_metadata_fragment(value: str) -> str:
+        value = _COMBINED_CAPACITY_PATTERN.sub(" ", value)
+        value = _CAPACITY_PATTERN.sub(" ", value)
+        value = _BUNDLE_PATTERN.sub(" ", value)
+        return _MARKETING_PATTERN.sub(" ", value)
+
     def clean_bracket(match: re.Match[str]) -> str:
         parts = []
         for part in re.split(r"[/,|]", match.group(1)):
-            cleaned = _MARKETING_PATTERN.sub(" ", _BUNDLE_PATTERN.sub(" ", part))
+            cleaned = clean_metadata_fragment(part)
             if normalize_product_text(cleaned):
                 parts.append(cleaned)
         return " " + " ".join(parts) + " "
 
     def clean_parenthesis(match: re.Match[str]) -> str:
-        content = match.group(1)
-        if _CAPACITY_PATTERN.search(content) or _MARKETING_PATTERN.search(content):
-            return " "
-        return f" {content} "
+        cleaned = clean_metadata_fragment(match.group(1))
+        return f" {cleaned} " if normalize_product_text(cleaned) else " "
 
     normalized = unicodedata.normalize("NFKC", value)
     normalized = _BRACKET_PATTERN.sub(clean_bracket, normalized)
@@ -73,33 +73,14 @@ def core_product_text(value: str) -> str:
     normalized = _COMBINED_CAPACITY_PATTERN.sub(" ", normalized)
     normalized = _CAPACITY_PATTERN.sub(" ", normalized)
     normalized = _BUNDLE_PATTERN.sub(" ", normalized)
-    normalized = _MARKETING_PATTERN.sub(" ", normalized)
     return normalize_product_text(normalized)
 
 
-def search_anchors(query: str, maximum: int = _DEFAULT_MAXIMUM_ANCHORS) -> list[str]:
-    tokens = [
-        token.casefold()
-        for token in _SCRIPT_TOKEN_PATTERN.findall(unicodedata.normalize("NFKC", query))
-    ]
-    anchors: list[str] = []
-    has_word_spacing = bool(re.search(r"\s", query.strip()))
-    for token in tokens:
-        if len(token) >= _MINIMUM_ANCHOR_LENGTH:
-            if has_word_spacing:
-                anchors.append(token)
-            else:
-                maximum_length = (
-                    _KOREAN_ANCHOR_LENGTH
-                    if re.fullmatch(r"[가-힣]+", token)
-                    else _OTHER_ANCHOR_LENGTH
-                )
-                anchors.append(token[: min(maximum_length, len(token))])
-    if has_word_spacing:
-        anchors.sort(key=len, reverse=True)
-    return list(
-        dict.fromkeys(anchor for anchor in anchors if len(anchor) >= _MINIMUM_ANCHOR_LENGTH)
-    )[:maximum]
+def format_tolerant_like_pattern(query: str) -> str:
+    """정규화된 문자 순서를 유지하는 후보 조회용 ILIKE 패턴을 만든다."""
+
+    normalized = normalize_product_text(query)
+    return "%" + "%".join(normalized) + "%"
 
 
 def rank_candidates(

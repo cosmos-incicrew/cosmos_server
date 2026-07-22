@@ -9,14 +9,13 @@ from supabase import AsyncClient
 
 from app.common.restrictions import RestrictionRow, fetch_restriction_rows
 from app.core.supabase import get_supabase
-from app.modules.ingredient_search.matching import rank_candidates, search_anchors
+from app.modules.ingredient_search.matching import format_tolerant_like_pattern, rank_candidates
 from app.modules.ingredient_search.schemas import (
     IngredientSearchCandidate,
     ProductSearchCandidate,
 )
 
 _CANDIDATE_LIMIT_PER_QUERY = 100
-_COMBINED_ANCHOR_COUNT = 3
 
 
 class IngredientSearchRepository(Protocol):
@@ -60,27 +59,24 @@ class SupabaseIngredientSearchRepository:
             .order("id")
             .limit(candidate_limit)
         )
-        candidate_queries = [direct_query]
-        anchors = search_anchors(query)
-        if anchors:
-            anchor_query = (
-                self._client.table("products")
-                .select(selection)
-                .not_.is_("product_ingredients.ingredient_id", "null")
-            )
-            for anchor in anchors[:_COMBINED_ANCHOR_COUNT]:
-                anchor_query = anchor_query.ilike("product_name", f"%{_escape_like(anchor)}%")
-            candidate_queries.append(
-                anchor_query.order("product_name").order("id").limit(candidate_limit)
-            )
+        tolerant_query = (
+            self._client.table("products")
+            .select(selection)
+            .not_.is_("product_ingredients.ingredient_id", "null")
+            .ilike("product_name", format_tolerant_like_pattern(query))
+            .order("product_name")
+            .order("id")
+            .limit(candidate_limit)
+        )
+        candidate_queries = [direct_query, tolerant_query]
 
         responses = await asyncio.gather(*(item.execute() for item in candidate_queries))
         candidates_by_id: dict[int, ProductSearchCandidate] = {}
         for response in responses:
             for candidate in _product_candidates(_rows(response.data)):
                 candidates_by_id.setdefault(candidate.id, candidate)
-        self.last_candidate_pool_truncated = len(candidates_by_id) >= (
-            _CANDIDATE_LIMIT_PER_QUERY * len(candidate_queries)
+        self.last_candidate_pool_truncated = any(
+            len(_rows(response.data)) >= candidate_limit for response in responses
         )
         ranked = rank_candidates(query, list(candidates_by_id.values()))
         if not ranked:

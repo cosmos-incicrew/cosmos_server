@@ -4,12 +4,14 @@ from pathlib import Path
 
 from scripts.product_search_dataset import (
     ProductRecord,
+    build_confirmation_dataset,
     build_draft_datasets,
     core_product_name,
     load_candidate_product_ids,
     load_dataset,
     query_for_scenario,
     replace_excluded_cases,
+    validate_confirmation_dataset,
     validate_dataset_pair,
     write_dataset,
 )
@@ -79,6 +81,24 @@ def test_build_draft_datasets_follows_the_approved_distribution() -> None:
     assert development_ids.isdisjoint(final_ids)
     assert all(case.review_status == "draft" for case in development.cases + final.cases)
     assert validate_dataset_pair(development, final, require_approved=False) == []
+
+
+def test_confirmation_dataset_excludes_existing_products() -> None:
+    products = _products()
+    development, final = build_draft_datasets(products, seed=20260722)
+    excluded_ids = {
+        case.source_product_id
+        for case in development.cases + final.cases
+        if case.source_product_id is not None
+    }
+
+    confirmation = build_confirmation_dataset(products, excluded_ids, seed=20260723)
+
+    assert len(confirmation.cases) == 100
+    assert confirmation.dataset_kind == "confirmation"
+    assert validate_confirmation_dataset(
+        confirmation, excluded_ids, require_approved=False
+    ) == []
 
 
 def test_query_drafts_remove_only_the_scenario_specific_parts() -> None:
