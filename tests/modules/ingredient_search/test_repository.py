@@ -228,6 +228,7 @@ async def test_repository_filters_products_without_mapped_ingredients() -> None:
                         {
                             "id": 1,
                             "product_name": "분석 가능한 세럼",
+                            "cleaned_product_name": "분석 가능한 세럼",
                             "brand": "브랜드 A",
                             "main_category": "스킨케어",
                             "sub_category": "세럼",
@@ -237,6 +238,7 @@ async def test_repository_filters_products_without_mapped_ingredients() -> None:
                         {
                             "id": 2,
                             "product_name": "성분 없는 세럼",
+                            "cleaned_product_name": "성분 없는 세럼",
                             "brand": "브랜드 B",
                             "main_category": "스킨케어",
                             "sub_category": "세럼",
@@ -275,6 +277,7 @@ async def test_repository_keeps_each_analyzable_product_in_the_same_flagship_gro
                         {
                             "id": 1,
                             "product_name": "아이크림 35ml",
+                            "cleaned_product_name": "아이크림",
                             "brand": "브랜드 A",
                             "main_category": "스킨케어",
                             "sub_category": "크림",
@@ -285,6 +288,7 @@ async def test_repository_keeps_each_analyzable_product_in_the_same_flagship_gro
                         {
                             "id": 2,
                             "product_name": "아이크림 기획세트",
+                            "cleaned_product_name": "아이크림",
                             "brand": "브랜드 A",
                             "main_category": "스킨케어",
                             "sub_category": "크림",
@@ -315,9 +319,15 @@ async def test_repository_matches_spacing_and_punctuation_variations() -> None:
                         {
                             "id": 7,
                             "product_name": "[단독기획] 허블룸 데일리 톤업 비건 선스크린 50ml",
+                            "cleaned_product_name": "허블룸 데일리 톤업 비건 선스크린",
                             "brand": "허블룸",
                         },
-                        {"id": 8, "product_name": "허블룸 수분 크림", "brand": "허블룸"},
+                        {
+                            "id": 8,
+                            "product_name": "허블룸 수분 크림",
+                            "cleaned_product_name": "허블룸 수분 크림",
+                            "brand": "허블룸",
+                        },
                     ],
                     "product_ingredients": [{"product_id": 7}, {"product_id": 8}],
                 }
@@ -325,7 +335,7 @@ async def test_repository_matches_spacing_and_punctuation_variations() -> None:
         )
     )
 
-    results = await repository.search_products("허블룸데일리톤업비건선스크린50ml", 10)
+    results = await repository.search_products("허블룸데일리톤업비건선스크린", 10)
 
     assert [candidate.id for candidate in results] == [7]
 
@@ -338,8 +348,16 @@ async def test_repository_does_not_require_every_anchor_to_match() -> None:
             FakeSupabase(
                 {
                     "products": [
-                        {"id": 9, "product_name": "더샘 내추럴 마스크팩 알로에"},
-                        {"id": 10, "product_name": "다른 브랜드 수분 크림"},
+                        {
+                            "id": 9,
+                            "product_name": "더샘 내추럴 마스크팩 알로에",
+                            "cleaned_product_name": "더샘 내추럴 마스크팩 알로에",
+                        },
+                        {
+                            "id": 10,
+                            "product_name": "다른 브랜드 수분 크림",
+                            "cleaned_product_name": "다른 브랜드 수분 크림",
+                        },
                     ],
                     "product_ingredients": [{"product_id": 9}, {"product_id": 10}],
                 }
@@ -365,14 +383,20 @@ async def test_repository_preserves_literal_lookup_for_compatibility_characters(
             AsyncClient,
             FakeSupabase(
                 {
-                    "products": [{"id": 11, "product_name": "브랜드 크림 ５０ｍｌ"}],
+                    "products": [
+                        {
+                            "id": 11,
+                            "product_name": "[한정] 브랜드 크림 Ｂ５",
+                            "cleaned_product_name": "브랜드 크림 Ｂ５",
+                        }
+                    ],
                     "product_ingredients": [{"product_id": 11}],
                 }
             ),
         )
     )
 
-    results = await repository.search_products("크림 ５０ｍｌ", 10)
+    results = await repository.search_products("크림 Ｂ５", 10)
 
     assert [candidate.id for candidate in results] == [11]
     assert repository.last_search_diagnostics.direct_query_executed is True
@@ -381,7 +405,11 @@ async def test_repository_preserves_literal_lookup_for_compatibility_characters(
 @pytest.mark.asyncio
 async def test_repository_runs_direct_query_only_when_tolerant_pool_is_truncated() -> None:
     products = [
-        {"id": product_id, "product_name": f"공통 검색 제품 {product_id}"}
+        {
+            "id": product_id,
+            "product_name": f"[기획] 공통 검색 제품 {product_id}",
+            "cleaned_product_name": f"공통 검색 제품 {product_id}",
+        }
         for product_id in range(1, 102)
     ]
     repository = SupabaseIngredientSearchRepository(
@@ -436,10 +464,15 @@ async def test_repository_prioritizes_core_name_match_over_partial_match() -> No
             FakeSupabase(
                 {
                     "products": [
-                        {"id": 1, "product_name": "아토베리어365 크림 미스트"},
+                        {
+                            "id": 1,
+                            "product_name": "아토베리어365 크림 미스트",
+                            "cleaned_product_name": "아토베리어365 크림 미스트",
+                        },
                         {
                             "id": 2,
                             "product_name": "[기획] 에스트라 아토베리어365 크림 80ml (+10ml)",
+                            "cleaned_product_name": "에스트라 아토베리어365 크림",
                         },
                     ],
                     "product_ingredients": [{"product_id": 1}, {"product_id": 2}],
@@ -454,13 +487,19 @@ async def test_repository_prioritizes_core_name_match_over_partial_match() -> No
 
 
 @pytest.mark.asyncio
-async def test_repository_removes_capacity_attached_to_product_name() -> None:
+async def test_repository_searches_cleaned_name_and_returns_original_name() -> None:
     repository = SupabaseIngredientSearchRepository(
         cast(
             AsyncClient,
             FakeSupabase(
                 {
-                    "products": [{"id": 1, "product_name": "브랜드 에센스200ml"}],
+                    "products": [
+                        {
+                            "id": 1,
+                            "product_name": "[단독기획] 브랜드 에센스200ml",
+                            "cleaned_product_name": "브랜드 에센스",
+                        }
+                    ],
                     "product_ingredients": [{"product_id": 1}],
                 }
             ),
@@ -470,6 +509,30 @@ async def test_repository_removes_capacity_attached_to_product_name() -> None:
     results = await repository.search_products("브랜드 에센스", 10)
 
     assert [candidate.id for candidate in results] == [1]
+    assert results[0].product_name == "[단독기획] 브랜드 에센스200ml"
+
+
+@pytest.mark.asyncio
+async def test_repository_does_not_search_removed_marketing_text() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [
+                        {
+                            "id": 1,
+                            "product_name": "[단독기획] 브랜드 에센스200ml",
+                            "cleaned_product_name": "브랜드 에센스",
+                        }
+                    ],
+                    "product_ingredients": [{"product_id": 1}],
+                }
+            ),
+        )
+    )
+
+    assert await repository.search_products("단독기획", 10) == []
 
 
 @pytest.mark.asyncio
