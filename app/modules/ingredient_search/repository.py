@@ -3,19 +3,31 @@
 import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Any, Protocol
 
+import httpx
+from postgrest.exceptions import APIError
 from supabase import AsyncClient
 
 from app.common.restrictions import RestrictionRow, fetch_restriction_rows
 from app.core.supabase import get_supabase
-from app.modules.ingredient_search.matching import format_tolerant_like_pattern, rank_candidates
+from app.modules.ingredient_search.matching import (
+    format_tolerant_like_pattern,
+    rank_candidates,
+    requires_literal_product_lookup,
+)
 from app.modules.ingredient_search.schemas import (
     IngredientSearchCandidate,
     ProductSearchCandidate,
 )
 
 _CANDIDATE_LIMIT_PER_QUERY = 100
+_PRODUCT_SEARCH_TIMEOUT_SECONDS = 2.0
+
+
+class ProductSearchDataSourceError(Exception):
+    """Supabase 제품 검색을 완료하지 못했습니다."""
 
 
 class IngredientSearchRepository(Protocol):
@@ -39,25 +51,36 @@ class ProductIngredientRows:
     ingredient_ids: list[int | None]
 
 
+@dataclass(frozen=True)
+class ProductSearchDiagnostics:
+    direct_candidate_count: int = 0
+    tolerant_candidate_count: int = 0
+    merged_candidate_count: int = 0
+    ranked_candidate_count: int = 0
+    direct_query_latency_ms: float = 0.0
+    tolerant_query_latency_ms: float = 0.0
+    direct_query_executed: bool = False
+    candidate_pool_truncated: bool = False
+
+
 class SupabaseIngredientSearchRepository:
-    def __init__(self, client: AsyncClient) -> None:
+    def __init__(
+        self,
+        client: AsyncClient,
+        product_search_timeout_seconds: float = _PRODUCT_SEARCH_TIMEOUT_SECONDS,
+    ) -> None:
         self._client = client
+        self._product_search_timeout_seconds = product_search_timeout_seconds
         self.last_candidate_pool_truncated = False
+        self.last_search_diagnostics = ProductSearchDiagnostics()
 
     async def search_products(self, query: str, limit: int) -> list[ProductSearchCandidate]:
+        self.last_candidate_pool_truncated = False
+        self.last_search_diagnostics = ProductSearchDiagnostics()
         candidate_limit = _CANDIDATE_LIMIT_PER_QUERY
         selection = (
             "id,product_name,brand,main_category,sub_category,detailed_category,product_url,"
             "product_ingredients!inner()"
-        )
-        direct_query = (
-            self._client.table("products")
-            .select(selection)
-            .not_.is_("product_ingredients.ingredient_id", "null")
-            .ilike("product_name", f"%{_escape_like(query)}%")
-            .order("product_name")
-            .order("id")
-            .limit(candidate_limit)
         )
         tolerant_query = (
             self._client.table("products")
@@ -68,17 +91,51 @@ class SupabaseIngredientSearchRepository:
             .order("id")
             .limit(candidate_limit)
         )
-        candidate_queries = [direct_query, tolerant_query]
+        direct_response = None
+        direct_latency_ms = 0.0
+        if requires_literal_product_lookup(query):
+            direct_query = _direct_product_query(
+                self._client, selection, query, candidate_limit
+            )
+            timed_responses = await asyncio.gather(
+                _execute_with_latency(tolerant_query, self._product_search_timeout_seconds),
+                _execute_with_latency(direct_query, self._product_search_timeout_seconds),
+            )
+            tolerant_response, tolerant_latency_ms = timed_responses[0]
+            direct_response, direct_latency_ms = timed_responses[1]
+        else:
+            tolerant_response, tolerant_latency_ms = await _execute_with_latency(
+                tolerant_query, self._product_search_timeout_seconds
+            )
+        tolerant_count = len(_rows(tolerant_response.data))
+        if tolerant_count >= candidate_limit and direct_response is None:
+            direct_query = _direct_product_query(
+                self._client, selection, query, candidate_limit
+            )
+            direct_response, direct_latency_ms = await _execute_with_latency(
+                direct_query, self._product_search_timeout_seconds
+            )
 
-        responses = await asyncio.gather(*(item.execute() for item in candidate_queries))
+        responses = [tolerant_response]
+        if direct_response is not None:
+            responses.append(direct_response)
+        direct_count = len(_rows(direct_response.data)) if direct_response is not None else 0
         candidates_by_id: dict[int, ProductSearchCandidate] = {}
         for response in responses:
             for candidate in _product_candidates(_rows(response.data)):
                 candidates_by_id.setdefault(candidate.id, candidate)
-        self.last_candidate_pool_truncated = any(
-            len(_rows(response.data)) >= candidate_limit for response in responses
-        )
+        self.last_candidate_pool_truncated = tolerant_count >= candidate_limit
         ranked = rank_candidates(query, list(candidates_by_id.values()))
+        self.last_search_diagnostics = ProductSearchDiagnostics(
+            direct_candidate_count=direct_count,
+            tolerant_candidate_count=tolerant_count,
+            merged_candidate_count=len(candidates_by_id),
+            ranked_candidate_count=len(ranked),
+            direct_query_latency_ms=direct_latency_ms,
+            tolerant_query_latency_ms=tolerant_latency_ms,
+            direct_query_executed=direct_response is not None,
+            candidate_pool_truncated=self.last_candidate_pool_truncated,
+        )
         if not ranked:
             return []
         return ranked[:limit]
@@ -210,3 +267,24 @@ def _integer(value: Any) -> int | None:
 
 def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _direct_product_query(client: AsyncClient, selection: str, query: str, limit: int) -> Any:
+    return (
+        client.table("products")
+        .select(selection)
+        .not_.is_("product_ingredients.ingredient_id", "null")
+        .ilike("product_name", f"%{_escape_like(query)}%")
+        .order("product_name")
+        .order("id")
+        .limit(limit)
+    )
+
+
+async def _execute_with_latency(query: Any, timeout_seconds: float) -> tuple[Any, float]:
+    started = perf_counter()
+    try:
+        response = await asyncio.wait_for(query.execute(), timeout=timeout_seconds)
+    except (APIError, httpx.HTTPError, TimeoutError) as exc:
+        raise ProductSearchDataSourceError from exc
+    return response, (perf_counter() - started) * 1_000

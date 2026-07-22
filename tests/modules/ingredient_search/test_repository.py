@@ -1,11 +1,16 @@
+import asyncio
 import re
 from dataclasses import dataclass
 from typing import Any, cast
 
+import httpx
 import pytest
 from supabase import AsyncClient
 
-from app.modules.ingredient_search.repository import SupabaseIngredientSearchRepository
+from app.modules.ingredient_search.repository import (
+    ProductSearchDataSourceError,
+    SupabaseIngredientSearchRepository,
+)
 
 
 @dataclass
@@ -97,6 +102,32 @@ class FakeSupabase:
             }
             data = [row for row in data if row.get("id") in mapped_ids]
         return FakeQuery(data)
+
+
+class FailingFakeQuery(FakeQuery):
+    async def execute(self) -> FakeResponse:
+        request = httpx.Request("GET", "https://example.supabase.co/rest/v1/products")
+        raise httpx.ReadTimeout("Supabase timeout", request=request)
+
+
+class FailingFakeSupabase(FakeSupabase):
+    def table(self, table_name: str) -> FakeQuery:
+        if table_name == "products":
+            return FailingFakeQuery([])
+        return super().table(table_name)
+
+
+class SlowFakeQuery(FakeQuery):
+    async def execute(self) -> FakeResponse:
+        await asyncio.sleep(0.02)
+        return await super().execute()
+
+
+class SlowFakeSupabase(FakeSupabase):
+    def table(self, table_name: str) -> FakeQuery:
+        if table_name == "products":
+            return SlowFakeQuery([])
+        return super().table(table_name)
 
 
 @pytest.mark.asyncio
@@ -232,6 +263,84 @@ async def test_repository_does_not_require_every_anchor_to_match() -> None:
     results = await repository.search_products("더샘내추럴마스크팩알로에", 10)
 
     assert [candidate.id for candidate in results] == [9]
+    assert repository.last_search_diagnostics.direct_candidate_count == 0
+    assert repository.last_search_diagnostics.tolerant_candidate_count == 1
+    assert repository.last_search_diagnostics.merged_candidate_count == 1
+    assert repository.last_search_diagnostics.ranked_candidate_count == 1
+    assert repository.last_search_diagnostics.direct_query_executed is False
+    assert repository.last_search_diagnostics.candidate_pool_truncated is False
+
+
+@pytest.mark.asyncio
+async def test_repository_preserves_literal_lookup_for_compatibility_characters() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [{"id": 11, "product_name": "브랜드 크림 ５０ｍｌ"}],
+                    "product_ingredients": [{"product_id": 11}],
+                }
+            ),
+        )
+    )
+
+    results = await repository.search_products("크림 ５０ｍｌ", 10)
+
+    assert [candidate.id for candidate in results] == [11]
+    assert repository.last_search_diagnostics.direct_query_executed is True
+
+
+@pytest.mark.asyncio
+async def test_repository_runs_direct_query_only_when_tolerant_pool_is_truncated() -> None:
+    products = [
+        {"id": product_id, "product_name": f"공통 검색 제품 {product_id}"}
+        for product_id in range(1, 102)
+    ]
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": products,
+                    "product_ingredients": [
+                        {"product_id": product["id"]} for product in products
+                    ],
+                }
+            ),
+        )
+    )
+
+    await repository.search_products("공통 검색", 10)
+
+    assert repository.last_search_diagnostics.tolerant_candidate_count == 100
+    assert repository.last_search_diagnostics.direct_query_executed is True
+    assert repository.last_search_diagnostics.candidate_pool_truncated is True
+
+
+@pytest.mark.asyncio
+async def test_repository_maps_supabase_timeout_and_resets_diagnostics() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(AsyncClient, FailingFakeSupabase({"products": []}))
+    )
+    repository.last_candidate_pool_truncated = True
+
+    with pytest.raises(ProductSearchDataSourceError):
+        await repository.search_products("검색 실패", 10)
+
+    assert repository.last_candidate_pool_truncated is False
+    assert repository.last_search_diagnostics.direct_query_executed is False
+
+
+@pytest.mark.asyncio
+async def test_repository_enforces_product_search_timeout() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(AsyncClient, SlowFakeSupabase({"products": []})),
+        product_search_timeout_seconds=0.001,
+    )
+
+    with pytest.raises(ProductSearchDataSourceError):
+        await repository.search_products("느린 검색", 10)
 
 
 @pytest.mark.asyncio

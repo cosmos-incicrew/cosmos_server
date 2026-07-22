@@ -9,6 +9,7 @@ from app.main import app
 from app.modules.ingredient_search.repository import (
     IngredientSearchRepository,
     ProductIngredientRows,
+    ProductSearchDataSourceError,
     get_ingredient_search_repository,
 )
 from app.modules.ingredient_search.schemas import (
@@ -98,6 +99,28 @@ def test_search_products_returns_analyzable_candidates(client: TestClient) -> No
                 "product_url": "https://example.com/products/1",
             }
         ],
+    }
+
+
+def test_search_products_returns_service_unavailable_for_supabase_failure(
+    client: TestClient,
+) -> None:
+    class UnavailableSearchRepository(FakeIngredientSearchRepository):
+        async def search_products(self, query: str, limit: int) -> list[ProductSearchCandidate]:
+            raise ProductSearchDataSourceError
+
+    app.dependency_overrides[get_ingredient_search_repository] = lambda: (
+        UnavailableSearchRepository()
+    )
+
+    response = client.get("/api/v1/products/search", params={"q": "테스트 세럼"})
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "error": {
+            "code": "PRODUCT_SEARCH_UNAVAILABLE",
+            "message": "제품 검색 서비스를 일시적으로 사용할 수 없습니다.",
+        }
     }
 
 
