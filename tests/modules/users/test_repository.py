@@ -146,7 +146,6 @@ def _settings(**overrides: Any) -> Settings:
     base = {
         "supabase_url": "http://localhost:54321",
         "supabase_service_role_key": "test",
-        "gemini_api_key": "test",
         "langfuse_public_key": "test",
         "langfuse_secret_key": "test",
     }

@@ -16,7 +16,6 @@ def test_langfuse_client_is_singleton():
     assert get_langfuse() is get_langfuse()
 
 
-def test_gemini_model_selection():
-    settings = get_settings()
-    assert gemini_model_for() == settings.gemini_model_flash
-    assert gemini_model_for(complex_query=True) == settings.gemini_model_pro
+def test_gemini_model_is_single_source():
+    """모델 설정은 `gemini_model` 하나로 통합됐다 (구 flash/pro 분기는 폐기)."""
+    assert gemini_model_for() == get_settings().gemini_model
