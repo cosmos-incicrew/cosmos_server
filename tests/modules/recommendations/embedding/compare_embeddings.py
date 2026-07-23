@@ -134,10 +134,10 @@ def map_ingredients(names: list[str], mapping: dict[str, int]) -> set[int]:
 # 2) 코퍼스 · 정답 · 질의
 # ══════════════════════════════════════════════════════════════════════════
 def build_efficacy_corpus(sb) -> tuple[list[str], list[int | None]]:
-    """rec_efficacy: name_kr + efficacy + product_traits 결합 텍스트와 ingredient_id."""
+    """rec_efficacy: name_kor + efficacy + product_traits 결합 텍스트와 ingredient_id."""
     texts, ids = [], []
-    for r in _fetch_all(sb, "rec_efficacy", "ingredient_id,name_kr,efficacy,product_traits"):
-        parts = [r.get("name_kr") or "", r.get("efficacy") or "", r.get("product_traits") or ""]
+    for r in _fetch_all(sb, "rec_efficacy", "ingredient_id,name_kor,efficacy,product_traits"):
+        parts = [r.get("name_kor") or "", r.get("efficacy") or "", r.get("product_traits") or ""]
         texts.append(" ".join(p for p in parts if p).strip())
         ids.append(r.get("ingredient_id"))
     log.info("efficacy 코퍼스: %d 행", len(texts))

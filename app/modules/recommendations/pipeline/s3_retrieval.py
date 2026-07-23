@@ -117,7 +117,7 @@ def _case_chunk(row: dict[str, Any]) -> RetrievedChunk:
 
 
 def _efficacy_chunk(row: dict[str, Any]) -> RetrievedChunk:
-    name = row.get("name_kr") or row.get("inci") or ""
+    name = row.get("name_kor") or row.get("inci") or ""
     return RetrievedChunk(
         content=f"[성분] {name}\n[효능] {row.get('efficacy', '')}",
         score=float(row.get("score") or 0.0),
@@ -127,7 +127,7 @@ def _efficacy_chunk(row: dict[str, Any]) -> RetrievedChunk:
             locator=row.get("reference_source"),
         ),
         metadata={
-            "name_kr": row.get("name_kr"),
+            "name_kor": row.get("name_kor"),
             "inci": row.get("inci"),
             "ingredient_id": row.get("ingredient_id"),
             "efficacy": row.get("efficacy"),

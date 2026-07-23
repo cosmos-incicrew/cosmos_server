@@ -3,7 +3,7 @@
 설계: docs/design/02-recommendations-data-spec.md §3·§4.
 소유: 김민경. 임베딩 칸은 NULL로 두고 서지우가 채운다.
 
-원본 zip은 읽기만 한다. 재실행해도 안전(멱등) — case_id / (inci,name_kr) upsert.
+원본 zip은 읽기만 한다. 재실행해도 안전(멱등) — case_id / (inci,name_kor) upsert.
 
     uv run python -m scripts.load_recommendations_data --dry-run   # DB 없이 파싱·리포트만
     uv run python -m scripts.load_recommendations_data             # 실제 적재 (SUPABASE_* 필요)
@@ -46,7 +46,7 @@ OTHER_ZIP_SUBPATH = "1.데이터/Other/Other.zip"
 # 사용상주의사항·권장농도·배합규제·참고문헌).  화학물성 5종은 임베딩 제외·페이로드 보존.
 COLUMN_MAP: dict[str, str] = {
     "성분명(INCI)": "inci",
-    "한글명": "name_kr",
+    "한글명": "name_kor",
     "효능": "efficacy",
     "제품적특성": "product_traits",
     "권장피부타입": "recommended_skin_types",
@@ -103,7 +103,7 @@ def clean_evidence(sources: list[str] | None) -> list[str]:
 
 def build_name_matcher(ingredients: list[dict[str, str]]) -> re.Pattern[str] | None:
     """성분명 사전(한글명+INCI)으로 상담문에서 성분을 뽑을 정규식. 긴 이름 우선."""
-    names = {n for ing in ingredients for n in (ing["name_kr"], ing["inci"]) if n and len(n) >= 2}
+    names = {n for ing in ingredients for n in (ing["name_kor"], ing["inci"]) if n and len(n) >= 2}
     if not names:
         return None
     ordered = sorted(names, key=len, reverse=True)
@@ -186,16 +186,18 @@ def read_ingredients(src: Path) -> list[dict[str, str]]:
             for row in rows:
                 raw = {h: v for h, v in zip(header, row, strict=False) if h}
                 ing = {f: str(raw.get(col) or "").strip() for col, f in COLUMN_MAP.items()}
-                if not ing["inci"] and not ing["name_kr"]:
+                if not ing["inci"] and not ing["name_kor"]:
                     continue
                 ings.append(ing)
             return ings
 
 
 def map_ingredient_ids(sb: Any, ings: list[dict]) -> int:
-    """rec_efficacy 행에 ingredient_id 부여 (name_kr 정확 일치 → synonyms). 매칭 수 반환."""
+    """rec_efficacy 행에 ingredient_id 부여 (name_kor 정확 일치 → synonyms). 매칭 수 반환."""
     index: dict[str, int] = {}
-    for table, keys in (("ingredients", ("name_kr",)), ("synonyms", ("name_kor", "synonym"))):
+    # ingredients 는 001 에서 name_kor 로 정정됐는데 여기가 구 name_kr 을 그대로 두고 있어
+    # 재적재 시 1차(ingredients) 매칭이 통째로 빗나갔다 — rec_efficacy rename 과 함께 정정.
+    for table, keys in (("ingredients", ("name_kor",)), ("synonyms", ("name_kor", "synonym"))):
         start = 0
         while True:
             cols = "ingredient_id," + ",".join(keys)
@@ -212,7 +214,7 @@ def map_ingredient_ids(sb: Any, ings: list[dict]) -> int:
             start += 1000
     matched = 0
     for ing in ings:
-        iid = index.get(ing["name_kr"]) or index.get(ing["inci"])
+        iid = index.get(ing["name_kor"]) or index.get(ing["inci"])
         ing["ingredient_id"] = iid
         matched += iid is not None
     return matched
@@ -294,7 +296,7 @@ def main() -> None:
     report(cases, ings, id_matched)
     log.info("적재 시작 …")
     upsert(sb, "rec_cases", cases, conflict="case_id")
-    upsert(sb, "rec_efficacy", ings, conflict="inci,name_kr")
+    upsert(sb, "rec_efficacy", ings, conflict="inci,name_kor")
     log.info("적재 완료")
 
 

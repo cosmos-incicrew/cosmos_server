@@ -52,6 +52,28 @@ async def _pick_user_id() -> str | None:
     return chosen
 
 
+def _print_ingredients(items: list[dict]) -> None:
+    for i in items:
+        line = f"  [성분] {i['name_kor']} ({i['inci']}) · 유사도 {i['similarity']}"
+        if i.get("safety_note"):
+            line += f" · 주의: {i['safety_note']}"
+        for w in i.get("warnings", []):
+            line += f" · ⚠{w['type']}"
+        print(line)
+
+
+def _print_products(products: list[dict], title: str) -> None:
+    print(f"\n--- 🛒 {title} {len(products)}개 ---")
+    for p in products:
+        matched = ", ".join(p.get("matched_ingredients", []))
+        brand = p.get("brand") or "브랜드미상"
+        cat = f" · {p['main_category']}" if p.get("main_category") else ""
+        print(f"  [{brand}] {p['product_name']}{cat}")
+        print(f"      매칭 성분: {matched}")
+        if p.get("product_url"):
+            print(f"      {p['product_url']}")
+
+
 async def run(user_id: str) -> None:
     print(f"user_id = {user_id}\n요청 중... (실 Gemini 호출 — 십수 초 걸릴 수 있다)\n")
     t0 = time.monotonic()
@@ -73,6 +95,16 @@ async def run(user_id: str) -> None:
         print("\n③ 사용법·관리법\n" + ans["usage_guide"])
     else:
         print("(근거 부족 — answer 없음)")
+    # ⑩ 종합 — 프론트 메인 카드. 아래 섹션들은 "왜 뽑혔나"의 상세 근거다.
+    top = data.get("top_ingredients", [])
+    print(f"\n--- ⭐ 종합 추천 성분 {len(top)}개 (고민 + BSTI) ---")
+    for i in top:
+        badge = {"both": "고민+타입", "concern": "고민", "bsti": "타입"}.get(
+            i.get("match_source") or "", "?"
+        )
+        print(f"  [{badge}] {i['name_kor']} ({i['inci']}) · {i.get('efficacy') or ''}")
+    _print_products(data.get("top_products", []), "종합 추천 제품")
+
     print("\n--- 📂 근거: 유사 케이스", len(data.get("cases", [])),
           "· 성분", len(data.get("ingredients", [])), "---")
     for c in data.get("cases", []):
@@ -81,24 +113,19 @@ async def run(user_id: str) -> None:
             f"  [케이스] {c['target_concern']} · {c['gender']} {c['age']}세 "
             f"{c['skin_type']} · 유사도 {c['similarity']} · 추천성분: {rec}"
         )
-    for i in data.get("ingredients", []):
-        line = f"  [성분] {i['name_kor']} ({i['inci']}) · 유사도 {i['similarity']}"
-        if i.get("safety_note"):
-            line += f" · 주의: {i['safety_note']}"
-        for w in i.get("warnings", []):
-            line += f" · ⚠{w['type']}"
-        print(line)
+    _print_ingredients(data.get("ingredients", []))
+    _print_products(data.get("products", []), "추천 제품 (고민 기반, 성분 커버리지 순)")
 
-    products = data.get("products", [])
-    print(f"\n--- 🛒 추천 제품 {len(products)}개 (추천 성분 함유) ---")
-    for p in products:
-        matched = ", ".join(p.get("matched_ingredients", []))
-        brand = p.get("brand") or "브랜드미상"
-        cat = f" · {p['main_category']}" if p.get("main_category") else ""
-        print(f"  [{brand}] {p['product_name']}{cat}")
-        print(f"      매칭 성분: {matched}")
-        if p.get("product_url"):
-            print(f"      {p['product_url']}")
+    # ⑨ BSTI — 고민과 별개 축이라 따로 보여준다("지금 겪는 문제" vs "타입상 늘 맞는 성분").
+    profile = data.get("user_profile") or {}
+    bsti_type = profile.get("bsti_type")
+    if bsti_type:
+        bsti_ingredients = data.get("bsti_ingredients", [])
+        print(f"\n--- 🧬 BSTI({bsti_type}) 타입 권장 성분 {len(bsti_ingredients)}개 ---")
+        _print_ingredients(bsti_ingredients)
+        _print_products(data.get("bsti_products", []), f"BSTI({bsti_type}) 권장 성분 함유 제품")
+    else:
+        print("\n--- 🧬 BSTI 미검사 — 타입 권장 추천 없음 ---")
 
     print("\n사용 프로필:", data.get("user_profile"))
 
