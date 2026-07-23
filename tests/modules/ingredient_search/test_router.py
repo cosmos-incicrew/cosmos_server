@@ -26,7 +26,7 @@ class FakeIngredientSearchRepository(IngredientSearchRepository):
         return [
             ProductSearchCandidate(
                 id=1,
-                product_name="테스트 세럼",
+                cleaned_product_name="테스트 세럼",
                 brand="테스트 브랜드",
                 main_category="스킨케어",
                 sub_category="에센스/세럼",
@@ -92,7 +92,7 @@ def test_search_products_returns_analyzable_candidates(client: TestClient) -> No
         "results": [
             {
                 "id": 1,
-                "product_name": "테스트 세럼",
+                "cleaned_product_name": "테스트 세럼",
                 "brand": "테스트 브랜드",
                 "main_category": "스킨케어",
                 "sub_category": "에센스/세럼",

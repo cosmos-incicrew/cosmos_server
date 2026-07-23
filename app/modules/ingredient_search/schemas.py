@@ -7,7 +7,7 @@ from app.common.schemas import RestrictionRule
 
 class ProductSearchCandidate(BaseModel):
     id: int
-    product_name: str
+    cleaned_product_name: str
     brand: str | None
     main_category: str | None
     sub_category: str | None
