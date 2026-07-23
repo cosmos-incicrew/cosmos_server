@@ -3,6 +3,7 @@ import logging
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -22,6 +23,16 @@ logging.basicConfig(
 logger = logging.getLogger("cosmos")
 
 app = FastAPI(title="cosmos API", version="0.1.0")
+
+# 웹 클라이언트의 cross-origin 요청 허용. allow_credentials=True 라 origin 을
+# 와일드카드(*)로 둘 수 없어 config 의 명시 목록을 쓴다.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(ingredient_search_router)
 app.include_router(ingredient_detail_router)

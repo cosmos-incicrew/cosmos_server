@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     product_compare_max_count: int = 4
     log_level: str = "INFO"
 
+    # 웹(Flutter web) 클라이언트의 cross-origin 요청 허용 목록.
+    # 네이티브 앱은 CORS와 무관하지만, 웹 빌드는 브라우저가 이 헤더를 요구한다.
+    # 배포 웹 origin(Vercel 등)은 .env 의 CORS_ORIGINS 로 덧붙인다.
+    cors_origins: list[str] = ["http://localhost:3000"]
+
 
 @lru_cache
 def get_settings() -> Settings:
