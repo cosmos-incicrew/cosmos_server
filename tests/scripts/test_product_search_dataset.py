@@ -4,6 +4,7 @@ from pathlib import Path
 
 from scripts.product_search_dataset import (
     ProductRecord,
+    _acceptable_ids_by_cleaned_name,
     build_confirmation_dataset,
     build_draft_datasets,
     core_product_name,
@@ -26,6 +27,7 @@ def _products() -> list[ProductRecord]:
                 ProductRecord(
                     id=product_id,
                     product_name=(f"[기획] 브랜드{product_id} 핵심제품{product_id} 크림 80ml"),
+                    cleaned_product_name=f"브랜드{product_id} 핵심제품{product_id} 크림",
                     brand=f"브랜드{product_id}",
                     main_category=category,
                     ingredient_ids=[product_id, product_id + 10_000],
@@ -48,10 +50,9 @@ def test_build_draft_datasets_follows_the_approved_distribution() -> None:
         "클렌징": 5,
     }
     assert Counter(case.scenario for case in development.cases) == {
-        "full_product_name": 4,
-        "brand_and_core_name": 4,
+        "exact_cleaned_name": 8,
+        "brand_and_partial_name": 4,
         "core_product_name": 4,
-        "sales_and_capacity_removed": 4,
         "format_variation": 4,
     }
     assert Counter(case.product_category for case in final.cases) == {
@@ -62,10 +63,9 @@ def test_build_draft_datasets_follows_the_approved_distribution() -> None:
         None: 10,
     }
     assert Counter(case.scenario for case in final.cases) == {
-        "full_product_name": 15,
-        "brand_and_core_name": 25,
+        "exact_cleaned_name": 30,
+        "brand_and_partial_name": 25,
         "core_product_name": 20,
-        "sales_and_capacity_removed": 15,
         "format_variation": 15,
         "not_registered": 10,
     }
@@ -80,6 +80,16 @@ def test_build_draft_datasets_follows_the_approved_distribution() -> None:
     assert len(final_ids) == 90
     assert development_ids.isdisjoint(final_ids)
     assert all(case.review_status == "draft" for case in development.cases + final.cases)
+    assert all(
+        case.source_cleaned_product_name
+        for case in development.cases + final.cases
+        if case.expected_result == "found"
+    )
+    assert all(
+        case.source_product_id in case.acceptable_product_ids
+        for case in development.cases + final.cases
+        if case.source_product_id is not None
+    )
     assert validate_dataset_pair(development, final, require_approved=False) == []
 
 
@@ -103,17 +113,57 @@ def test_query_drafts_remove_only_the_scenario_specific_parts() -> None:
     product = ProductRecord(
         id=1,
         product_name="[기획/증정] 에스트라 아토베리어365 크림 80ml + 10ml",
+        cleaned_product_name="에스트라 아토베리어365 크림",
         brand="에스트라",
         main_category="스킨케어",
         ingredient_ids=[1, 2],
     )
 
     assert core_product_name(product.product_name) == "에스트라 아토베리어365 크림"
-    assert query_for_scenario(product, "brand_and_core_name") == ("에스트라 아토베리어365 크림")
+    assert query_for_scenario(product, "exact_cleaned_name") == "에스트라 아토베리어365 크림"
+    assert query_for_scenario(product, "brand_and_partial_name") == "에스트라 아토베리어365"
     assert query_for_scenario(product, "core_product_name") == "아토베리어365 크림"
-    assert query_for_scenario(product, "format_variation") == (
-        "[기획/증정]에스트라아토베리어365크림80ml+10ml"
+    assert query_for_scenario(product, "format_variation") == "에스트라아토베리어365크림"
+
+
+def test_acceptable_ids_group_normalization_equivalent_cleaned_names() -> None:
+    products = [
+        ProductRecord(
+            id=1,
+            product_name="브랜드 크림",
+            cleaned_product_name="브랜드 크림",
+            brand="브랜드",
+            main_category="스킨케어",
+            ingredient_ids=[1],
+        ),
+        ProductRecord(
+            id=2,
+            product_name="브랜드-크림 기획",
+            cleaned_product_name="브랜드-크림",
+            brand="브랜드",
+            main_category="스킨케어",
+            ingredient_ids=[2],
+        ),
+    ]
+
+    assert _acceptable_ids_by_cleaned_name(products) == {"브랜드크림": [1, 2]}
+
+
+def test_v2_registered_case_requires_cleaned_name_provenance() -> None:
+    development, final = build_draft_datasets(_products(), seed=20260722)
+    development.cases[0].source_cleaned_product_name = None
+
+    assert "DEV-001: 정제 제품명이 비어 있습니다." in validate_dataset_pair(
+        development, final, require_approved=False
     )
+
+
+def test_later_major_versions_keep_the_cleaned_name_contract() -> None:
+    development, final = build_draft_datasets(_products(), seed=20260722)
+    development.dataset_version = "3.0.0"
+    final.dataset_version = "3.0.0"
+
+    assert validate_dataset_pair(development, final, require_approved=False) == []
 
 
 def test_core_product_name_removes_leading_marketing_and_gift_parentheses() -> None:
@@ -210,12 +260,12 @@ def test_replace_excluded_case_uses_next_fixed_candidate_and_keeps_history() -> 
         development,
         final,
         products,
-        new_version="1.1.0",
+        new_version="2.1.0",
     )
 
     replacement = new_final.cases[0]
-    assert new_development.dataset_version == "1.1.0"
-    assert new_final.dataset_version == "1.1.0"
+    assert new_development.dataset_version == "2.1.0"
+    assert new_final.dataset_version == "2.1.0"
     assert replacement.case_id == excluded.case_id
     assert replacement.source_product_id != old_product_id
     assert replacement.product_category == excluded.product_category
@@ -229,7 +279,7 @@ def test_replace_excluded_case_requires_a_minor_or_major_version_increase() -> N
     development, final = build_draft_datasets(products, seed=20260722)
     final.cases[0].review_status = "excluded"
 
-    for invalid_version in ("1.0.1", "0.9.0"):
+    for invalid_version in ("2.0.1", "1.9.0"):
         try:
             replace_excluded_cases(
                 development,

@@ -10,29 +10,14 @@ from enum import IntEnum
 from app.modules.ingredient_search.schemas import ProductSearchCandidate
 
 _TOKEN_PATTERN = re.compile(r"[^\W_]+", re.UNICODE)
-_BRACKET_PATTERN = re.compile(r"\[([^]]+)]")
-_PARENTHESIS_PATTERN = re.compile(r"\(([^()]*)\)")
-_COMBINED_CAPACITY_PATTERN = re.compile(
-    r"(?<![0-9a-z가-힣])\d+(?:\.\d+)?\s*\+\s*\d+(?:\.\d+)?\s*(?:ml|g)",
-    re.IGNORECASE,
-)
-_CAPACITY_PATTERN = re.compile(
-    r"\d+(?:\.\d+)?\s*(?:ml|g|매입|개입|매|개|ea)(?![0-9a-z가-힣])", re.IGNORECASE
-)
-_BUNDLE_PATTERN = re.compile(r"(?<![0-9a-z가-힣])\d+\s*\+\s*\d+(?!\d)")
-_MARKETING_PATTERN = re.compile(
-    r"(?:더블\s*)?기획|단독|추가\s*증정|증정|\bnew\b|공식|한정|올리브영|\bpick\b|단품",
-    re.IGNORECASE,
-)
 _MINIMUM_ANCHOR_LENGTH = 2
 
 
 class MatchTier(IntEnum):
-    EXACT_FULL_NAME = 0
-    EXACT_CORE_NAME = 1
-    PREFIX = 2
-    SUBSTRING = 3
-    ORDERED_TOKENS = 4
+    EXACT_CLEANED_NAME = 0
+    PREFIX = 1
+    SUBSTRING = 2
+    ORDERED_TOKENS = 3
 
 
 @dataclass(frozen=True, order=True)
@@ -43,37 +28,17 @@ class MatchKey:
     product_id: int
 
 
+@dataclass(frozen=True)
+class ProductMatchCandidate:
+    """API 표시명과 검색용 정제명을 분리한 내부 후보."""
+
+    product: ProductSearchCandidate
+    cleaned_product_name: str
+
+
 def normalize_product_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).casefold()
     return "".join(character for character in normalized if character.isalnum())
-
-
-def core_product_text(value: str) -> str:
-    def clean_metadata_fragment(value: str) -> str:
-        value = _COMBINED_CAPACITY_PATTERN.sub(" ", value)
-        value = _CAPACITY_PATTERN.sub(" ", value)
-        value = _BUNDLE_PATTERN.sub(" ", value)
-        return _MARKETING_PATTERN.sub(" ", value)
-
-    def clean_bracket(match: re.Match[str]) -> str:
-        parts = []
-        for part in re.split(r"[/,|]", match.group(1)):
-            cleaned = clean_metadata_fragment(part)
-            if normalize_product_text(cleaned):
-                parts.append(cleaned)
-        return " " + " ".join(parts) + " "
-
-    def clean_parenthesis(match: re.Match[str]) -> str:
-        cleaned = clean_metadata_fragment(match.group(1))
-        return f" {cleaned} " if normalize_product_text(cleaned) else " "
-
-    normalized = unicodedata.normalize("NFKC", value)
-    normalized = _BRACKET_PATTERN.sub(clean_bracket, normalized)
-    normalized = _PARENTHESIS_PATTERN.sub(clean_parenthesis, normalized)
-    normalized = _COMBINED_CAPACITY_PATTERN.sub(" ", normalized)
-    normalized = _CAPACITY_PATTERN.sub(" ", normalized)
-    normalized = _BUNDLE_PATTERN.sub(" ", normalized)
-    return normalize_product_text(normalized)
 
 
 def format_tolerant_like_pattern(query: str) -> str:
@@ -91,38 +56,32 @@ def requires_literal_product_lookup(query: str) -> bool:
 
 
 def rank_candidates(
-    query: str, candidates: list[ProductSearchCandidate]
+    query: str, candidates: list[ProductMatchCandidate]
 ) -> list[ProductSearchCandidate]:
     query_normalized = normalize_product_text(query)
     query_tokens = [normalize_product_text(token) for token in _TOKEN_PATTERN.findall(query)]
     ranked: list[tuple[MatchKey, ProductSearchCandidate]] = []
     for candidate in candidates:
-        full = normalize_product_text(candidate.product_name)
-        core = core_product_text(candidate.product_name)
-        tier = _match_tier(query_normalized, query_tokens, full, core)
+        product = candidate.product
+        cleaned_name = normalize_product_text(candidate.cleaned_product_name)
+        tier = _match_tier(query_normalized, query_tokens, cleaned_name)
         if tier is None:
             continue
-        difference = min(
-            abs(len(full) - len(query_normalized)), abs(len(core) - len(query_normalized))
-        )
-        ranked.append((MatchKey(tier, difference, candidate.product_name, candidate.id), candidate))
+        difference = abs(len(cleaned_name) - len(query_normalized))
+        ranked.append((MatchKey(tier, difference, cleaned_name, product.id), product))
     ranked.sort(key=lambda item: item[0])
     return [candidate for _key, candidate in ranked]
 
 
-def _match_tier(query: str, tokens: list[str], full: str, core: str) -> MatchTier | None:
-    if query == full:
-        return MatchTier.EXACT_FULL_NAME
-    if query == core:
-        return MatchTier.EXACT_CORE_NAME
-    if full.startswith(query) or core.startswith(query):
+def _match_tier(query: str, tokens: list[str], cleaned_name: str) -> MatchTier | None:
+    if query == cleaned_name:
+        return MatchTier.EXACT_CLEANED_NAME
+    if cleaned_name.startswith(query):
         return MatchTier.PREFIX
-    if query in full or query in core:
+    if query in cleaned_name:
         return MatchTier.SUBSTRING
     meaningful_tokens = [token for token in tokens if len(token) >= _MINIMUM_ANCHOR_LENGTH]
-    if meaningful_tokens and (
-        _tokens_in_order(meaningful_tokens, full) or _tokens_in_order(meaningful_tokens, core)
-    ):
+    if meaningful_tokens and _tokens_in_order(meaningful_tokens, cleaned_name):
         return MatchTier.ORDERED_TOKENS
     return None
 
