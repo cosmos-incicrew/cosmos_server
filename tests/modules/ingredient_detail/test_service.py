@@ -91,7 +91,7 @@ async def test_generates_explanation_when_evidence_present(monkeypatch: pytest.M
             "rec_efficacy": [
                 {
                     "ingredient_id": 1,
-                    "name_kr": "나이아신아마이드",
+                    "name_kor": "나이아신아마이드",
                     "inci": "NIACINAMIDE",
                     "efficacy": "피부 톤 개선",
                     "safety_note": "자극 낮음",
@@ -133,7 +133,7 @@ async def test_marks_safety_unconfirmed_when_missing(monkeypatch: pytest.MonkeyP
             "rec_efficacy": [
                 {
                     "ingredient_id": 2,
-                    "name_kr": "가지추출물",
+                    "name_kor": "가지추출물",
                     "inci": "EGGPLANT",
                     "efficacy": "피부 컨디셔닝",  # 효능 있음 → 해설은 됨
                     # safety_note 없음
@@ -157,7 +157,7 @@ async def test_removes_hallucinated_source(monkeypatch: pytest.MonkeyPatch) -> N
             "rec_efficacy": [
                 {
                     "ingredient_id": 3,
-                    "name_kr": "성분",
+                    "name_kor": "성분",
                     "inci": "X",
                     "efficacy": "보습",
                     "reference_source": "PubChem",
@@ -182,7 +182,7 @@ async def test_generates_product_summary(monkeypatch: pytest.MonkeyPatch) -> Non
             "rec_efficacy": [
                 {
                     "ingredient_id": 1,
-                    "name_kr": "성분A",
+                    "name_kor": "성분A",
                     "inci": "A",
                     "efficacy": "보습",
                     "recommended_skin_types": "건성",
@@ -217,7 +217,7 @@ async def test_includes_official_restriction_in_safety(
             "rec_efficacy": [
                 {
                     "ingredient_id": 5,
-                    "name_kr": "규제성분",
+                    "name_kor": "규제성분",
                     "inci": "R",
                     "efficacy": "보존",
                 }
@@ -254,7 +254,7 @@ async def test_multiple_restrictions_all_included(
             "rec_efficacy": [
                 {
                     "ingredient_id": 6,
-                    "name_kr": "다중규제",
+                    "name_kor": "다중규제",
                     "inci": "M",
                     "efficacy": "기능",
                 }
@@ -285,7 +285,7 @@ async def test_safety_unknown_when_no_restriction_and_no_note(
             "rec_efficacy": [
                 {
                     "ingredient_id": 7,
-                    "name_kr": "무정보",
+                    "name_kor": "무정보",
                     "inci": "N",
                     "efficacy": "보습",
                 }
@@ -341,7 +341,7 @@ async def test_returns_unconfirmed_when_only_name_exists(
     _patch_supabase(
         monkeypatch,
         {
-            "rec_efficacy": [{"ingredient_id": 4, "name_kr": "가공소금", "inci": None}],
+            "rec_efficacy": [{"ingredient_id": 4, "name_kor": "가공소금", "inci": None}],
             "ingredients": [],
             "restrictions": [],
         },
@@ -365,7 +365,7 @@ async def test_generates_with_only_product_traits(
             "rec_efficacy": [
                 {
                     "ingredient_id": 8,
-                    "name_kr": "특성만",
+                    "name_kor": "특성만",
                     "inci": "T",
                     "product_traits": "점도를 높여 제형을 안정시킴",
                 }
@@ -395,7 +395,7 @@ async def test_keeps_body_when_no_source_cited(
             "rec_efficacy": [
                 {
                     "ingredient_id": 9,
-                    "name_kr": "무출처",
+                    "name_kor": "무출처",
                     "inci": "N",
                     "efficacy": "보습",
                     "reference_source": "PubChem",
@@ -423,7 +423,7 @@ async def test_keeps_valid_source_from_evidence(
             "rec_efficacy": [
                 {
                     "ingredient_id": 10,
-                    "name_kr": "정상출처",
+                    "name_kor": "정상출처",
                     "inci": "V",
                     "efficacy": "진정",
                     "reference_source": "PubChem",
@@ -454,7 +454,7 @@ async def test_product_summary_skips_ingredients_without_evidence(
             "rec_efficacy": [
                 {
                     "ingredient_id": 1,
-                    "name_kr": "유효성분",
+                    "name_kor": "유효성분",
                     "inci": "A",
                     "efficacy": "보습",
                 }
@@ -481,7 +481,7 @@ async def test_product_summary_top_ingredients_limited_to_three(
             "rec_efficacy": [
                 {
                     "ingredient_id": 1,
-                    "name_kr": "성분",
+                    "name_kor": "성분",
                     "inci": "A",
                     "efficacy": "보습",
                 }
@@ -522,7 +522,7 @@ async def test_product_summary_unconfirmed_when_evidence_insufficient(
     _patch_supabase(
         monkeypatch,
         {
-            "rec_efficacy": [{"ingredient_id": 1, "name_kr": "이름만", "inci": None}],
+            "rec_efficacy": [{"ingredient_id": 1, "name_kor": "이름만", "inci": None}],
             "ingredients": [],
             "restrictions": [],
         },
@@ -549,7 +549,7 @@ async def test_ignores_empty_restriction_rows(
             "rec_efficacy": [
                 {
                     "ingredient_id": 11,
-                    "name_kr": "빈규제",
+                    "name_kor": "빈규제",
                     "inci": "E",
                     "efficacy": "보습",
                     "safety_note": "자극 낮음",
@@ -588,7 +588,7 @@ async def test_restriction_without_safety_note_still_marks_safety(
             "rec_efficacy": [
                 {
                     "ingredient_id": 12,
-                    "name_kr": "규제만",
+                    "name_kor": "규제만",
                     "inci": "O",
                     "efficacy": "보존",
                 }
@@ -635,7 +635,7 @@ async def test_raises_generation_failed_when_llm_fails(
             "rec_efficacy": [
                 {
                     "ingredient_id": 1,
-                    "name_kr": "성분",
+                    "name_kor": "성분",
                     "inci": "A",
                     "efficacy": "보습",
                 }
@@ -671,7 +671,7 @@ async def test_product_summary_survives_partial_fetch_failure(
         "rec_efficacy": [
             {
                 "ingredient_id": 1,
-                "name_kr": "성분A",
+                "name_kor": "성분A",
                 "inci": "A",
                 "efficacy": "보습",
             }
@@ -754,7 +754,7 @@ async def test_generates_comparison_summary(monkeypatch: pytest.MonkeyPatch) -> 
             "rec_efficacy": [
                 {
                     "ingredient_id": 1,
-                    "name_kr": "정제수",
+                    "name_kor": "정제수",
                     "inci": "WATER",
                     "efficacy": "용매 역할",
                 }
