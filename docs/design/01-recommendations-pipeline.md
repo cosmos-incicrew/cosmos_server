@@ -352,11 +352,11 @@ flowchart TD
 
 - **모든 retrieval 결과가 임계값 미달이면 생성을 호출하지 않고**
   `insufficient_evidence` 정형 응답을 반환한다 (근거 기반 생성 + 비용 보호 규칙).
-- 모델: `gemini_model_for(complex_query=False)` = **Flash** (2026-07-22 변경). 여러
-  근거를 종합하는 추천 최종 합성이라 llm-rag-rules의 Pro 사용 기준에는 해당하나,
-  Pro 실측 지연이 사소한 프롬프트에서도 ~15초라 최대 12,000자 근거를 얹으면 30초
-  타임아웃(§2-⑥ 아래)을 넘겨 502가 난다. Render 무료 티어 실사용자 502를 피하려
-  Flash로 내렸다. 생성 품질은 Langfuse groundedness 평가로 관측하고 미흡하면 재검토.
+- 모델: `gemini_model_for()` = 단일 모델(`settings.gemini_model`, 현재 flash-lite,
+  2026-07-23 통일). 여러 근거를 종합하는 추천 최종 합성이라 llm-rag-rules의 Pro 기준에는
+  해당하나, Pro 실측 지연이 사소한 프롬프트에서도 ~15초라 최대 12,000자 근거를 얹으면
+  30초 타임아웃(§2-⑥ 아래)을 넘겨 502가 난다. Render 무료 티어 실사용자 502를 피하려
+  저지연 모델로 통일했다. 생성 품질은 Langfuse groundedness 평가로 관측하고 미흡하면 재검토.
 - 프롬프트: 근거 청크(효능·케이스 답변·CoT step2) + UserContext(보유 성분 목록
   포함 — "현재 루틴에 없는 성분을 우선하고, 보유 성분을 추천할 땐 이미 사용
   중임을 언급"하도록 지시). 사용자 유래 값은 데이터 블록으로 격리한다
