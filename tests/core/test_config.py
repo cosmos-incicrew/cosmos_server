@@ -8,6 +8,9 @@ from tests.conftest import TEST_ENV
 def test_settings_load_from_env():
     settings = Settings()
     assert settings.supabase_url == TEST_ENV["SUPABASE_URL"]
+    assert settings.langfuse_base_url == TEST_ENV["LANGFUSE_BASE_URL"]
+    assert settings.langfuse_tracing_enabled is False
+    assert not hasattr(settings, "supabase_jwt_secret")
     assert settings.gemini_model_flash  # 기본값 존재
 
 

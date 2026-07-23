@@ -45,3 +45,26 @@ def test_unknown_route_uses_common_error_format():
     body = response.json()
     assert body["error"]["code"] == "HTTP_404"
     assert "message" in body["error"]
+
+
+def test_app_shutdown_closes_langfuse(monkeypatch):
+    import app.main as main_module
+
+    class FakeSettings:
+        langfuse_tracing_enabled = True
+
+    class FakeLangfuse:
+        def __init__(self) -> None:
+            self.shutdown_calls = 0
+
+        def shutdown(self) -> None:
+            self.shutdown_calls += 1
+
+    fake = FakeLangfuse()
+    monkeypatch.setattr(main_module, "get_settings", lambda: FakeSettings())
+    monkeypatch.setattr(main_module, "get_langfuse", lambda: fake)
+
+    with TestClient(main_module.app, raise_server_exceptions=False) as client:
+        assert client.get("/health").status_code == 200
+
+    assert fake.shutdown_calls == 1

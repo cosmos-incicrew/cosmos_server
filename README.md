@@ -24,13 +24,17 @@ cp .env.example .env    # 환경 변수 채우기
 | `KAKAO_ADMIN_KEY` | Kakao Developers → 앱 설정 → 앱 키 → Admin 키. 회원 탈퇴 시 카카오 앱 연결 해제에만 쓴다. 비워도 기동한다 |
 | `GEMINI_API_KEY` | 팀 공유 키 (노션 / 김민경) |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | Langfuse 프로젝트 Settings (접근: 김민경) |
-| `GEMINI_MODEL_*`, `LANGFUSE_HOST`, `LOG_LEVEL` | 기본값이 `app/core/config.py`에 있음. 바꿀 때만 지정 |
+| `GEMINI_MODEL_*`, `LANGFUSE_BASE_URL`, `LOG_LEVEL` | 기본값이 `app/core/config.py`에 있음. 바꿀 때만 지정 |
 
 필수값이 하나라도 비면 서버가 **기동 시점에** 즉시 실패한다.
 
 > `SUPABASE_JWT_SECRET`은 더 이상 쓰지 않는다 (2026-07-21). Supabase가 액세스 토큰을
 > ES256으로 서명하도록 바뀌어, 서버는 JWKS 공개키로 검증한다 (`app/core/auth.py`).
 > 기존 `.env`에 줄이 남아 있어도 기동에는 문제없다 — 지워도 된다.
+
+GCE에서는 `GCP_PROJECT_ID=kt-tech-up-01`, `GCP_LOCATION=global`만 지정하고 VM에 연결된
+서비스 계정의 Application Default Credentials를 사용한다. 서비스 계정 JSON 키와
+`GOOGLE_APPLICATION_CREDENTIALS`는 배포하지 않는다.
 
 실행·확인:
 

@@ -1,4 +1,6 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI, Request
@@ -8,6 +10,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.common.schemas import ErrorDetail, ErrorResponse
 from app.core.config import get_settings
+from app.core.langfuse import get_langfuse
 from app.modules.bsti.router import router as bsti_router
 from app.modules.ingredient_detail.router import router as ingredient_detail_router
 from app.modules.ingredient_search.router import router as ingredient_search_router
@@ -21,7 +24,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger("cosmos")
 
-app = FastAPI(title="cosmos API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """외부 클라이언트의 수명을 앱 프로세스와 맞춘다."""
+    del application
+    settings = get_settings()
+    langfuse = get_langfuse() if settings.langfuse_tracing_enabled else None
+    try:
+        yield
+    finally:
+        # SDK가 백그라운드로 모은 span을 프로세스 종료 전에 전송한다.
+        if langfuse is not None:
+            langfuse.shutdown()
+
+
+app = FastAPI(title="cosmos API", version="0.1.0", lifespan=lifespan)
 
 app.include_router(ingredient_search_router)
 app.include_router(ingredient_detail_router)

@@ -6,13 +6,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """서버 전역 설정. .env 또는 환경 변수에서 로딩하며 필수값 누락 시 기동에 실패한다."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        # 제거된 레거시 키가 개발자 로컬 .env에 남아 있어도 새 설정 로딩을 막지 않는다.
+        extra="ignore",
+    )
 
     supabase_url: str
     supabase_service_role_key: str
-    # 레거시 HS256 시크릿. 안 쓴다 (토큰은 ES256, app/core/auth.py 에서 JWKS 검증).
-    # 필드를 지우면 extra=forbid 때문에 이 줄이 남은 기존 .env 가 기동에 실패한다.
-    supabase_jwt_secret: str = ""
     # 회원 탈퇴 시 카카오 앱 연결을 끊는 데 쓴다 (app/core/kakao.py).
     # Kakao Developers → 앱 설정 → 앱 키 → Admin 키.
     # 비어 있으면 연결 해제를 건너뛴다 — 계정 삭제 자체는 그대로 동작한다.
@@ -30,7 +32,8 @@ class Settings(BaseSettings):
     google_application_credentials: str = ""
     langfuse_public_key: str
     langfuse_secret_key: str
-    langfuse_host: str = "https://cloud.langfuse.com"
+    langfuse_base_url: str = "https://cloud.langfuse.com"
+    langfuse_tracing_enabled: bool = True
     gemini_model_flash: str = "gemini-3.6-flash"
     # Pro 는 2.5 유지 — 3.x Pro 는 아직 preview 뿐이라 종료 예고가 짧다 (발표 7/27).
     gemini_model_pro: str = "gemini-2.5-pro"
