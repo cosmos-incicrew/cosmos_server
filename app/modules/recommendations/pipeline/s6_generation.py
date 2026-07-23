@@ -119,26 +119,9 @@ async def _call_gemini(
         },
     )
     raw = response.text or "{}"
-    # 출력에도 나이·성별이 자연어로 되풀이될 수 있다(프롬프트가 "고민·나이를 엮어 쓰라"
-    # 지시). 입력만 가리고 출력을 그대로 남기면 개인 속성이 트레이스로 우회된다.
-    _safe_trace(output=_redact_output(raw, context))
+    # 모델이 개인 속성을 되풀이해도 원문은 사용자에게만 보내고 정제본만 trace에 남긴다.
+    _safe_trace(output=_redact_model_output(raw, context))
     return LlmNarrative.model_validate(json.loads(raw))
-
-
-def _redact_output(text: str, context: UserContext) -> str:
-    """Langfuse 기록용 출력 사본에서 개인 속성을 마스킹한다 (best-effort).
-
-    사용자에게 가는 원문(response.text)은 그대로 두고 트레이스 사본만 가린다. 나이 숫자·
-    성별 라벨을 지운다 — 화장품 서사에서 이 값의 오탐 치환은 드물고, 트레이스 사본이라
-    실사용 응답에는 영향이 없다.
-    """
-    redacted = text
-    if context.age is not None:
-        redacted = redacted.replace(str(context.age), "[나이]")
-    gender = {"female": "여성", "male": "남성"}.get(context.gender or "")
-    if gender:
-        redacted = redacted.replace(gender, "[성별]")
-    return redacted
 
 
 def _safe_trace(**fields: Any) -> None:
