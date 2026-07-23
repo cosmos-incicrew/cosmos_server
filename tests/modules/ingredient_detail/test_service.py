@@ -13,7 +13,11 @@ from app.modules.ingredient_detail import service
 
 
 class _FakeQuery:
-    """Supabase 쿼리 체이닝(table().select().eq().execute()) 흉내."""
+    """Supabase 쿼리 체이닝(table().select().eq().in_()... .execute()) 흉내.
+
+    체이닝을 위해 각 메서드는 self를 반환하고, execute()가 준비된 행을 돌려준다.
+    필터 인자는 무시한다 — 테이블별 데이터를 미리 정해 넣기 때문이다.
+    """
 
     def __init__(self, rows: list[dict[str, Any]]):
         self._rows = rows
@@ -22,6 +26,15 @@ class _FakeQuery:
         return self
 
     def eq(self, *_: Any) -> "_FakeQuery":
+        return self
+
+    def in_(self, *_: Any) -> "_FakeQuery":
+        return self
+
+    def order(self, *_: Any, **__: Any) -> "_FakeQuery":
+        return self
+
+    def limit(self, *_: Any) -> "_FakeQuery":
         return self
 
     async def execute(self) -> Any:
@@ -88,14 +101,18 @@ async def test_generates_explanation_when_evidence_present(monkeypatch: pytest.M
             "ingredients": [{"origin_definition": "니코틴산 유도체"}],
         },
     )
-    _patch_gemini(monkeypatch, "나이아신아마이드는 피부 톤 개선에 도움을 줍니다.")
+    _patch_gemini(
+        monkeypatch,
+        "[해설]\n나이아신아마이드는 피부 톤 개선에 도움을 줍니다.\n[주의]\n자극이 낮은 편입니다.",
+    )
 
     result = await service.get_ingredient_detail(1)
 
     assert result.status == "ok"
     assert result.name == "나이아신아마이드"
     assert result.body is not None
-    assert result.safety == "자극 낮음"
+    # 주의사항은 LLM이 정제한 [주의] 부분에서 온다.
+    assert result.safety == "자극이 낮은 편입니다."
 
 
 async def test_raises_not_found_when_ingredient_absent(
@@ -549,11 +566,15 @@ async def test_ignores_empty_restriction_rows(
             ],
         },
     )
-    _patch_gemini(monkeypatch, "보습 성분입니다.")
+    _patch_gemini(
+        monkeypatch,
+        "[해설]\n보습 성분입니다.\n[주의]\n자극이 낮은 편입니다.",
+    )
 
     result = await service.get_ingredient_detail(11)
 
-    assert result.safety == "자극 낮음"
+    # 내용이 빈 규제 행은 무시되므로 공식 규제 표기가 붙지 않는다.
+    assert result.safety == "자극이 낮은 편입니다."
     assert "공식 규제" not in (result.safety or "")
 
 
@@ -999,3 +1020,74 @@ async def test_comparison_never_drops_restricted_ingredients(
     # 15개 규제 성분이 하나도 빠지지 않아야 한다.
     for i in range(1, 16):
         assert f"규제성분{i}" in captured["contents"]
+
+
+# ── 성분 이름 조회 ────────────────────────────────────────────
+
+
+async def test_returns_names_in_request_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """요청한 순서(배합순)를 유지해 이름을 반환한다."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "ingredients": [
+                {"ingredient_id": 2, "name_kor": "글리세린", "name_eng": "Glycerin"},
+                {"ingredient_id": 1, "name_kor": "정제수", "name_eng": "Water"},
+            ],
+        },
+    )
+
+    result = await service.get_ingredient_names([1, 2])
+
+    assert [i.ingredient_id for i in result.ingredients] == [1, 2]
+    assert result.ingredients[0].name_kr == "정제수"
+    assert result.ingredients[1].name_kr == "글리세린"
+
+
+async def test_missing_ingredient_returns_null_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """DB에 없는 id도 항목은 반환하되 이름은 null이다(개수 일치)."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "ingredients": [
+                {"ingredient_id": 1, "name_kor": "정제수", "name_eng": "Water"},
+            ],
+        },
+    )
+
+    result = await service.get_ingredient_names([1, 999])
+
+    assert len(result.ingredients) == 2
+    assert result.ingredients[1].ingredient_id == 999
+    assert result.ingredients[1].name_kr is None
+
+
+async def test_deduplicates_ingredient_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """중복 id는 한 번만 반환한다."""
+    _patch_supabase(
+        monkeypatch,
+        {
+            "ingredients": [
+                {"ingredient_id": 1, "name_kor": "정제수", "name_eng": "Water"},
+            ],
+        },
+    )
+
+    result = await service.get_ingredient_names([1, 1, 1])
+
+    assert len(result.ingredients) == 1
+
+
+async def test_empty_ids_returns_empty_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """빈 목록을 요청하면 빈 목록을 반환한다(조회하지 않음)."""
+    result = await service.get_ingredient_names([])
+
+    assert result.ingredients == []

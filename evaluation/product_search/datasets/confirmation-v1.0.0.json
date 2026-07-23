@@ -1,0 +1,1688 @@
+{
+  "dataset_version": "1.0.0",
+  "dataset_kind": "confirmation",
+  "sampling_seed": 20260723,
+  "generated_at": "2026-07-22T08:00:38.090839Z",
+  "cases": [
+    {
+      "case_id": "CONF-001",
+      "query": "[NCT태용 PICK/1+1] 비원츠 펩타이드-X 퍼밍 아이세럼스틱 리필기획 (15ml+15ml)",
+      "scenario": "full_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 37,
+      "source_product_name": "[NCT태용 PICK/1+1] 비원츠 펩타이드-X 퍼밍 아이세럼스틱 리필기획 (15ml+15ml)",
+      "source_brand": "비원츠",
+      "acceptable_product_ids": [
+        37
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-002",
+      "query": "[잡티컷세럼/미백] 엑시스와이 잡티케어 글로우 세럼 50ml",
+      "scenario": "full_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 1817,
+      "source_product_name": "[잡티컷세럼/미백] 엑시스와이 잡티케어 글로우 세럼 50ml",
+      "source_brand": "엑시스와이",
+      "acceptable_product_ids": [
+        1817
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-003",
+      "query": "[뿌리는PDRN] 차앤박 더마앤서 스킨 부스팅 세럼 미스트 100g",
+      "scenario": "full_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 2484,
+      "source_product_name": "[뿌리는PDRN] 차앤박 더마앤서 스킨 부스팅 세럼 미스트 100g",
+      "source_brand": "차앤박",
+      "acceptable_product_ids": [
+        2484
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-004",
+      "query": "[7월올영픽/쿨링붓기세럼] 프리메라 3C히알루론산 하이드레이션 써지 세럼 기획 (25g+20g)",
+      "scenario": "full_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 2191,
+      "source_product_name": "[7월올영픽/쿨링붓기세럼] 프리메라 3C히알루론산 하이드레이션 써지 세럼 기획 (25g+20g)",
+      "source_brand": "프리메라",
+      "acceptable_product_ids": [
+        2191
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-005",
+      "query": "메디힐 마데카소사이드 모공 리페어 스피큘 세럼",
+      "scenario": "brand_and_core_name",
+      "product_category": "스킨케어",
+      "source_product_id": 1486,
+      "source_product_name": "메디힐 마데카소사이드 모공 리페어 스피큘 세럼 40ml",
+      "source_brand": "메디힐",
+      "acceptable_product_ids": [
+        1486
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-006",
+      "query": "리얼베리어 익스트림 로션",
+      "scenario": "brand_and_core_name",
+      "product_category": "스킨케어",
+      "source_product_id": 2281,
+      "source_product_name": "리얼베리어 익스트림 로션 150ml 기획 (+50ml)",
+      "source_brand": "리얼베리어",
+      "acceptable_product_ids": [
+        2281
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-007",
+      "query": "장벽크림 더랩바이블랑두 프리바이오틱세라 크림",
+      "scenario": "brand_and_core_name",
+      "product_category": "스킨케어",
+      "source_product_id": 176,
+      "source_product_name": "[장벽크림] 더랩바이블랑두 프리바이오틱세라 크림 50ml",
+      "source_brand": "더랩바이블랑두",
+      "acceptable_product_ids": [
+        176
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-008",
+      "query": "더랩바이블랑두 엑스퍼트루 잡티케어 세럼",
+      "scenario": "brand_and_core_name",
+      "product_category": "스킨케어",
+      "source_product_id": 1288,
+      "source_product_name": "더랩바이블랑두 엑스퍼트루 잡티케어 세럼 30ml",
+      "source_brand": "더랩바이블랑두",
+      "acceptable_product_ids": [
+        1288
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-009",
+      "query": "어바웃미 숲 진정 수분크림 *",
+      "scenario": "brand_and_core_name",
+      "product_category": "스킨케어",
+      "source_product_id": 519,
+      "source_product_name": "어바웃미 숲 진정 수분크림 80ml 기획 (+10ml) *",
+      "source_brand": "어바웃미",
+      "acceptable_product_ids": [
+        519
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-010",
+      "query": "운스트라움 에센셜 올인원",
+      "scenario": "brand_and_core_name",
+      "product_category": "스킨케어",
+      "source_product_id": 5831,
+      "source_product_name": "운스트라움 에센셜 올인원 150ml",
+      "source_brand": "운스트라움",
+      "acceptable_product_ids": [
+        5831
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-011",
+      "query": "센텔리안24 연어 PDRN 퍼밍 부스팅 앰플 업체배송",
+      "scenario": "brand_and_core_name",
+      "product_category": "스킨케어",
+      "source_product_id": 1629,
+      "source_product_name": "센텔리안24 연어 PDRN 퍼밍 부스팅 앰플 (업체배송)",
+      "source_brand": "센텔리안24",
+      "acceptable_product_ids": [
+        1629
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-012",
+      "query": "수량 하이드라비오 세럼",
+      "scenario": "core_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 1529,
+      "source_product_name": "[한정 수량]바이오더마 하이드라비오 세럼 40ml 더블 기획",
+      "source_brand": "바이오더마",
+      "acceptable_product_ids": [
+        1529
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-013",
+      "query": "리뉴얼 10겹장벽크림 세라마이딘 울트라 모이스처라이징 크림",
+      "scenario": "core_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 142,
+      "source_product_name": "[리뉴얼/10겹장벽크림] 닥터자르트 세라마이딘 울트라 모이스처라이징 크림 50ml 1+1 기획",
+      "source_brand": "닥터자르트",
+      "acceptable_product_ids": [
+        142
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-014",
+      "query": "온라인 진정SET 티트리 시카 수딩 토너&크림 세트",
+      "scenario": "core_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 914,
+      "source_product_name": "[온라인단독|진정SET] 브링그린 티트리 시카 수딩 토너&크림 세트",
+      "source_brand": "브링그린",
+      "acceptable_product_ids": [
+        914
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-015",
+      "query": "히알루 B5 수분탄력 크림",
+      "scenario": "core_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 241,
+      "source_product_name": "라로슈포제 히알루 B5 수분탄력 크림 50ml",
+      "source_brand": "라로슈포제",
+      "acceptable_product_ids": [
+        241
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-016",
+      "query": "이지컨트롤 토너미스트",
+      "scenario": "core_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 2457,
+      "source_product_name": "알파루틴 이지컨트롤 토너미스트 200ml",
+      "source_brand": "알파루틴",
+      "acceptable_product_ids": [
+        2457
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-017",
+      "query": "라로슈포제 에빠끌라 K 토너",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "스킨케어",
+      "source_product_id": 854,
+      "source_product_name": "라로슈포제 에빠끌라 K(+) 토너 200ml 기획(+에빠끌라 폼 50ml)",
+      "source_brand": "라로슈포제",
+      "acceptable_product_ids": [
+        854
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-018",
+      "query": "제이엠솔루션 릴리프 약산성 약쑥 앰플",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "스킨케어",
+      "source_product_id": 1895,
+      "source_product_name": "제이엠솔루션 릴리프 약산성 약쑥 앰플 50ml",
+      "source_brand": "제이엠솔루션",
+      "acceptable_product_ids": [
+        1895
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-019",
+      "query": "이지듀 기미잡티앰플",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "스킨케어",
+      "source_product_id": 1882,
+      "source_product_name": "이지듀 기미잡티앰플 12ml+1ml 기획",
+      "source_brand": "이지듀",
+      "acceptable_product_ids": [
+        1882
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-020",
+      "query": "폴라초이스 스킨 발란싱 수분 젤",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "스킨케어",
+      "source_product_id": 2365,
+      "source_product_name": "폴라초이스 스킨 발란싱 수분 젤 60ml",
+      "source_brand": "폴라초이스",
+      "acceptable_product_ids": [
+        2365
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-021",
+      "query": "[수분/진정]아이소이포맨아쿠아수딩토너150ml",
+      "scenario": "format_variation",
+      "product_category": "스킨케어",
+      "source_product_id": 986,
+      "source_product_name": "[수분/진정] 아이소이 포맨 아쿠아 수딩 토너 150ml",
+      "source_brand": "아이소이",
+      "acceptable_product_ids": [
+        986
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-022",
+      "query": "[각질개선율191%]리쥬란더마힐러모이스처트리트먼트토너150ml",
+      "scenario": "format_variation",
+      "product_category": "스킨케어",
+      "source_product_id": 880,
+      "source_product_name": "[각질개선율191%]리쥬란 더마 힐러 모이스처 트리트먼트 토너 150ml",
+      "source_brand": "리쥬란",
+      "acceptable_product_ids": [
+        880
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-023",
+      "query": "[장도연PICK/1+1]메디힐비타민씨브라이트닝세럼40+40ml더블기획",
+      "scenario": "format_variation",
+      "product_category": "스킨케어",
+      "source_product_id": 1490,
+      "source_product_name": "[장도연 PICK/1+1] 메디힐 비타민씨 브라이트닝 세럼 40+40ml 더블 기획",
+      "source_brand": "메디힐",
+      "acceptable_product_ids": [
+        1490
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-024",
+      "query": "오휘마이스터포맨프레쉬로션110ml",
+      "scenario": "format_variation",
+      "product_category": "스킨케어",
+      "source_product_id": 2331,
+      "source_product_name": "오휘 마이스터 포맨 프레쉬 로션 110ml",
+      "source_brand": "오휘",
+      "acceptable_product_ids": [
+        2331
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-025",
+      "query": "에스테덤셀룰러워터프레쉬젤40ml",
+      "scenario": "format_variation",
+      "product_category": "스킨케어",
+      "source_product_id": 533,
+      "source_product_name": "에스테덤 셀룰러 워터 프레쉬 젤 40ml",
+      "source_brand": "에스테덤",
+      "acceptable_product_ids": [
+        533
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-026",
+      "query": "마이뷰티다이어리 흑진주마스크 8매입",
+      "scenario": "full_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 2671,
+      "source_product_name": "마이뷰티다이어리 흑진주마스크 8매입",
+      "source_brand": "마이뷰티다이어리",
+      "acceptable_product_ids": [
+        2671
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-027",
+      "query": "[데일리루틴/집중보습] 아리얼 세븐데이즈 마스크 대나무 B 10매+5매 기획",
+      "scenario": "full_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 2793,
+      "source_product_name": "[데일리루틴/집중보습] 아리얼 세븐데이즈 마스크 대나무 B 10매+5매 기획",
+      "source_brand": "아리얼",
+      "acceptable_product_ids": [
+        2793
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-028",
+      "query": "아이디플라코스메틱 더마스틱 워터핏 마스크 5매 (온)",
+      "scenario": "full_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 2819,
+      "source_product_name": "아이디플라코스메틱 더마스틱 워터핏 마스크 5매 (온)",
+      "source_brand": "아이디플라코스메틱",
+      "acceptable_product_ids": [
+        2819
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-029",
+      "query": "[착붙콜라겐] 아비브 콜라겐 아이패치 부활초 젤리 60매",
+      "scenario": "full_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 4334,
+      "source_product_name": "[착붙콜라겐] 아비브 콜라겐 아이패치 부활초 젤리 60매",
+      "source_brand": "아비브",
+      "acceptable_product_ids": [
+        4334
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-030",
+      "query": "제나벨 PDRN 리쥬비네이팅 마스크팩",
+      "scenario": "brand_and_core_name",
+      "product_category": "마스크팩",
+      "source_product_id": 2876,
+      "source_product_name": "제나벨 PDRN 리쥬비네이팅 마스크팩 5매",
+      "source_brand": "제나벨",
+      "acceptable_product_ids": [
+        2876
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-031",
+      "query": "3분모공팩 비플레인 녹두 모공 클레이 팩",
+      "scenario": "brand_and_core_name",
+      "product_category": "마스크팩",
+      "source_product_id": 4168,
+      "source_product_name": "[3분모공팩] 비플레인 녹두 모공 클레이 팩 120ml (+12ml*4ea 증정기획)",
+      "source_brand": "비플레인",
+      "acceptable_product_ids": [
+        4168
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-032",
+      "query": "화해1위 프롬메디 겔 마스크 3종 아줄렌 TXA 콜라겐",
+      "scenario": "brand_and_core_name",
+      "product_category": "마스크팩",
+      "source_product_id": 3366,
+      "source_product_name": "[화해1위] 프롬메디 겔 마스크 기획 4매 3종 (아줄렌/TXA/콜라겐)",
+      "source_brand": "프롬메디",
+      "acceptable_product_ids": [
+        3366
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-033",
+      "query": "브이라인 탄력케어 라운드랩 동백 딥 콜라겐 브이 리프팅 겔 마스크",
+      "scenario": "brand_and_core_name",
+      "product_category": "마스크팩",
+      "source_product_id": 3181,
+      "source_product_name": "[브이라인/탄력케어] 라운드랩 동백 딥 콜라겐 브이 리프팅 겔 마스크 1매",
+      "source_brand": "라운드랩",
+      "acceptable_product_ids": [
+        3181
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-034",
+      "query": "더마토리 프로 앰플 마스크 4종 택1 수분 탄력 미백 진정",
+      "scenario": "brand_and_core_name",
+      "product_category": "마스크팩",
+      "source_product_id": 2609,
+      "source_product_name": "더마토리 프로 앰플 마스크 1매 4종 택1 (수분/탄력/미백/진정)",
+      "source_brand": "더마토리",
+      "acceptable_product_ids": [
+        2609
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "CONF-035",
+      "query": "원조겔팩 바이오던스 리얼 딥 마스크 PDRN 콜라겐 세라놀 비타 씨켈프",
+      "scenario": "brand_and_core_name",
+      "product_category": "마스크팩",
+      "source_product_id": 3333,
+      "source_product_name": "[원조겔팩] 바이오던스 리얼 딥 마스크 4매 (PDRN, 콜라겐, 세라놀, 비타, 씨켈프)",
+      "source_brand": "바이오던스",
+      "acceptable_product_ids": [
+        3333
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-036",
+      "query": "72관왕 1위 모델링 팩 컵팩 7종 택1",
+      "scenario": "core_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 4032,
+      "source_product_name": "[72관왕/1위] 린제이 모델링 팩 (컵팩)  7종 택1",
+      "source_brand": "린제이",
+      "acceptable_product_ids": [
+        4032
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "CONF-037",
+      "query": "에이씨 컬렉션 블레미쉬 케어 시트 마스크",
+      "scenario": "core_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 2904,
+      "source_product_name": "코스알엑스 에이씨 컬렉션 블레미쉬 케어 시트 마스크",
+      "source_brand": "코스알엑스",
+      "acceptable_product_ids": [
+        2904
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-038",
+      "query": "모공 탄력 레드락토 콜라겐 포어 리프팅 마스크",
+      "scenario": "core_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 2677,
+      "source_product_name": "[모공/탄력] 메디필 레드락토 콜라겐 포어 리프팅 마스크 1매",
+      "source_brand": "메디필",
+      "acceptable_product_ids": [
+        2677
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-039",
+      "query": "패드 다이브인 밸런스풀 리필 2종 택 1 수분 진정",
+      "scenario": "core_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 3806,
+      "source_product_name": "[1+1] 토리든 패드 다이브인/밸런스풀 리필기획 2종 택 1(수분/진정)",
+      "source_brand": "토리든",
+      "acceptable_product_ids": [
+        3806
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "CONF-040",
+      "query": "프레시 마스크 히알루 수분 티트리 진정 글루타치온 톤업 알로에 수딩",
+      "scenario": "core_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 2744,
+      "source_product_name": "브링그린 프레시 마스크 1매/10매 (히알루 수분/티트리 진정/글루타치온 톤업/알로에 수딩)",
+      "source_brand": "브링그린",
+      "acceptable_product_ids": [
+        2744
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-041",
+      "query": "스킨푸드 캐롯 카로틴 카밍 워터 패드",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "마스크팩",
+      "source_product_id": 3724,
+      "source_product_name": "[1+1/한정기획] 스킨푸드 캐롯 카로틴 카밍 워터 패드 60매 더블기획 (+PDRN 패드 2매*3)",
+      "source_brand": "스킨푸드",
+      "acceptable_product_ids": [
+        3724
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-042",
+      "query": "탄산버블 브라이트닝 피캄 붉은 쌀 버블 딥 마스크",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "마스크팩",
+      "source_product_id": 4238,
+      "source_product_name": "[탄산버블/브라이트닝] 피캄 붉은 쌀 버블 딥 마스크 90g",
+      "source_brand": "피캄",
+      "acceptable_product_ids": [
+        4238
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-043",
+      "query": "워터젤리 수분장벽 닥터자르트 더마스크 하이드라 솔루션 프로 2종 택1",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "마스크팩",
+      "source_product_id": 2988,
+      "source_product_name": "[워터젤리/수분장벽] 닥터자르트 더마스크 하이드라 솔루션 프로 (1매) 2종 택1",
+      "source_brand": "닥터자르트",
+      "acceptable_product_ids": [
+        2988
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "CONF-044",
+      "query": "수분충전 오돌토돌 결케어 로벡틴 닥터마스크 아쿠아",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "마스크팩",
+      "source_product_id": 2643,
+      "source_product_name": "[수분충전/오돌토돌 결케어] 로벡틴 닥터마스크 아쿠아 1매",
+      "source_brand": "로벡틴",
+      "acceptable_product_ids": [
+        2643
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-045",
+      "query": "1등 마스크 에센스 한병팩 니들리 레티핏 콜라겐 겔 마스크",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "마스크팩",
+      "source_product_id": 3164,
+      "source_product_name": "[1등 마스크 / 에센스 한병팩] 니들리 레티핏 콜라겐 겔 마스크 4매",
+      "source_brand": "니들리",
+      "acceptable_product_ids": [
+        3164
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-046",
+      "query": "[가성비겔마스크/고밀착고농축]믹순PDRN겔마스크5매2종택1(히알레배,비타민)",
+      "scenario": "format_variation",
+      "product_category": "마스크팩",
+      "source_product_id": 2712,
+      "source_product_name": "[가성비겔마스크/고밀착고농축] 믹순 PDRN 겔 마스크 5매 2종 택1 (히알레배, 비타민)",
+      "source_brand": "믹순",
+      "acceptable_product_ids": [
+        2712
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "CONF-047",
+      "query": "[콜라겐/히알루론산퀵버블마스크]프리메이글로우부스터버블마스크95ml2종택1(핑크콜라겐/블루모이스춰)",
+      "scenario": "format_variation",
+      "product_category": "마스크팩",
+      "source_product_id": 4046,
+      "source_product_name": "[콜라겐/히알루론산 퀵 버블마스크]프리메이 글로우 부스터 버블 마스크 95ml 2종 택 1(핑크 콜라겐/블루 모이스춰)",
+      "source_brand": "프리메이",
+      "acceptable_product_ids": [
+        4046
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "CONF-048",
+      "query": "[올영단독]아임프롬허니마스크70ml더블기획",
+      "scenario": "format_variation",
+      "product_category": "마스크팩",
+      "source_product_id": 4190,
+      "source_product_name": "[올영단독] 아임프롬 허니 마스크 70ml 더블 기획",
+      "source_brand": "아임프롬",
+      "acceptable_product_ids": [
+        4190
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-049",
+      "query": "아임쏘리포마이스킨pH5.5수딩젤리마스크",
+      "scenario": "format_variation",
+      "product_category": "마스크팩",
+      "source_product_id": 2842,
+      "source_product_name": "아임쏘리포마이스킨 pH5.5 수딩 젤리마스크",
+      "source_brand": "얼트루",
+      "acceptable_product_ids": [
+        2842
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-050",
+      "query": "[수분결광/TXA]셀리맥스트라넥삼산브라이트닝잡티패드80매기획(+20매)",
+      "scenario": "format_variation",
+      "product_category": "마스크팩",
+      "source_product_id": 3709,
+      "source_product_name": "[수분결광/TXA] 셀리맥스 트라넥삼산 브라이트닝 잡티 패드 80매 기획 (+20매)",
+      "source_brand": "셀리맥스",
+      "acceptable_product_ids": [
+        3709
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-051",
+      "query": "[곡선쉐입] 네이처리퍼블릭 캘리포니아 알로에 선스틱 SPF50+ PA++++ 3종 (보송/쿨링수분/진정)",
+      "scenario": "full_product_name",
+      "product_category": "선케어",
+      "source_product_id": 5679,
+      "source_product_name": "[곡선쉐입] 네이처리퍼블릭 캘리포니아 알로에 선스틱 SPF50+ PA++++ 3종 (보송/쿨링수분/진정)",
+      "source_brand": "네이처리퍼블릭",
+      "acceptable_product_ids": [
+        5679
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-052",
+      "query": "니베아 선 프로텍트 앤 라이트 필 퍼펙트 선세럼 SPF50+ PA+++",
+      "scenario": "full_product_name",
+      "product_category": "선케어",
+      "source_product_id": 4961,
+      "source_product_name": "니베아 선 프로텍트 앤 라이트 필 퍼펙트 선세럼 SPF50+ PA+++",
+      "source_brand": "니베아",
+      "acceptable_product_ids": [
+        4961
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-053",
+      "query": "[파데프리/톤업] 조선미녀 데일리 틴티드 선세럼 50ml (기획/단품)",
+      "scenario": "full_product_name",
+      "product_category": "선케어",
+      "source_product_id": 5547,
+      "source_product_name": "[파데프리/톤업] 조선미녀 데일리 틴티드 선세럼 50ml (기획/단품)",
+      "source_brand": "조선미녀",
+      "acceptable_product_ids": [
+        5547
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-054",
+      "query": "보습장벽 판테놀 로벡틴 인텐스 모이스처 선크림 딥 모이스처",
+      "scenario": "brand_and_core_name",
+      "product_category": "선케어",
+      "source_product_id": 5089,
+      "source_product_name": "[보습장벽/판테놀] 로벡틴 인텐스 모이스처 선크림 50ml (딥 모이스처)",
+      "source_brand": "로벡틴",
+      "acceptable_product_ids": [
+        5089
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-055",
+      "query": "즉각쿨링 라운드랩 자작나무 수분 선스틱",
+      "scenario": "brand_and_core_name",
+      "product_category": "선케어",
+      "source_product_id": 5607,
+      "source_product_name": "[즉각쿨링] 라운드랩 자작나무 수분 선스틱 19g",
+      "source_brand": "라운드랩",
+      "acceptable_product_ids": [
+        5607
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-056",
+      "query": "수분선크림 화잘먹 토코보 바이오 워터리 선크림 SPF50+ PA++++",
+      "scenario": "brand_and_core_name",
+      "product_category": "선케어",
+      "source_product_id": 5455,
+      "source_product_name": "[수분선크림/화잘먹] 토코보 바이오 워터리 선크림 기획 (50ml+10ml*2ea) SPF50+ PA++++",
+      "source_brand": "토코보",
+      "acceptable_product_ids": [
+        5455
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-057",
+      "query": "키드 선크림 바이오더마 포토덤 페디아트릭스 레 SPF50+",
+      "scenario": "brand_and_core_name",
+      "product_category": "선케어",
+      "source_product_id": 5144,
+      "source_product_name": "[키드 선크림]바이오더마 포토덤 페디아트릭스 레 SPF50+ 100ml",
+      "source_brand": "바이오더마",
+      "acceptable_product_ids": [
+        5144
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-058",
+      "query": "진정자차 키엘 울트라 라이트 데일리 유브이 디펜스 썬 스크린",
+      "scenario": "brand_and_core_name",
+      "product_category": "선케어",
+      "source_product_id": 5438,
+      "source_product_name": "[진정자차] 키엘 울트라 라이트 데일리 유브이 디펜스 썬 스크린 60ml",
+      "source_brand": "키엘",
+      "acceptable_product_ids": [
+        5438
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-059",
+      "query": "데이지크 아쿠아 쉘 선크림",
+      "scenario": "brand_and_core_name",
+      "product_category": "선케어",
+      "source_product_id": 5020,
+      "source_product_name": "데이지크 아쿠아 쉘 선크림 50ml",
+      "source_brand": "데이지크",
+      "acceptable_product_ids": [
+        5020
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-060",
+      "query": "보호 하이퍼 디펜스 선스크린",
+      "scenario": "core_product_name",
+      "product_category": "선케어",
+      "source_product_id": 4929,
+      "source_product_name": "보호 하이퍼 디펜스 선스크린 50ml",
+      "source_brand": "BOHO",
+      "acceptable_product_ids": [
+        4929
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-061",
+      "query": "선슈얼 액티브 프루프 선",
+      "scenario": "core_product_name",
+      "product_category": "선케어",
+      "source_product_id": 5394,
+      "source_product_name": "정샘물 선슈얼 액티브 프루프 선 70ml",
+      "source_brand": "정샘물",
+      "acceptable_product_ids": [
+        5394
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-062",
+      "query": "별의커비콜라보 크로노 뷰티 커비 에디션 선케어 3종 젤UV 프라이머UV 컬러튜닝UV",
+      "scenario": "core_product_name",
+      "product_category": "선케어",
+      "source_product_id": 5539,
+      "source_product_name": "[한정/별의커비콜라보] 알리 크로노 뷰티 커비 에디션 선케어 3종 (젤UV/프라이머UV/컬러튜닝UV)",
+      "source_brand": "알리",
+      "acceptable_product_ids": [
+        5539
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-063",
+      "query": "투명톤업&촉촉 워터풀 블루 톤업 선크림",
+      "scenario": "core_product_name",
+      "product_category": "선케어",
+      "source_product_id": 5003,
+      "source_product_name": "[투명톤업&촉촉] 달바 워터풀 블루 톤업 선크림 50ml",
+      "source_brand": "달바",
+      "acceptable_product_ids": [
+        5003
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-064",
+      "query": "이사배 마스터즈 아이시 젤리 선스틱",
+      "scenario": "core_product_name",
+      "product_category": "선케어",
+      "source_product_id": 5572,
+      "source_product_name": "[이사배PICK]AHC 마스터즈 아이시 젤리 선스틱 14g",
+      "source_brand": "AHC",
+      "acceptable_product_ids": [
+        5572
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-065",
+      "query": "뽀용톤업 무기자차 메이크프렘 수딩 핑크 톤업 선크림",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "선케어",
+      "source_product_id": 5120,
+      "source_product_name": "[뽀용톤업/무기자차] 메이크프렘 수딩 핑크 톤업 선크림 40ml+40ml 기획 (+20ml)",
+      "source_brand": "메이크프렘",
+      "acceptable_product_ids": [
+        5120
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-066",
+      "query": "수분밀착썬 셀퓨전씨 아쿠아티카 쿨링 썬스크린",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "선케어",
+      "source_product_id": 5192,
+      "source_product_name": "[수분밀착썬]셀퓨전씨 아쿠아티카 쿨링 썬스크린 35ml 기획 (+20ml)",
+      "source_brand": "셀퓨전씨",
+      "acceptable_product_ids": [
+        5192
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-067",
+      "query": "2입 스킨1004 마다가스카르 센텔라 히알루-시카 워터핏 선세럼",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "선케어",
+      "source_product_id": 5208,
+      "source_product_name": "[2입 기획] 스킨1004 마다가스카르 센텔라 히알루-시카 워터핏 선세럼 50ml 더블기획",
+      "source_brand": "스킨1004",
+      "acceptable_product_ids": [
+        5208
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-068",
+      "query": "[NEW/생기착붙]토리든셀메이징핑크베이지톤업선크림60ml기획(+20ml)",
+      "scenario": "format_variation",
+      "product_category": "선케어",
+      "source_product_id": 5453,
+      "source_product_name": "[NEW/생기착붙] 토리든 셀메이징 핑크베이지 톤업 선크림 60ml 기획 (+20ml)",
+      "source_brand": "토리든",
+      "acceptable_product_ids": [
+        5453
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-069",
+      "query": "[리뷰이벤트/파데프리/톤업선크림]체이싱래빗올어바웃글로우톤업선70ml",
+      "scenario": "format_variation",
+      "product_category": "선케어",
+      "source_product_id": 5418,
+      "source_product_name": "[리뷰이벤트/파데프리/톤업선크림] 체이싱래빗 올어바웃 글로우 톤업 선 70ml",
+      "source_brand": "체이싱래빗",
+      "acceptable_product_ids": [
+        5418
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-070",
+      "query": "[보송밀착/워터프루프]아비브에어리선스틱스무딩바23g",
+      "scenario": "format_variation",
+      "product_category": "선케어",
+      "source_product_id": 5642,
+      "source_product_name": "[보송밀착/워터프루프] 아비브 에어리 선스틱 스무딩 바 23g",
+      "source_brand": "아비브",
+      "acceptable_product_ids": [
+        5642
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-071",
+      "query": "[모공전용딥클렌징] 메디필 레드 락토 콜라겐 클렌징 오일 2.0 200ml",
+      "scenario": "full_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4407,
+      "source_product_name": "[모공전용딥클렌징] 메디필 레드 락토 콜라겐 클렌징 오일 2.0 200ml",
+      "source_brand": "메디필",
+      "acceptable_product_ids": [
+        4407
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-072",
+      "query": "[1등피지클리너] 일소 슈퍼 멜팅 세범 소프트너 150g 기획 (+착붙솜40매+모공팩1매)",
+      "scenario": "full_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4779,
+      "source_product_name": "[1등피지클리너] 일소 슈퍼 멜팅 세범 소프트너 150g 기획 (+착붙솜40매+모공팩1매)",
+      "source_brand": "일소",
+      "acceptable_product_ids": [
+        4779
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-073",
+      "query": "케어존 닥터솔루션 클렌징 티슈 60매",
+      "scenario": "full_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4914,
+      "source_product_name": "케어존 닥터솔루션 클렌징 티슈 60매",
+      "source_brand": "케어존",
+      "acceptable_product_ids": [
+        4914
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-074",
+      "query": "[데일리/각질 진정] 더말로지카 효소 엔자임 파우더 클렌징 폴리언트 13g 3종 택 1 (마이크로,밀크,수퍼)",
+      "scenario": "full_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4804,
+      "source_product_name": "[데일리/각질 진정] 더말로지카 효소 엔자임 파우더 클렌징 폴리언트 13g 3종 택 1 (마이크로,밀크,수퍼)",
+      "source_brand": "더말로지카",
+      "acceptable_product_ids": [
+        4804
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "CONF-075",
+      "query": "폼 비페스타 클렌징티슈 세럼 모이스트 보습개선",
+      "scenario": "brand_and_core_name",
+      "product_category": "클렌징",
+      "source_product_id": 4891,
+      "source_product_name": "[폼증정] 비페스타 클렌징티슈 세럼 모이스트 46매 (보습개선)",
+      "source_brand": "비페스타",
+      "acceptable_product_ids": [
+        4891
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-076",
+      "query": "에이트루 퓨어 밸런싱 클렌징 오일",
+      "scenario": "brand_and_core_name",
+      "product_category": "클렌징",
+      "source_product_id": 4474,
+      "source_product_name": "[NEW] 에이트루 퓨어 밸런싱 클렌징 오일 150ml 기획",
+      "source_brand": "에이트루",
+      "acceptable_product_ids": [
+        4474
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-077",
+      "query": "비플레인 녹두 약산성 클렌징 워터 티슈",
+      "scenario": "brand_and_core_name",
+      "product_category": "클렌징",
+      "source_product_id": 4896,
+      "source_product_name": "비플레인 녹두 약산성 클렌징 워터 티슈 20매",
+      "source_brand": "비플레인",
+      "acceptable_product_ids": [
+        4896
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-078",
+      "query": "코칫솔 맥스클리닉 포어리스 딥 클렌징 오일",
+      "scenario": "brand_and_core_name",
+      "product_category": "클렌징",
+      "source_product_id": 4404,
+      "source_product_name": "[코칫솔 증정] 맥스클리닉 포어리스 딥 클렌징 오일 200ml",
+      "source_brand": "맥스클리닉",
+      "acceptable_product_ids": [
+        4404
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-079",
+      "query": "미세먼지 세정 각질 제거 닥터슈라클 나이트 엔자임 워시",
+      "scenario": "brand_and_core_name",
+      "product_category": "클렌징",
+      "source_product_id": 4745,
+      "source_product_name": "[미세먼지 세정/각질 제거] 닥터슈라클 나이트 엔자임 워시 50g",
+      "source_brand": "닥터슈라클",
+      "acceptable_product_ids": [
+        4745
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-080",
+      "query": "저자극 스크럽 휩드 비건 팩스크럽 4종 중 택1",
+      "scenario": "brand_and_core_name",
+      "product_category": "클렌징",
+      "source_product_id": 4793,
+      "source_product_name": "[저자극 스크럽] 휩드 비건 팩스크럽 210g (4종 중 택1)",
+      "source_brand": "휩드",
+      "acceptable_product_ids": [
+        4793
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "CONF-081",
+      "query": "대용량 피지클렌징 어메이징 딥 민트 클렌징 밤",
+      "scenario": "core_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4558,
+      "source_product_name": "[대용량/피지클렌징] 마몽드 어메이징 딥 민트 클렌징 밤 180ml",
+      "source_brand": "마몽드",
+      "acceptable_product_ids": [
+        4558
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-082",
+      "query": "갈아쓰는 클렌징밤 모공케어 클렌징밤 4종 택1",
+      "scenario": "core_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4627,
+      "source_product_name": "[갈아쓰는 클렌징밤/모공케어] 가히 클렌징밤 50ml 4종 택1",
+      "source_brand": "가히",
+      "acceptable_product_ids": [
+        4627
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "CONF-083",
+      "query": "피부결 각질개선 하이 아미노 올 효소 파우더워시",
+      "scenario": "core_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4805,
+      "source_product_name": "[피부결/각질개선] 듀이트리 하이 아미노 올 효소 파우더워시 50g",
+      "source_brand": "듀이트리",
+      "acceptable_product_ids": [
+        4805
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-084",
+      "query": "민감피부 클린잇제로 카밍 클렌징밀크",
+      "scenario": "core_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4656,
+      "source_product_name": "[NEW/민감피부] 바닐라코 클린잇제로 카밍 클렌징밀크 200ml",
+      "source_brand": "바닐라코",
+      "acceptable_product_ids": [
+        4656
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-085",
+      "query": "아쿠아 필링 젤 모이스처",
+      "scenario": "core_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4741,
+      "source_product_name": "내츄레인 아쿠아 필링 젤 모이스처 300ml",
+      "source_brand": "내츄레인",
+      "acceptable_product_ids": [
+        4741
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-086",
+      "query": "정샘물 더블 클린 수정 화장 패드",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "클렌징",
+      "source_product_id": 4912,
+      "source_product_name": "정샘물 더블 클린 수정 화장 패드 20매",
+      "source_brand": "정샘물",
+      "acceptable_product_ids": [
+        4912
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-087",
+      "query": "대용량 워터 센카 올 클리어 워터 미셀라 포뮬러 프레시",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "클렌징",
+      "source_product_id": 4721,
+      "source_product_name": "[NEW/대용량 워터]센카 올 클리어 워터 미셀라 포뮬러 프레시 400ml",
+      "source_brand": "센카",
+      "acceptable_product_ids": [
+        4721
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-088",
+      "query": "세럼클렌저 넘버즈인 3번 보들보들 모공결 클렌징 오일",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "클렌징",
+      "source_product_id": 4365,
+      "source_product_name": "[세럼클렌저] 넘버즈인 3번 보들보들 모공결 클렌징 오일 200ml",
+      "source_brand": "넘버즈인",
+      "acceptable_product_ids": [
+        4365
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-089",
+      "query": "[저자극결케어]아임프롬피그엔자임파우더클렌저50g",
+      "scenario": "format_variation",
+      "product_category": "클렌징",
+      "source_product_id": 4834,
+      "source_product_name": "[저자극결케어] 아임프롬 피그 엔자임 파우더 클렌저 50g",
+      "source_brand": "아임프롬",
+      "acceptable_product_ids": [
+        4834
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-090",
+      "query": "[갈아쓰는클렌징밤/모공케어]가히클렌징밤50ml4종택1",
+      "scenario": "format_variation",
+      "product_category": "클렌징",
+      "source_product_id": 4626,
+      "source_product_name": "[갈아쓰는 클렌징밤/모공케어] 가히 클렌징밤 50ml 4종 택1",
+      "source_brand": "가히",
+      "acceptable_product_ids": [
+        4626
+      ],
+      "expected_result": "found",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "CONF-NR-001",
+      "query": "셀레스티얼랩 프로바이오 장벽 토너 119ml",
+      "scenario": "not_registered",
+      "product_category": null,
+      "source_product_id": null,
+      "source_product_name": null,
+      "source_brand": null,
+      "acceptable_product_ids": [],
+      "expected_result": "empty",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-NR-002",
+      "query": "마린오로라 펩타이드 탄력 앰플 44ml",
+      "scenario": "not_registered",
+      "product_category": null,
+      "source_product_id": null,
+      "source_product_name": null,
+      "source_brand": null,
+      "acceptable_product_ids": [],
+      "expected_result": "empty",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-NR-003",
+      "query": "포레스트문 어성초 카밍 젤 78ml",
+      "scenario": "not_registered",
+      "product_category": null,
+      "source_product_id": null,
+      "source_product_name": null,
+      "source_brand": null,
+      "acceptable_product_ids": [],
+      "expected_result": "empty",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-NR-004",
+      "query": "클라우드베리 세라마이드 보습 크림 53ml",
+      "scenario": "not_registered",
+      "product_category": null,
+      "source_product_id": null,
+      "source_product_name": null,
+      "source_brand": null,
+      "acceptable_product_ids": [],
+      "expected_result": "empty",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-NR-005",
+      "query": "루미나코스트 비타민 광채 에센스 67ml",
+      "scenario": "not_registered",
+      "product_category": null,
+      "source_product_id": null,
+      "source_product_name": null,
+      "source_brand": null,
+      "acceptable_product_ids": [],
+      "expected_result": "empty",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-NR-006",
+      "query": "디어플래닛 판테놀 진정 로션 128ml",
+      "scenario": "not_registered",
+      "product_category": null,
+      "source_product_id": null,
+      "source_product_name": null,
+      "source_brand": null,
+      "acceptable_product_ids": [],
+      "expected_result": "empty",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-NR-007",
+      "query": "블룸스피어 약산성 클렌징 워터 214ml",
+      "scenario": "not_registered",
+      "product_category": null,
+      "source_product_id": null,
+      "source_product_name": null,
+      "source_brand": null,
+      "acceptable_product_ids": [],
+      "expected_result": "empty",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-NR-008",
+      "query": "아쿠아노바 히알루론 수분 마스크 6매",
+      "scenario": "not_registered",
+      "product_category": null,
+      "source_product_id": null,
+      "source_product_name": null,
+      "source_brand": null,
+      "acceptable_product_ids": [],
+      "expected_result": "empty",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-NR-009",
+      "query": "소프트코멧 콜라겐 아이 세럼 31ml",
+      "scenario": "not_registered",
+      "product_category": null,
+      "source_product_id": null,
+      "source_product_name": null,
+      "source_brand": null,
+      "acceptable_product_ids": [],
+      "expected_result": "empty",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요"
+    },
+    {
+      "case_id": "CONF-NR-010",
+      "query": "그린오빗 데일리 무기자차 선크림 72ml",
+      "scenario": "not_registered",
+      "product_category": null,
+      "source_product_id": null,
+      "source_product_name": null,
+      "source_brand": null,
+      "acceptable_product_ids": [],
+      "expected_result": "empty",
+      "review_status": "draft",
+      "reviewed_by": [],
+      "reviewed_at": null,
+      "review_note": "미등록 제품명 자동 생성 초안 — DB 결과 0건 및 사람 검수 필요"
+    }
+  ]
+}

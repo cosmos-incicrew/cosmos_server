@@ -284,3 +284,42 @@ def test_comparison_summary_rejects_invalid_body(client: TestClient) -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_names_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """성분 이름 조회 엔드포인트가 service 결과를 반환한다."""
+    from app.modules.ingredient_detail.schemas import (
+        IngredientName,
+        IngredientNameResponse,
+    )
+
+    async def _fake(ingredient_ids: list[int]) -> IngredientNameResponse:
+        return IngredientNameResponse(
+            ingredients=[IngredientName(ingredient_id=1, name_kr="정제수", name_en="Water")]
+        )
+
+    monkeypatch.setattr(detail_router.service, "get_ingredient_names", _fake)
+
+    response = client.post("/api/v1/ingredients/names", json={"ingredient_ids": [1]})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ingredients"][0]["name_kr"] == "정제수"
+
+
+def test_names_requires_jwt(client: TestClient) -> None:
+    """성분 이름 조회도 인증이 필요하다."""
+    app.dependency_overrides.pop(verify_jwt)
+
+    response = client.post("/api/v1/ingredients/names", json={"ingredient_ids": [1]})
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTH_MISSING_TOKEN"
+
+
+def test_names_rejects_invalid_body(client: TestClient) -> None:
+    """ingredient_ids가 없으면 422."""
+    response = client.post("/api/v1/ingredients/names", json={})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"

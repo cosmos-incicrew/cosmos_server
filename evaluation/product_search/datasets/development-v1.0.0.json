@@ -1,0 +1,348 @@
+{
+  "dataset_version": "1.0.0",
+  "dataset_kind": "development",
+  "sampling_seed": 20260722,
+  "generated_at": "2026-07-22T06:36:04.603470Z",
+  "cases": [
+    {
+      "case_id": "DEV-001",
+      "query": "[수분 충전]아벤느 이드랑스 에센스-인-로션 200ml 2입기획",
+      "scenario": "full_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 1722,
+      "source_product_name": "[수분 충전]아벤느 이드랑스 에센스-인-로션 200ml 2입기획",
+      "source_brand": "아벤느",
+      "acceptable_product_ids": [
+        1722
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-002",
+      "query": "닥터멜락신 시멘리트 칼슘 볼륨 크림",
+      "scenario": "brand_and_core_name",
+      "product_category": "스킨케어",
+      "source_product_id": 133,
+      "source_product_name": "닥터멜락신 시멘리트 칼슘 볼륨 크림 50ml",
+      "source_brand": "닥터멜락신",
+      "acceptable_product_ids": [
+        133
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-003",
+      "query": "아하 바하 파하 리파이닝 부스트 세럼",
+      "scenario": "core_product_name",
+      "product_category": "스킨케어",
+      "source_product_id": 1556,
+      "source_product_name": "베리홉 아하 바하 파하 리파이닝 부스트 세럼 15g",
+      "source_brand": "베리홉",
+      "acceptable_product_ids": [
+        1556
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-004",
+      "query": "채서안 보습탄력 아비브 부활초 크림 뉴트리션 튜브",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "스킨케어",
+      "source_product_id": 490,
+      "source_product_name": "[채서안PICK/보습탄력] 아비브 부활초 크림 뉴트리션 튜브 75ml 기획 (+30ml 추가 증정)",
+      "source_brand": "아비브",
+      "acceptable_product_ids": [
+        490
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-005",
+      "query": "[윈터PICK/단독기획]AHC프로샷콜라쥬비네이션아이크림포페이스30ml기획(+세럼10ml)",
+      "scenario": "format_variation",
+      "product_category": "스킨케어",
+      "source_product_id": 7,
+      "source_product_name": "[윈터 PICK/ 단독기획] AHC 프로 샷 콜라 쥬비네이션 아이크림 포페이스 30ml 기획 (+세럼10ml)",
+      "source_brand": "AHC",
+      "acceptable_product_ids": [
+        7
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-006",
+      "query": "[5분 마스크팩] 스킨푸드 데일리 마스크 30매 6종",
+      "scenario": "full_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 3093,
+      "source_product_name": "[5분 마스크팩] 스킨푸드 데일리 마스크 30매 6종",
+      "source_brand": "스킨푸드",
+      "acceptable_product_ids": [
+        3093
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-007",
+      "query": "원조겔팩 바이오던스 리얼 딥 마스크 콜라겐 세라놀",
+      "scenario": "brand_and_core_name",
+      "product_category": "마스크팩",
+      "source_product_id": 3218,
+      "source_product_name": "[원조겔팩] 바이오던스 리얼 딥 마스크 16매 (콜라겐/세라놀)",
+      "source_brand": "바이오던스",
+      "acceptable_product_ids": [
+        3218
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-008",
+      "query": "화잘먹패드 리얼 히알루로닉 블루 토너 패드",
+      "scenario": "core_product_name",
+      "product_category": "마스크팩",
+      "source_product_id": 3776,
+      "source_product_name": "[화잘먹패드] 웰라쥬 리얼 히알루로닉 블루 토너 패드 70매 기획 (+원데이키트1ea)",
+      "source_brand": "웰라쥬",
+      "acceptable_product_ids": [
+        3776
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-009",
+      "query": "저속노화템 빌리프 슈퍼나이츠 리제너레이팅 나이트 마스크",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "마스크팩",
+      "source_product_id": 4111,
+      "source_product_name": "[저속노화템] 빌리프 슈퍼나이츠 리제너레이팅 나이트 마스크 75ml/30ml 기획(+50ml 추가 증정)/단품",
+      "source_brand": "빌리프",
+      "acceptable_product_ids": [
+        4111
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-010",
+      "query": "[안소희PICK]바노바기비타제닉젤리마스크10매7종택1",
+      "scenario": "format_variation",
+      "product_category": "마스크팩",
+      "source_product_id": 3058,
+      "source_product_name": "[안소희PICK]바노바기 비타 제닉 젤리 마스크 10매 7종 택 1",
+      "source_brand": "바노바기",
+      "acceptable_product_ids": [
+        3058
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "규칙 기반 자동 생성 초안 — 복수 옵션 상품 여부 교차 검수 필요"
+    },
+    {
+      "case_id": "DEV-011",
+      "query": "닥터아토 더마 워터프루프 선 프로텍터 80ml",
+      "scenario": "full_product_name",
+      "product_category": "선케어",
+      "source_product_id": 4968,
+      "source_product_name": "닥터아토 더마 워터프루프 선 프로텍터 80ml",
+      "source_brand": "닥터아토",
+      "acceptable_product_ids": [
+        4968
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-012",
+      "query": "대용량 식물나라 보송 워터프루프 쿨링 선 스틱",
+      "scenario": "brand_and_core_name",
+      "product_category": "선케어",
+      "source_product_id": 5634,
+      "source_product_name": "[대용량]식물나라 보송/워터프루프/쿨링 선 스틱 30g (1+1/리필/단품)",
+      "source_brand": "식물나라",
+      "acceptable_product_ids": [
+        5634
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-013",
+      "query": "피치톤업 비타민C 피치 톤업 선크림",
+      "scenario": "core_product_name",
+      "product_category": "선케어",
+      "source_product_id": 5383,
+      "source_product_name": "[1+1/피치톤업] 이니스프리 비타민C 피치 톤업 선크림 50+50ml 1+1기획",
+      "source_brand": "이니스프리",
+      "acceptable_product_ids": [
+        5383
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-014",
+      "query": "니베아 선 울트라 센서티브 선 로션",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "선케어",
+      "source_product_id": 4959,
+      "source_product_name": "[NEW] 니베아 선 울트라 센서티브 선 로션 200ml",
+      "source_brand": "니베아",
+      "acceptable_product_ids": [
+        4959
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-015",
+      "query": "허블룸데일리톤업비건선스크린50ml",
+      "scenario": "format_variation",
+      "product_category": "선케어",
+      "source_product_id": 5497,
+      "source_product_name": "허블룸 데일리 톤업 비건 선스크린 50ml",
+      "source_brand": "허블룸",
+      "acceptable_product_ids": [
+        5497
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-016",
+      "query": "[화잘먹/저자극] 닥터지 브라이트닝 필링젤 기획 (120+60+세럼2ml/120ml+120ml)",
+      "scenario": "full_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4748,
+      "source_product_name": "[화잘먹/저자극] 닥터지 브라이트닝 필링젤 기획 (120+60+세럼2ml/120ml+120ml)",
+      "source_brand": "닥터지",
+      "acceptable_product_ids": [
+        4748
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-017",
+      "query": "숨37 마이크로액티브 파우더워시",
+      "scenario": "brand_and_core_name",
+      "product_category": "클렌징",
+      "source_product_id": 4824,
+      "source_product_name": "숨37 마이크로액티브 파우더워시 60g",
+      "source_brand": "숨37",
+      "acceptable_product_ids": [
+        4824
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-018",
+      "query": "디판테놀 베리어 수딩 클렌징밀크",
+      "scenario": "core_product_name",
+      "product_category": "클렌징",
+      "source_product_id": 4677,
+      "source_product_name": "주미소 디판테놀 베리어 수딩 클렌징밀크 300ml",
+      "source_brand": "주미소",
+      "acceptable_product_ids": [
+        4677
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-019",
+      "query": "말끔모공 블랙헤드 성분에디터 그린토마토 모공 클렌징 오일",
+      "scenario": "sales_and_capacity_removed",
+      "product_category": "클렌징",
+      "source_product_id": 4442,
+      "source_product_name": "[말끔모공/블랙헤드] 성분에디터 그린토마토 모공 클렌징 오일 200ml",
+      "source_brand": "성분에디터",
+      "acceptable_product_ids": [
+        4442
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    },
+    {
+      "case_id": "DEV-020",
+      "query": "[모공개선]리덴스청포도포어스케일링클렌징오일200mL",
+      "scenario": "format_variation",
+      "product_category": "클렌징",
+      "source_product_id": 4390,
+      "source_product_name": "[모공개선] 리덴스 청포도 포어 스케일링 클렌징오일 200mL",
+      "source_brand": "리덴스",
+      "acceptable_product_ids": [
+        4390
+      ],
+      "expected_result": "found",
+      "review_status": "approved",
+      "reviewed_by": ["박영기"],
+      "reviewed_at": "2026-07-22",
+      "review_note": "검수완료"
+    }
+  ]
+}

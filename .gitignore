@@ -14,6 +14,10 @@ __pycache__/
 # 실험 스크립트 실행 로그 (임베딩 비교 등) — 산출물 CSV 는 커밋, 로그는 제외
 tests/**/embedding/*.log
 
+# 실제 DB 검색 평가 결과 (환경별 생성물)
+artifacts/search-evaluation/
+artifacts/ingredient-search-evaluation/
+
 # 환경 변수 — 절대 커밋 금지
 .env
 .env.*

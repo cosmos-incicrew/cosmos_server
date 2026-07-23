@@ -34,21 +34,15 @@ def main() -> None:
 
     # 유저가 없으면 만든다. 이미 있으면 create_user 가 에러를 내므로 무시한다.
     try:
-        client.auth.admin.create_user(
-            {"email": _TEST_EMAIL, "email_confirm": True}
-        )
+        client.auth.admin.create_user({"email": _TEST_EMAIL, "email_confirm": True})
         print(f"테스트 유저 생성: {_TEST_EMAIL}")
     except Exception as exc:  # noqa: BLE001 - 이미 존재 등 어떤 실패든 토큰 발급으로 넘어간다
         print(f"유저 생성 건너뜀 ({type(exc).__name__}) — 이미 있으면 정상")
 
     # admin 매직링크: 메일 발송 없이 일회용 토큰만 반환한다. 이메일 로그인이 꺼져 있어도 동작.
-    link = client.auth.admin.generate_link(
-        {"type": "magiclink", "email": _TEST_EMAIL}
-    )
+    link = client.auth.admin.generate_link({"type": "magiclink", "email": _TEST_EMAIL})
     # 그 일회용 토큰을 실제 세션(access_token)으로 교환한다.
-    result = client.auth.verify_otp(
-        {"token_hash": link.properties.hashed_token, "type": "email"}
-    )
+    result = client.auth.verify_otp({"token_hash": link.properties.hashed_token, "type": "email"})
     if result.session is None:
         raise SystemExit("토큰 교환 실패 — service_role 키/Supabase 설정 확인")
 
