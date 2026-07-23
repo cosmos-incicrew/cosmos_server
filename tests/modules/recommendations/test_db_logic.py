@@ -38,7 +38,7 @@ async def test_resolve_maps_via_three_tiers(monkeypatch):
             {"ingredient_id": 1, "name_kor": "나이아신아마이드", "name_eng": "NIACINAMIDE"},
         ],
         "synonyms": [{"ingredient_id": 2, "synonym": "글리세린별칭"}],
-        "rec_efficacy": [{"ingredient_id": 3, "inci": "SULFUR", "name_kr": "황"}],
+        "rec_efficacy": [{"ingredient_id": 3, "inci": "SULFUR", "name_kor": "황"}],
     })
 
     await candidates_stage.resolve_ingredient_ids(candidates)

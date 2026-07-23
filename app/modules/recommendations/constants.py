@@ -46,7 +46,11 @@ CONCERN_SEARCH_KEYWORDS: Final[dict[str, tuple[str, ...]]] = {
 }
 
 # ── ④ 후보 집계 (s4_candidates) ─────────────────────────────────
-BSTI_BOOST: Final = 0.1
+# BSTI 권장 성분 가점. 검색된 후보 중 사용자 BSTI 권장 성분을 상위로 올린다. 0.1 은 코사인
+# score 차(관측 0.7~0.9)에 묻혀 효과가 약해 0.15 로 올린다. 한계: 가점은 "검색된 후보"에만
+# 작동한다 — 고민과 무관한 BSTI 축 성분(건성 고민이 아닌데 세라마이드)은 애초에 검색되지
+# 않아 가점 대상이 아니다(설계 04 §6).
+BSTI_BOOST: Final = 0.15
 OWNED_PENALTY: Final = 0.1  # 보유 성분은 제외가 아니라 하향 (긍정 피드백 보존)
 MAX_CANDIDATES: Final = 12  # 프롬프트 크기를 결정적으로 만들기 위한 상한
 
@@ -126,7 +130,12 @@ PREGNANCY_CAUTION: Final[frozenset[str]] = frozenset({"살리실릭애씨드"})
 MIN_RECOMMENDED: Final = 3  # 모바일 화면과 생성 품질의 균형 (01 §2-⑥ "3~5개")
 MAX_RECOMMENDED: Final = 5
 
-# ── ⑧ 제품 추천 (s8_products) ────────────────────────────────────
+# ── ⑧ 종합 추천 (s8_top) ─────────────────────────────────────────
+# 고민 축 + BSTI 축을 합친 대표 성분 상한. 메인 카드라 한눈에 들어와야 해서 작게 잡는다
+# (제품은 MAX_RECOMMENDED_PRODUCTS 를 그대로 쓴다).
+MAX_TOP_INGREDIENTS: Final = 5
+
+# ── ⑨ 제품 추천 (s9_products) ────────────────────────────────────
 MAX_RECOMMENDED_PRODUCTS: Final = 5  # 추천 성분 함유 제품 상한 (커버리지 순 top-N)
 # 역조회 fetch 상한. 정제수·글리세린 같은 초빈출 성분이 추천되면 수만 행이 앱으로 실려
 # 온다 — ponytail: 커버리지 정렬 전 넉넉히 자르는 휴리스틱. 정확한 커버리지 집계가
@@ -161,7 +170,7 @@ BANNED_CLAIM_TERMS: Final[tuple[str, ...]] = (
     "영구",
 )
 
-# ── ⑦ 응답 조립 (s7_response) ───────────────────────────────────
+# ── ⑩ 응답 조립 (s10_response) ───────────────────────────────────
 # 기능성 고시 성분 → 배지. 자외선차단 목록 보강은 v1.1 (노션 todo 8장).
 FUNCTIONAL_NOTICE_BADGES: Final[dict[str, str]] = {
     "나이아신아마이드": "기능성고시_미백",

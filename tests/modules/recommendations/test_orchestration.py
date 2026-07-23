@@ -15,8 +15,9 @@ from app.modules.recommendations.pipeline import (
     s4_candidates,
     s5_safety,
     s6_generation,
-    s7_response,
-    s8_products,
+    s7_bsti,
+    s9_products,
+    s10_response,
 )
 from app.modules.recommendations.schemas import (
     Candidate,
@@ -83,18 +84,40 @@ def stages(monkeypatch: pytest.MonkeyPatch) -> dict:
         state["generated_with"] = candidates
         return state["narrative"]
 
-    async def _fetch_products(candidates, narrative, owned_product_ids):
-        calls.append("s8_products")
-        state["products_from"] = candidates
+    async def _bsti_candidates(context):
+        """⑦ BSTI 가지. ⑥과 병렬이라 calls 에 넣지 않는다 — 순서가 비결정적이다.
+
+        후보 0개를 돌려주면 가지가 ⑤·⑨을 부르지 않아 다른 단계의 호출 기록도 안 흐린다.
+        """
+        state["bsti_context"] = context
         return []
 
-    def _assemble(context, candidates, narrative, case_chunks, efficacy_chunks, products):
-        calls.append("s7_response.assemble")
+    async def _fetch_products(candidates, chosen_names, owned_product_ids):
+        calls.append("s9_products")
+        state["products_from"] = candidates
+        state["products_names"] = chosen_names
+        return []
+
+    def _assemble(
+        context,
+        candidates,
+        narrative,
+        case_chunks,
+        efficacy_chunks,
+        products,
+        bsti_candidates=None,
+        bsti_products=None,
+        top_picks=None,
+        top_products=None,
+    ):
+        calls.append("s10_response.assemble")
         state["assembled_with"] = candidates
+        state["assembled_bsti"] = (bsti_candidates, bsti_products)
+        state["assembled_top"] = (top_picks, top_products)
         return _ok_response()
 
     def _insufficient(context, code, message, action=None):
-        calls.append("s7_response.insufficient")
+        calls.append("s10_response.insufficient")
         state["insufficient_code"] = code
         state["insufficient_message"] = message
         state["insufficient_action"] = action
@@ -106,15 +129,17 @@ def stages(monkeypatch: pytest.MonkeyPatch) -> dict:
     monkeypatch.setattr(s4_candidates, "aggregate_candidates", _aggregate)
     monkeypatch.setattr(s5_safety, "apply_safety_filters", _safety)
     monkeypatch.setattr(s6_generation, "generate", _generate)
-    monkeypatch.setattr(s8_products, "fetch", _fetch_products)
-    monkeypatch.setattr(s7_response, "assemble", _assemble)
-    monkeypatch.setattr(s7_response, "insufficient", _insufficient)
+    monkeypatch.setattr(s7_bsti, "fetch_bsti_candidates", _bsti_candidates)
+    monkeypatch.setattr(s9_products, "fetch", _fetch_products)
+    monkeypatch.setattr(s10_response, "assemble", _assemble)
+    monkeypatch.setattr(s10_response, "insufficient", _insufficient)
     return state
 
 
-async def test_happy_path_runs_all_seven_stages_in_order(stages):
+async def test_happy_path_runs_all_stages_in_order(stages):
     response = await service.create_recommendations(_USER)
 
+    # ⑨이 두 번인 것은 고민 제품과 ⑧ 종합 제품을 병렬로 조회하기 때문이다.
     assert stages["calls"] == [
         "s1_context",
         "s2_queries",
@@ -122,14 +147,15 @@ async def test_happy_path_runs_all_seven_stages_in_order(stages):
         "s4_candidates",
         "s5_safety",
         "s6_generation",
-        "s8_products",
-        "s7_response.assemble",
+        "s9_products",
+        "s9_products",
+        "s10_response.assemble",
     ]
     assert response.status == "ok"
 
 
 async def test_safety_filter_output_feeds_generation_and_assembly(stages):
-    """④ 원본이 아니라 ⑤ 통과분이 ⑥·⑦ 로 가야 한다.
+    """④ 원본이 아니라 ⑤ 통과분이 ⑥·⑩ 로 가야 한다.
 
     안전성 필터를 건너뛰거나 필터 이전 목록을 넘기면 금지 성분이 그대로 추천된다.
     """
@@ -143,7 +169,7 @@ async def test_safety_filter_output_feeds_generation_and_assembly(stages):
     await service.create_recommendations(_USER)
 
     assert stages["generated_with"] is filtered, "⑥ 은 ⑤ 통과분을 받아야 한다"
-    assert stages["assembled_with"] is filtered, "⑦ 도 ⑤ 통과분을 받아야 한다"
+    assert stages["assembled_with"] is filtered, "⑩ 도 ⑤ 통과분을 받아야 한다"
 
 
 async def test_no_evidence_skips_generation(stages):
@@ -155,7 +181,7 @@ async def test_no_evidence_skips_generation(stages):
 
     assert "s6_generation" not in stages["calls"]
     assert "s4_candidates" not in stages["calls"]
-    assert stages["calls"][-1] == "s7_response.insufficient"
+    assert stages["calls"][-1] == "s10_response.insufficient"
     assert response.status == "insufficient_evidence"
 
 

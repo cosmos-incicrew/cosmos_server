@@ -1,4 +1,4 @@
-"""추천 파이프라인 단위 테스트 — ④ 집계 · ⑤ 안전성 필터 · ⑥ 환각 차단 · ⑦ 조립.
+"""추천 파이프라인 단위 테스트 — ④ 집계 · ⑤ 안전성 필터 · ⑥ 환각 차단 · ⑩ 조립.
 
 DB·Gemini 는 부르지 않는다. 순수 로직만 떼어 검증한다.
 """
@@ -22,7 +22,7 @@ from app.modules.recommendations.pipeline import s2_queries as queries_stage
 from app.modules.recommendations.pipeline import s4_candidates as candidates_stage
 from app.modules.recommendations.pipeline import s5_safety as safety
 from app.modules.recommendations.pipeline import s6_generation as generation
-from app.modules.recommendations.pipeline import s7_response as response_stage
+from app.modules.recommendations.pipeline import s10_response as response_stage
 from app.modules.recommendations.schemas import (
     Candidate,
     ChunkSource,
@@ -36,7 +36,7 @@ def _efficacy_chunk(name: str, score: float, concern: str = "pores", **meta) -> 
         content=f"[성분] {name}",
         score=score,
         source=ChunkSource(doc_id=f"eff_{name}", title=f"{name} 효능"),
-        metadata={"name_kr": name, "efficacy": f"{name} 효능", "concern": concern, **meta},
+        metadata={"name_kor": name, "efficacy": f"{name} 효능", "concern": concern, **meta},
     )
 
 
@@ -125,11 +125,25 @@ async def test_owned_penalty_applied_once():
 
 
 async def test_case_ingredients_merge_into_candidates():
+    """case 청크의 성분도 efficacy 근거가 있으면 후보에 합류하고, case 기여분(고민·score)도
+    실제로 반영된다.
+
+    efficacy 근거는 최소치(score 0.5, concern 기본값 "pores")만 대고, case 청크는 더 높은
+    score(0.85)와 다른 concern("wrinkles")을 갖도록 해 — case-merge 루프(s4_candidates.py
+    ``for chunk in case_chunks: ...``)가 통째로 죽어도 이 테스트가 실패하게 만든다. 이름
+    집합만 비교하면 세라마이드가 efficacy 근거 하나만으로도 통과해 case 기여를 검증하지
+    못한다.
+    """
     candidates = await candidates_stage.aggregate_candidates(
-        [_case_chunk(["세라마이드"], 0.85)], [_efficacy_chunk("판테놀", 0.8)], _context()
+        [_case_chunk(["세라마이드"], 0.85, concern="wrinkles")],
+        [_efficacy_chunk("세라마이드", 0.5), _efficacy_chunk("판테놀", 0.8)],
+        _context(),
     )
 
     assert {c.name_kor for c in candidates} == {"세라마이드", "판테놀"}
+    ceramide = next(c for c in candidates if c.name_kor == "세라마이드")
+    assert ceramide.score == pytest.approx(0.85)  # case chunk 의 더 높은 score 가 반영됨
+    assert "wrinkles" in ceramide.concerns  # case chunk 의 concern 도 반영됨
 
 
 async def test_candidate_cap_enforced():
@@ -138,6 +152,33 @@ async def test_candidate_cap_enforced():
     candidates = await candidates_stage.aggregate_candidates([], chunks, _context())
 
     assert len(candidates) == MAX_CANDIDATES
+
+
+async def test_aggregate_drops_case_only_ingredients(monkeypatch):
+    """efficacy 근거 없이 케이스에만 등장한 성분은 후보에서 제외된다 (설계 04 §3-1)."""
+    from app.modules.recommendations.pipeline import s4_candidates
+    from app.modules.recommendations.schemas import ChunkSource, RetrievedChunk, UserContext
+
+    # efficacy 청크: 나이아신아마이드 (효능 근거 있음)
+    eff = RetrievedChunk(
+        content="", score=0.9, source=ChunkSource(doc_id="eff_1", title="t"),
+        metadata={"name_kor": "나이아신아마이드", "efficacy": "미백", "ingredient_id": 1},
+    )
+    # 케이스 청크: 알로에신 (recommended_ingredients 로만 등장, efficacy 근거 없음)
+    case = RetrievedChunk(
+        content="", score=0.95, source=ChunkSource(doc_id="c1", title="t"),
+        metadata={"recommended_ingredients": ["알로에신"], "concern": "brightening"},
+    )
+    ctx = UserContext(user_id="u1", age=30, concerns=["brightening"])
+
+    async def _no_resolve(cands):  # ID 조회는 이 테스트 범위 밖
+        return None
+    monkeypatch.setattr(s4_candidates, "resolve_ingredient_ids", _no_resolve)
+
+    result = await s4_candidates.aggregate_candidates([case], [eff], ctx)
+    names = {c.name_kor for c in result}
+    assert "나이아신아마이드" in names
+    assert "알로에신" not in names  # case-only → 제외
 
 
 # ── ⑤ 안전성 필터 ─────────────────────────────────────────────
@@ -226,7 +267,7 @@ def test_all_sentences_banned_falls_back_to_safe_text():
     assert "근거" in generation.sanitize_claims("질환을 완치합니다.")
 
 
-# ── ⑦ 응답 조립 ───────────────────────────────────────────────
+# ── ⑩ 응답 조립 ───────────────────────────────────────────────
 
 
 def test_insufficient_suggests_bsti_when_not_taken():
@@ -252,6 +293,16 @@ def test_query_omits_missing_elements():
     _, query = queries_stage.build_queries(_context(gender=None, bsti_type=None))[0]
 
     assert "여성" not in query and "피부의" not in query
+
+
+def test_build_queries_leads_with_concern():
+    """질의는 고민을 문두에 두어 사람묘사(BSTI) 편향을 줄인다 (설계 04 §2-1)."""
+    ctx = _context(age=30, gender="female", bsti_type="DSPW", concerns=["redness"])
+    queries = queries_stage.build_queries(ctx)
+    code, q = queries[0]
+    assert code == "redness"
+    # 고민 라벨(붉어짐...)이 사람묘사(건성·민감...)보다 앞에 온다
+    assert q.index("붉어짐") < q.index("건성")
 
 
 # ── 성분명 정규화 (실 데이터 회귀 방지) ─────────────────────────
@@ -354,8 +405,10 @@ async def test_inci_and_korean_candidate_collapse_after_id_mapping(monkeypatch):
         _case_chunk(["헥사펩타이드-2"], 0.9, concern="wrinkles"),
         _case_chunk(["Hexapeptide-2"], 0.85, concern="pores"),
     ]
+    # efficacy 근거 필수 필터를 통과시키기 위한 근거 (매핑 전 한글명 키에 붙는다).
+    efficacy = [_efficacy_chunk("헥사펩타이드-2", 0.5)]
 
-    candidates = await candidates_stage.aggregate_candidates(chunks, [], _context())
+    candidates = await candidates_stage.aggregate_candidates(chunks, efficacy, _context())
 
     assert len(candidates) == 1
     assert candidates[0].name_kor == "헥사펩타이드-2"
@@ -490,7 +543,7 @@ async def test_placeholder_notes_are_dropped(_no_restrictions):
 async def test_regeneration_failure_keeps_first_result(monkeypatch):
     """금칙어 재생성 중 통신 오류가 나면 1차 결과를 살린다.
 
-    ⑦의 순화로 처리 가능한 문제인데 502 로 버리면, 일시적 오류가 멀쩡한 추천을 죽인다.
+    ⑩의 순화로 처리 가능한 문제인데 502 로 버리면, 일시적 오류가 멀쩡한 추천을 죽인다.
     """
     from app.modules.recommendations.schemas import LlmNarrative
 
@@ -691,7 +744,7 @@ async def test_weights_apply_to_renamed_inci_candidate(monkeypatch):
     """ID 매핑이 INCI 후보를 한글로 개명하므로 가중치는 그 뒤에 적용해야 한다.
 
     앞에서 적용하면 영문명으로 들어온 후보(상담 사례 성분의 40%)가 보유 하향을 못 받는데,
-    ⑦의 보유 배지는 개명 후 이름으로 판정한다 — "보유 표시는 되는데 하향은 안 된" 후보.
+    ⑩의 보유 배지는 개명 후 이름으로 판정한다 — "보유 표시는 되는데 하향은 안 된" 후보.
     """
 
     async def _resolve(cands):
@@ -785,7 +838,7 @@ async def test_generation_timeout_raises_502_not_hang(monkeypatch):
 
 
 async def test_assemble_builds_narrative_response():
-    from app.modules.recommendations.pipeline import s7_response
+    from app.modules.recommendations.pipeline import s10_response
     from app.modules.recommendations.schemas import (
         Candidate,
         ChunkSource,
@@ -799,13 +852,14 @@ async def test_assemble_builds_narrative_response():
         source=ChunkSource(doc_id="c1", title="37 홍조 상담"),
         metadata={"target_concern": "홍조", "skin_type": "건성", "gender": "여성",
                   "age": 37, "recommended_ingredients": ["판테놀", "쑥잎추출물"],
-                  "question": "질문", "answer": "답변"},
+                  "question": "질문", "answer": "답변", "concern": "pores"},
     )
     eff = RetrievedChunk(
         content="…", score=0.7,
         source=ChunkSource(doc_id="eff_1", title="판테놀 효능"),
-        metadata={"name_kr": "판테놀", "inci": "PANTHENOL", "efficacy": "진정",
-                  "safety_note": "고농도 주의", "recommended_concentration": "1~5%"},
+        metadata={"name_kor": "판테놀", "inci": "PANTHENOL", "efficacy": "진정",
+                  "safety_note": "고농도 주의", "recommended_concentration": "1~5%",
+                  "concern": "pores"},
     )
     cand = Candidate(name_kor="판테놀", score=0.9, warnings=[
         IngredientWarning(type="알레르기유발", text="첩포 검사 권장"),
@@ -816,7 +870,7 @@ async def test_assemble_builds_narrative_response():
         recommended_names=["판테놀"],
     )
 
-    resp = s7_response.assemble(_context(), [cand], narrative, [case], [eff], [])
+    resp = s10_response.assemble(_context(), [cand], narrative, [case], [eff], [])
     assert resp.status == "ok"
     assert resp.answer.cause_analysis == "원인 분석"
     assert resp.answer.recommendation == "판테놀 추천"
@@ -833,11 +887,63 @@ async def test_assemble_builds_narrative_response():
     assert resp.advisory is None  # 케이스 근거 있으니 알림 없음
 
 
+def test_partial_evidence_advisory_names_uncovered_concern():
+    """일부 고민만 근거가 있으면 partial_evidence 로 누락 고민을 알린다 (설계 04 §3-2)."""
+    from app.modules.recommendations.pipeline.s10_response import assemble
+    from app.modules.recommendations.schemas import (
+        Candidate,
+        ChunkSource,
+        LlmNarrative,
+        RetrievedChunk,
+        UserContext,
+    )
+
+    ctx = UserContext(user_id="u1", age=30, concerns=["redness", "brightening"])
+    narrative = LlmNarrative(
+        cause_analysis="원인", recommendation="추천", usage_guide="사용법",
+        recommended_names=["나이아신아마이드"],
+    )
+    # brightening 고민만 근거가 있고 redness 는 0건
+    eff = RetrievedChunk(
+        content="", score=0.9, source=ChunkSource(doc_id="eff_1", title="t"),
+        metadata={"name_kor": "나이아신아마이드", "efficacy": "미백", "concern": "brightening"},
+    )
+    case = RetrievedChunk(
+        content="", score=0.8, source=ChunkSource(doc_id="c1", title="t"),
+        metadata={"target_concern": "미백", "recommended_ingredients": ["나이아신아마이드"],
+                  "concern": "brightening"},
+    )
+    cand = Candidate(name_kor="나이아신아마이드", score=0.9, efficacy="미백")
+
+    resp = assemble(ctx, [cand], narrative, [case], [eff], [])
+    assert resp.advisory is not None
+    assert resp.advisory.code == "partial_evidence"
+    assert "붉어짐" in resp.advisory.message  # CONCERN_LABEL_BY_CODE["redness"]
+
+
+def test_case_recommended_ingredients_normalized_and_deduped():
+    """케이스 근거의 성분명은 정규화·중복 제거해 노출한다 (알로에신/ALOESIN → 1개)."""
+    from app.modules.recommendations.pipeline.s10_response import _case
+    from app.modules.recommendations.schemas import ChunkSource, RetrievedChunk
+
+    chunk = RetrievedChunk(
+        content="", score=0.8, source=ChunkSource(doc_id="c1", title="t"),
+        metadata={
+            "target_concern": "미백",
+            "recommended_ingredients": ["알로에신", "ALOESIN", "알로에신\n"],
+        },
+    )
+    ev = _case(chunk)
+    # ALOESIN 은 정규화 시 알로에신과 합쳐지지 않을 수 있으나, 최소한 개행 중복은 제거된다
+    assert ev.recommended_ingredients.count("알로에신") == 1
+    assert "알로에신\n" not in ev.recommended_ingredients
+
+
 async def test_assemble_empty_answer_returns_insufficient():
-    from app.modules.recommendations.pipeline import s7_response
+    from app.modules.recommendations.pipeline import s10_response
     from app.modules.recommendations.schemas import Candidate, LlmNarrative
 
-    resp = s7_response.assemble(
+    resp = s10_response.assemble(
         _context(), [Candidate(name_kor="판테놀", score=0.9)],
         LlmNarrative(cause_analysis="  ", recommendation="  ", usage_guide="  "), [], [], [],
     )

@@ -1,7 +1,7 @@
 """⑥ 생성 — "LLM이 최종 추천글을 쓴다 (딱 한 번)".
 
 여기서만 LLM을 부른다. 두 규칙이 핵심이다 — 근거 없으면 부르지 않고(호출부가 판단),
-LLM에는 "이유 쓰기"만 맡기고 정확한 값은 코드가 붙인다(⑦). 설계 01 §2-⑥.
+LLM에는 "이유 쓰기"만 맡기고 정확한 값은 코드가 붙인다(⑩). 설계 01 §2-⑥.
 """
 
 import asyncio
@@ -73,7 +73,7 @@ async def generate(
             continue
 
         # recommended_names 는 내부 검증용이라 후보밖 이름이 downstream 에 새지 않는다
-        # (⑦은 안 쓰고, ⑧ 제품은 id 매핑된 후보만 씀). 다만 본문 자유텍스트의 유령 성분은
+        # (⑩은 안 쓰고, ⑨ 제품은 id 매핑된 후보만 씀). 다만 본문 자유텍스트의 유령 성분은
         # 여기서 못 잡는다 — 한국어 NER 없이는 한계이며, 금칙어는 아래 sanitize 가 방어한다.
         bad_name = any(n not in allowed for n in out.recommended_names)
         banned = any(
@@ -83,7 +83,7 @@ async def generate(
         if not (bad_name or banned):
             return out  # 깨끗한 결과 — 즉시 반환
         logger.info("재생성 — 후보밖=%s 금칙어=%s (attempt %d)", bad_name, banned, attempt)
-        tainted = out  # 마지막 시도까지 안 깨끗하면 이 결과를 ⑦ sanitize_claims 로 정제해 쓴다
+        tainted = out  # 마지막 시도까지 안 깨끗하면 이 결과를 ⑩ sanitize_claims 로 정제해 쓴다
     return tainted or LlmNarrative(cause_analysis="", recommendation="", usage_guide="")
 
 

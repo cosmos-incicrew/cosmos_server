@@ -10,7 +10,7 @@
 import asyncio
 
 from app.modules.recommendations.pipeline import s6_generation as generation
-from app.modules.recommendations.pipeline import s7_response as response_stage
+from app.modules.recommendations.pipeline import s10_response as response_stage
 from app.modules.recommendations.schemas import (
     Candidate,
     ChunkSource,
@@ -21,12 +21,12 @@ from app.modules.recommendations.schemas import (
 )
 
 
-def _chunk(name_kr: str, **meta) -> RetrievedChunk:
+def _chunk(name_kor: str, **meta) -> RetrievedChunk:
     return RetrievedChunk(
-        content=f"[성분] {name_kr}",
+        content=f"[성분] {name_kor}",
         score=0.9,
-        source=ChunkSource(doc_id=f"eff_{name_kr}", title="t"),
-        metadata={"name_kr": name_kr, "efficacy": "효능", **meta},
+        source=ChunkSource(doc_id=f"eff_{name_kor}", title="t"),
+        metadata={"name_kor": name_kor, "efficacy": "효능", **meta},
     )
 
 
@@ -45,7 +45,7 @@ def test_dirty_name_keeps_warnings_and_clean_display():
         warnings=[IngredientWarning(type="임신수유주의", text="권고되지 않습니다")],
     )
     by_name = {cand.name_kor: cand}
-    # 그러나 검색 청크의 name_kr 은 원본(개행·괄호 포함)이다.
+    # 그러나 검색 청크의 name_kor 은 원본(개행·괄호 포함)이다.
     dirty_chunk = _chunk("레티놀\n(비타민 A)")
 
     ing = response_stage._ingredient(dirty_chunk, by_name, _context())
