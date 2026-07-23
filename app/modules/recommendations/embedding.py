@@ -15,6 +15,11 @@ from google.genai import types
 from app.core.config import Settings, get_settings
 from app.core.gemini import get_gemini
 
+# 질의 임베딩 캐시. 워커 프로세스 수명 동안만 살고 재시작하면 비므로 결과 일관성에
+# 영향이 없다(같은 텍스트 → 같은 벡터). 1536 float × 512 ≈ 3MB
+_QUERY_CACHE: dict[str, list[float]] = {}
+_QUERY_CACHE_MAX = 512
+
 
 def _normalize(values: list[float]) -> list[float]:
     """L2 정규화. output_dimensionality<3072 절단 시 SDK 가 정규화하지 않으므로 직접 한다."""
@@ -42,7 +47,14 @@ async def embed_query(text: str) -> list[float]:
 
     질의 경로는 사용자 대면 지연에 직접 영향 — 재시도를 2회(1회 재시도)로 짧게 잡아
     transient 429 는 흡수하되 지연 폭증은 막는다(backfill 은 5회로 더 끈질기게).
+
+    같은 텍스트는 프로세스 안에서 재사용한다. 임베딩은 결정적이라 캐시가 결과를 바꾸지
+    않고, efficacy leg 질의는 `CONCERN_SEARCH_KEYWORDS` 로 만든 **고정 문자열 8개**뿐이라
+    사용자가 누구든 같다. 실측 건당 1.6~2.0초가 두 번째 요청부터 0 이 된다.
     """
+    cached = _QUERY_CACHE.get(text)
+    if cached is not None:
+        return cached
     settings = get_settings()
     client = get_gemini()
     for attempt in range(2):
@@ -52,7 +64,13 @@ async def embed_query(text: str) -> list[float]:
                 contents=text or " ",
                 config=_config(settings, "RETRIEVAL_QUERY"),
             )
-            return _vector(res)
+            vector = _vector(res)
+            # 상한을 두는 이유는 cases leg 질의가 프로필마다 달라 무한히 늘기 때문이다.
+            # 정작 노리는 efficacy leg 8종은 매 요청 다시 들어와 상한에 밀려도 곧 복귀한다.
+            if len(_QUERY_CACHE) >= _QUERY_CACHE_MAX:
+                _QUERY_CACHE.clear()
+            _QUERY_CACHE[text] = vector
+            return vector
         except Exception:  # noqa: BLE001 — transient 429/일시 오류 1회 재시도
             if attempt == 1:
                 raise
