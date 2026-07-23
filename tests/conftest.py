@@ -9,12 +9,13 @@ from app.core.config import get_settings
 TEST_ENV = {
     "SUPABASE_URL": "http://localhost:54321",
     "SUPABASE_SERVICE_ROLE_KEY": "test-service-role-key",
-    "GEMINI_API_KEY": "test-gemini-key",
-    # 빈 값으로 고정해 테스트가 AI Studio 모드에 머물게 한다.
-    # 안 그러면 .env 의 GCP_PROJECT_ID 를 읽어 실제 GCP 인증을 시도한다.
-    "GCP_PROJECT_ID": "",
+    "GCP_PROJECT_ID": "test-project",
     "LANGFUSE_PUBLIC_KEY": "test-langfuse-public",
     "LANGFUSE_SECRET_KEY": "test-langfuse-secret",
+    "LANGFUSE_BASE_URL": "http://langfuse.test",
+    # 테스트와 CI에서는 외부 Langfuse로 span을 내보내지 않는다.
+    "LANGFUSE_TRACING_ENABLED": "false",
+    "CORS_ALLOWED_ORIGINS": '["https://cosmos-incicrew.vercel.app"]',
 }
 
 for _key, _value in TEST_ENV.items():

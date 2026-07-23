@@ -1,4 +1,6 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI, Request
@@ -9,6 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.common.schemas import ErrorDetail, ErrorResponse
 from app.core.config import get_settings
+from app.core.langfuse import get_langfuse
 from app.modules.bsti.router import router as bsti_router
 from app.modules.ingredient_detail.router import router as ingredient_detail_router
 from app.modules.ingredient_search.router import router as ingredient_search_router
@@ -16,22 +19,37 @@ from app.modules.product_compare.router import router as product_compare_router
 from app.modules.recommendations.router import router as recommendations_router
 from app.modules.users.router import router as users_router
 
+settings = get_settings()
+
 logging.basicConfig(
-    level=get_settings().log_level,
+    level=settings.log_level,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 logger = logging.getLogger("cosmos")
 
-app = FastAPI(title="cosmos API", version="0.1.0")
 
-# 웹 클라이언트의 cross-origin 요청 허용. allow_credentials=True 라 origin 을
-# 와일드카드(*)로 둘 수 없어 config 의 명시 목록을 쓴다.
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """외부 클라이언트의 수명을 앱 프로세스와 맞춘다."""
+    del application
+    settings = get_settings()
+    langfuse = get_langfuse() if settings.langfuse_tracing_enabled else None
+    try:
+        yield
+    finally:
+        # SDK가 백그라운드로 모은 span을 프로세스 종료 전에 전송한다.
+        if langfuse is not None:
+            langfuse.shutdown()
+
+
+app = FastAPI(title="cosmos API", version="0.1.0", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_settings().cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(ingredient_search_router)
