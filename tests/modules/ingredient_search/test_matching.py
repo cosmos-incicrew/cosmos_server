@@ -1,5 +1,4 @@
 from app.modules.ingredient_search.matching import (
-    ProductMatchCandidate,
     format_tolerant_like_pattern,
     normalize_product_text,
     rank_candidates,
@@ -23,13 +22,11 @@ def test_normalization_preserves_unicode_letters_and_normalizes_width() -> None:
 def test_ranking_supports_non_korean_product_names() -> None:
     product = ProductSearchCandidate(
         id=1,
-        product_name="[限定] 品牌 東京 化粧水 50ml",
+        cleaned_product_name="品牌 東京 化粧水",
         brand="品牌",
         main_category="스킨케어",
         sub_category=None,
         detailed_category=None,
         product_url=None,
     )
-    candidate = ProductMatchCandidate(product=product, cleaned_product_name="品牌 東京 化粧水")
-
-    assert rank_candidates("品牌 東京 化粧水", [candidate]) == [product]
+    assert rank_candidates("品牌 東京 化粧水", [product]) == [product]

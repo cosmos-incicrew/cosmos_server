@@ -28,14 +28,6 @@ class MatchKey:
     product_id: int
 
 
-@dataclass(frozen=True)
-class ProductMatchCandidate:
-    """API 표시명과 검색용 정제명을 분리한 내부 후보."""
-
-    product: ProductSearchCandidate
-    cleaned_product_name: str
-
-
 def normalize_product_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).casefold()
     return "".join(character for character in normalized if character.isalnum())
@@ -56,19 +48,18 @@ def requires_literal_product_lookup(query: str) -> bool:
 
 
 def rank_candidates(
-    query: str, candidates: list[ProductMatchCandidate]
+    query: str, candidates: list[ProductSearchCandidate]
 ) -> list[ProductSearchCandidate]:
     query_normalized = normalize_product_text(query)
     query_tokens = [normalize_product_text(token) for token in _TOKEN_PATTERN.findall(query)]
     ranked: list[tuple[MatchKey, ProductSearchCandidate]] = []
     for candidate in candidates:
-        product = candidate.product
         cleaned_name = normalize_product_text(candidate.cleaned_product_name)
         tier = _match_tier(query_normalized, query_tokens, cleaned_name)
         if tier is None:
             continue
         difference = abs(len(cleaned_name) - len(query_normalized))
-        ranked.append((MatchKey(tier, difference, cleaned_name, product.id), product))
+        ranked.append((MatchKey(tier, difference, cleaned_name, candidate.id), candidate))
     ranked.sort(key=lambda item: item[0])
     return [candidate for _key, candidate in ranked]
 

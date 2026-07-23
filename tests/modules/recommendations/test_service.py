@@ -3,7 +3,11 @@
 DB·Gemini 는 부르지 않는다. 순수 로직만 떼어 검증한다.
 """
 
+import ast
 import asyncio
+import inspect
+import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -63,6 +67,19 @@ def _case_chunk(
 def _context(**kwargs) -> UserContext:
     base = {"user_id": "u1", "age": 32, "gender": "female", "concerns": ["pores"]}
     return UserContext(**{**base, **kwargs})
+
+
+def test_generation_trace_disables_automatic_io_capture() -> None:
+    """개인 컨텍스트는 decorator 자동 수집에서 차단하고 정제본만 수동 기록한다."""
+    tree = ast.parse(inspect.getsource(generation._call_gemini))
+    decorator = tree.body[0].decorator_list[0]
+
+    assert isinstance(decorator, ast.Call)
+    options = {keyword.arg: keyword.value for keyword in decorator.keywords}
+    assert isinstance(options["capture_input"], ast.Constant)
+    assert options["capture_input"].value is False
+    assert isinstance(options["capture_output"], ast.Constant)
+    assert options["capture_output"].value is False
 
 
 @pytest.fixture(autouse=True)
@@ -1009,6 +1026,64 @@ def test_langfuse_input_omits_personal_attributes():
     assert "female" not in redacted and "여성" not in redacted
     assert "판테놀" not in redacted
     assert "지시문" in redacted, "프롬프트 본문은 남아야 디버깅이 된다"
+
+
+def test_langfuse_output_omits_echoed_personal_attributes():
+    ctx = _context(
+        user_id="user-123",
+        age=32,
+        gender="female",
+        owned_ingredients=["판테놀"],
+        owned_products_by_ingredient={"판테놀": ["보습크림"]},
+        is_pregnant=True,
+    )
+    output = "user-123 32세 여성 임신 사용자는 보습크림의 판테놀을 보유"
+
+    redacted = generation._redact_model_output(output, ctx)
+
+    for personal_value in ["user-123", "32", "여성", "임신", "보습크림", "판테놀"]:
+        assert personal_value not in redacted
+
+
+async def test_gemini_call_records_only_redacted_output(monkeypatch):
+    """helper가 아니라 실제 Gemini→Langfuse 기록 경로가 정제본을 쓰는지 검증한다."""
+    ctx = _context(
+        user_id="user-123",
+        age=32,
+        gender="female",
+        owned_ingredients=["판테놀"],
+        owned_products_by_ingredient={"판테놀": ["보습크림"]},
+        is_pregnant=True,
+    )
+    raw = json.dumps(
+        {
+            "cause_analysis": "user-123 32세 여성 임신",
+            "recommendation": "보습크림의 판테놀",
+            "usage_guide": "사용법",
+            "recommended_names": ["판테놀"],
+        },
+        ensure_ascii=False,
+    )
+    trace_updates: list[dict[str, object]] = []
+
+    async def _generate_content(**kwargs):
+        del kwargs
+        return SimpleNamespace(text=raw)
+
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=_generate_content))
+    )
+    monkeypatch.setattr(generation, "get_gemini", lambda: client)
+    monkeypatch.setattr(generation, "_safe_trace", lambda **fields: trace_updates.append(fields))
+
+    call = getattr(generation._call_gemini, "__wrapped__", generation._call_gemini)
+    result = await call("프롬프트", ctx, [])
+
+    traced_output = next(update["output"] for update in trace_updates if "output" in update)
+    assert isinstance(traced_output, str)
+    for personal_value in ["user-123", "32", "여성", "임신", "보습크림", "판테놀"]:
+        assert personal_value not in traced_output
+    assert result.recommendation == "보습크림의 판테놀"
 
 
 # ── 임신·수유 2단계 (2026-07-20 근거 조사 반영) ─────────────────

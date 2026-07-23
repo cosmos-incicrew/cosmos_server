@@ -11,5 +11,6 @@ def get_langfuse() -> Langfuse:
     return Langfuse(
         public_key=settings.langfuse_public_key,
         secret_key=settings.langfuse_secret_key,
-        host=settings.langfuse_host,
+        base_url=settings.langfuse_base_url,
+        tracing_enabled=settings.langfuse_tracing_enabled,
     )

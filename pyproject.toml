@@ -22,6 +22,7 @@ dev = [
     "import-linter>=2.1",
     "mypy>=1.14",
     "openpyxl>=3.1",  # scripts/load_recommendations_data.py 의 xlsx 파싱 (앱 런타임 아님)
+    "numpy>=2.0",
 ]
 
 [tool.ruff]

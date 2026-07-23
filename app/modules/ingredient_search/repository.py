@@ -18,7 +18,6 @@ from app.modules.ingredient_search.ingredient_matching import (
     rank_ingredient_candidates,
 )
 from app.modules.ingredient_search.matching import (
-    ProductMatchCandidate,
     format_tolerant_like_pattern,
     rank_candidates,
     requires_literal_product_lookup,
@@ -91,7 +90,7 @@ class SupabaseIngredientSearchRepository:
         self.last_search_diagnostics = ProductSearchDiagnostics()
         candidate_limit = _CANDIDATE_LIMIT_PER_QUERY
         selection = (
-            "id,product_name,cleaned_product_name,brand,main_category,sub_category,"
+            "id,cleaned_product_name,brand,main_category,sub_category,"
             "detailed_category,product_url,product_ingredients!inner()"
         )
         tolerant_query = (
@@ -128,10 +127,10 @@ class SupabaseIngredientSearchRepository:
         if direct_response is not None:
             responses.append(direct_response)
         direct_count = len(_rows(direct_response.data)) if direct_response is not None else 0
-        candidates_by_id: dict[int, ProductMatchCandidate] = {}
+        candidates_by_id: dict[int, ProductSearchCandidate] = {}
         for response in responses:
             for candidate in _product_candidates(_rows(response.data)):
-                candidates_by_id.setdefault(candidate.product.id, candidate)
+                candidates_by_id.setdefault(candidate.id, candidate)
         self.last_candidate_pool_truncated = tolerant_count >= candidate_limit
         ranked = rank_candidates(query, list(candidates_by_id.values()))
         self.last_search_diagnostics = ProductSearchDiagnostics(
@@ -280,23 +279,19 @@ def _rows(data: Any) -> Sequence[dict[str, Any]]:
     return [row for row in data if isinstance(row, dict)]
 
 
-def _product_candidates(rows: Sequence[dict[str, Any]]) -> list[ProductMatchCandidate]:
+def _product_candidates(rows: Sequence[dict[str, Any]]) -> list[ProductSearchCandidate]:
     return [
-        ProductMatchCandidate(
-            product=ProductSearchCandidate(
-                id=product_id,
-                product_name=product_name,
-                brand=_optional_text(row.get("brand")),
-                main_category=_optional_text(row.get("main_category")),
-                sub_category=_optional_text(row.get("sub_category")),
-                detailed_category=_optional_text(row.get("detailed_category")),
-                product_url=_optional_text(row.get("product_url")),
-            ),
+        ProductSearchCandidate(
+            id=product_id,
             cleaned_product_name=cleaned_product_name,
+            brand=_optional_text(row.get("brand")),
+            main_category=_optional_text(row.get("main_category")),
+            sub_category=_optional_text(row.get("sub_category")),
+            detailed_category=_optional_text(row.get("detailed_category")),
+            product_url=_optional_text(row.get("product_url")),
         )
         for row in rows
         if (product_id := _integer(row.get("id"))) is not None
-        and isinstance((product_name := row.get("product_name")), str)
         and isinstance((cleaned_product_name := row.get("cleaned_product_name")), str)
         and cleaned_product_name.strip()
     ]

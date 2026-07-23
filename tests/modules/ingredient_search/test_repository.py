@@ -257,7 +257,7 @@ async def test_repository_filters_products_without_mapped_ingredients() -> None:
     assert [candidate.model_dump() for candidate in results] == [
         {
             "id": 1,
-            "product_name": "분석 가능한 세럼",
+            "cleaned_product_name": "분석 가능한 세럼",
             "brand": "브랜드 A",
             "main_category": "스킨케어",
             "sub_category": "세럼",
@@ -487,7 +487,7 @@ async def test_repository_prioritizes_core_name_match_over_partial_match() -> No
 
 
 @pytest.mark.asyncio
-async def test_repository_searches_cleaned_name_and_returns_original_name() -> None:
+async def test_repository_searches_and_returns_cleaned_name() -> None:
     repository = SupabaseIngredientSearchRepository(
         cast(
             AsyncClient,
@@ -509,7 +509,7 @@ async def test_repository_searches_cleaned_name_and_returns_original_name() -> N
     results = await repository.search_products("브랜드 에센스", 10)
 
     assert [candidate.id for candidate in results] == [1]
-    assert results[0].product_name == "[단독기획] 브랜드 에센스200ml"
+    assert results[0].cleaned_product_name == "브랜드 에센스"
 
 
 @pytest.mark.asyncio

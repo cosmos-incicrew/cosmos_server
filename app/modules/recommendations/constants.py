@@ -13,8 +13,8 @@ from typing import Final
 # Langfuse metadata 의 module 값 — 비용·품질을 모듈별로 추적한다
 MODULE_TAG: Final = "recommendations"
 
-# 성별 코드 → 표시 라벨. ②는 검색 질의에, ⑥은 Langfuse 트레이스 마스킹에 쓴다.
-# 두 곳이 갈라지면 마스킹만 조용히 새므로(라벨이 안 맞아 치환이 안 된다) 한 곳에 둔다.
+# 성별 코드 → 표시 라벨. ② 검색 질의의 사람묘사가 쓴다.
+# ⑥ 트레이스 마스킹은 `_redact_model_output` 이 자체 목록으로 처리한다 (ADR 0003).
 GENDER_LABELS: Final[dict[str, str]] = {"female": "여성", "male": "남성"}
 
 # rec_efficacy 에서 실어 나르는 필드 — ③이 청크 metadata 에 담고, ④가 Candidate 에

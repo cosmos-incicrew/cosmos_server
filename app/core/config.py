@@ -1,39 +1,66 @@
 from functools import lru_cache
 
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEVELOPMENT_CORS_ORIGINS = [
+    "https://cosmos-incicrew.vercel.app",
+    "http://localhost:3000",
+]
 
 
 class Settings(BaseSettings):
     """서버 전역 설정. .env 또는 환경 변수에서 로딩하며 필수값 누락 시 기동에 실패한다."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="forbid",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_known_legacy_keys(cls, data: object) -> object:
+        """알려진 로컬 키만 이전하고 다른 오타는 실패시킨다."""
+        if not isinstance(data, dict):
+            return data
+        cleaned = dict(data)
+        cleaned.pop("supabase_jwt_secret", None)
+        cleaned.pop("SUPABASE_JWT_SECRET", None)
+        # Vertex 가 ADC 로 넘어가며 설정에서 빠졌다. 키 파일 시절의 .env 를 그대로 둔
+        # 로컬은 extra="forbid" 에 걸려 기동조차 못 하므로 조용히 흘린다 — 이 변수는
+        # 설정이 아니라 google-auth 가 직접 읽는 환경 변수라 값도 필요 없다.
+        cleaned.pop("google_application_credentials", None)
+        cleaned.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+        legacy_langfuse_host = cleaned.pop("langfuse_host", None)
+        legacy_langfuse_host = cleaned.pop("LANGFUSE_HOST", legacy_langfuse_host)
+        if legacy_langfuse_host is not None:
+            cleaned.setdefault("langfuse_base_url", legacy_langfuse_host)
+        return cleaned
 
     supabase_url: str
     supabase_service_role_key: str
-    supabase_jwt_secret: str = ""
-
+    # 회원 탈퇴 시 카카오 앱 연결을 끊는 데 쓴다 (app/core/kakao.py).
+    # Kakao Developers → 앱 설정 → 앱 키 → Admin 키.
+    # 비어 있으면 연결 해제를 건너뛴다 — 계정 삭제 자체는 그대로 동작한다.
     kakao_admin_key: str = ""
-
+    # Vertex AI는 API 키나 JSON 키 파일 대신 런타임의 ADC를 사용한다.
     gcp_project_id: str = ""
     # Gemini 3.x 는 global 엔드포인트에서만 서비스된다 — us-central1·asia-northeast3 는 404.
     gcp_location: str = "global"
-    google_application_credentials: str = ""
-
     langfuse_public_key: str
     langfuse_secret_key: str
-    langfuse_host: str = "https://cloud.langfuse.com"
-
+    langfuse_base_url: str = "https://cloud.langfuse.com"
+    langfuse_tracing_enabled: bool = True
     gemini_model: str = "gemini-3.5-flash-lite"
     embedding_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 1536
-    
-    product_compare_max_count: int = 4
-    log_level: str = "INFO"
 
-    # 웹(Flutter web) 클라이언트의 cross-origin 요청 허용 목록.
-    # 네이티브 앱은 CORS와 무관하지만, 웹 빌드는 브라우저가 이 헤더를 요구한다.
-    # 배포 웹 origin(Vercel 등)은 .env 의 CORS_ORIGINS 로 덧붙인다.
-    cors_origins: list[str] = ["http://localhost:3000"]
+    product_compare_max_count: int = 4
+    cors_allowed_origins: list[str] = Field(
+        default_factory=lambda: list(_DEVELOPMENT_CORS_ORIGINS)
+    )
+    log_level: str = "INFO"
 
 
 @lru_cache
