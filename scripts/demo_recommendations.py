@@ -88,7 +88,19 @@ async def run(user_id: str) -> None:
         for w in i.get("warnings", []):
             line += f" · ⚠{w['type']}"
         print(line)
-    print("사용 프로필:", data.get("user_profile"))
+
+    products = data.get("products", [])
+    print(f"\n--- 🛒 추천 제품 {len(products)}개 (추천 성분 함유) ---")
+    for p in products:
+        matched = ", ".join(p.get("matched_ingredients", []))
+        brand = p.get("brand") or "브랜드미상"
+        cat = f" · {p['main_category']}" if p.get("main_category") else ""
+        print(f"  [{brand}] {p['product_name']}{cat}")
+        print(f"      매칭 성분: {matched}")
+        if p.get("product_url"):
+            print(f"      {p['product_url']}")
+
+    print("\n사용 프로필:", data.get("user_profile"))
 
 
 async def main() -> None:
