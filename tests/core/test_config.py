@@ -73,7 +73,7 @@ def test_settings_default_to_deployed_and_local_web_origins(monkeypatch):
 
     assert settings.cors_allowed_origins == [
         "https://cosmos-incicrew.vercel.app",
-        "http://localhost:8123",
+        "http://localhost:3000",
     ]
 
 

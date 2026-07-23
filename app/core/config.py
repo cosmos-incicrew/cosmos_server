@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEVELOPMENT_CORS_ORIGINS = [
     "https://cosmos-incicrew.vercel.app",
-    "http://localhost:8123",
+    "http://localhost:3000",
 ]
 
 
