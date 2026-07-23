@@ -14,6 +14,7 @@ erDiagram
     products {
         integer id PK
         text product_name
+        text cleaned_product_name
         text product_num
         text main_category
         text sub_category
@@ -80,6 +81,7 @@ erDiagram
 |---|---|---|
 | id | INTEGER PK | 구분용 PK (위 번호대 규칙 적용) |
 | product_name | TEXT NOT NULL | 제품명 |
+| cleaned_product_name | TEXT | 판매·용량 문구를 정리한 검색용 제품명 |
 | product_num | TEXT | 제품번호 |
 | brand | TEXT | 브랜드 |
 | main_category | TEXT | 대분류 |
