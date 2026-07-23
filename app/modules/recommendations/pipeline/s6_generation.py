@@ -60,7 +60,7 @@ async def generate(
     for attempt in range(_MAX_ATTEMPTS):
         try:
             # 타임아웃이 없으면 Gemini 가 응답하지 않을 때 워커가 무기한 묶인다.
-            # Flash + 최대 12,000자 근거라 정상 지연은 짧지만, 무응답 방어로 상한을 둔다.
+            # 저지연 모델 + 최대 12,000자 근거라 정상 지연은 짧지만, 무응답 방어로 상한을 둔다.
             async with asyncio.timeout(GENERATION_TIMEOUT_SECONDS):
                 out = await _call_gemini(prompt, context, candidates)
         except Exception as exc:
@@ -91,14 +91,7 @@ async def generate(
 async def _call_gemini(
     prompt: str, context: UserContext, candidates: list[Candidate]
 ) -> LlmNarrative:
-    """추천 최종 합성에 Flash 를 쓴다 (2026-07-22 결정).
-
-    llm-rag-rules 의 Pro 사용 기준(여러 근거 종합)에는 해당하나, Pro 실측 지연이
-    사소한 프롬프트에서도 ~15초라 최대 12,000자 근거를 얹으면 GENERATION_TIMEOUT_SECONDS
-    (30초)를 넘겨 502 가 난다. Render 무료 티어에서 실사용자 502 를 피하려 Flash 로
-    내린다. 생성 품질은 Langfuse groundedness 평가로 관측하고, 미흡하면 Pro 재검토.
-    """
-    model = gemini_model_for(complex_query=False)
+    model = gemini_model_for()
 
     # 프롬프트에는 나이·성별·보유 성분이 들어 있다. 트레이스는 외부 SaaS 에 남으므로
     # 개인 속성을 지운 사본을 기록한다 — 품질 디버깅에 필요한 건 지시문·후보·근거이지

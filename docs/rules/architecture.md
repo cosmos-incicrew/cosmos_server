@@ -88,7 +88,7 @@ app/main.py                  앱 조립 — 라우터 등록, 전역 예외 핸�
 | `config.py` | `.env`·환경 변수 로딩 | `BaseSettings`. 필수값(Supabase·Gemini·Langfuse 키) 누락 시 **기동 시점에 즉시 실패**한다. 모델명·로그 레벨도 설정으로 주입 |
 | `auth.py` | JWT 검증 의존성 | `verify_jwt` — HS256 + Supabase JWT secret으로 검증, `audience=authenticated` 확인, `sub`(user_id) 반환. 실패는 모두 401 |
 | `supabase.py` | Supabase 클라이언트 | `AsyncClient` 지연 싱글턴. **비동기**다 — async 라우터에서 이벤트 루프를 막지 않기 위해 동기 클라이언트를 쓰지 않는다 |
-| `gemini.py` | Gemini 클라이언트 | 클라이언트 래퍼 + `gemini_model_for()` — Flash 기본, 복합 질의만 Pro |
+| `gemini.py` | Gemini 클라이언트 | 클라이언트 래퍼 + `gemini_model_for()` — 전 기능 단일 모델(`settings.gemini_model`) |
 | `langfuse.py` | 트레이싱 클라이언트 | Langfuse 초기화. 실제 트레이스는 각 모듈 LLM 호출 시 부착 |
 
 설정·클라이언트를 `core`에 모은 이유는, 팀원이 각자 인증·클라이언트를 중복 구현하는 것을 막기 위해서다.
@@ -123,8 +123,8 @@ LLM을 호출하는 모듈(`ingredient_detail`·`recommendations`)은 아래 원
 - **근거 기반 생성 강제**: retrieval 없이 LLM 단독 생성을 하지 않는다. 검색 점수가 임계값
   미달이면 생성을 호출하지 않고 "확인 불가" 정형 응답을 반환한다 — 불필요한 과금도 함께 막는다.
 - **Prompt Injection 방어**: 사용자 입력은 지시문과 분리된 데이터 블록(`<user_input>`)으로 격리한다.
-- **모델 선택**: 기본 Flash, 여러 근거를 종합하는 생성(교차 주의 문구·추천 최종 합성)만 Pro.
-  모델명은 하드코딩하지 않고 `gemini_model_for()`를 거친다.
+- **모델 선택**: flash/pro 구분을 폐지하고 전 기능이 단일 모델(`settings.gemini_model`)을
+  쓴다 (2026-07-23). 모델명은 하드코딩하지 않고 `gemini_model_for()`를 거친다.
 - **트레이싱 필수**: 모든 LLM 호출은 Langfuse 트레이스를 남기고 모듈 태그(`module:*`)를 붙인다.
   비용·품질을 모듈별로 추적하기 위해서다.
 

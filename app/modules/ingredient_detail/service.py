@@ -362,14 +362,14 @@ def _build_evidence_block(evidence: IngredientEvidence, safety_unknown: bool) ->
 
 @observe(as_type="generation")
 async def _generate_explanation(evidence: IngredientEvidence, safety_unknown: bool) -> str:
-    """근거를 엮어 Gemini로 해설 생성. Flash 기본(단일 근거 생성).
+    """근거를 엮어 Gemini로 해설 생성.
 
     @observe가 Langfuse generation 트레이스를 자동 생성한다.
     module 태그를 붙여 비용·품질을 모듈별로 추적한다.
     """
     evidence_block = _build_evidence_block(evidence, safety_unknown)
     user_prompt = EXPLANATION_USER_TEMPLATE.format(evidence_block=evidence_block)
-    model = gemini_model_for()  # Flash: 단일 성분 해설은 복합 질의 아님
+    model = gemini_model_for()
 
     langfuse = get_client()
     langfuse.update_current_generation(
@@ -526,7 +526,7 @@ async def _generate_product_summary(
 ) -> str:
     """여러 성분 근거를 종합해 제품 요약 생성.
 
-    여러 근거를 종합하는 복합 질의이므로 Pro 모델을 사용한다(llm-rag-rules).
+    여러 근거를 종합하는 복합 질의.
     """
     evidence_block = _build_product_evidence_block(evidences, caution_count)
     if high_risk_notes:
@@ -534,7 +534,7 @@ async def _generate_product_summary(
         joined = "\n".join(f"- {note}" for note in high_risk_notes)
         evidence_block += f"\n\n[특별히 주의가 필요한 성분]\n{joined}"
     user_prompt = PRODUCT_SUMMARY_USER_TEMPLATE.format(evidence_block=evidence_block)
-    model = gemini_model_for(complex_query=True)  # 여러 근거 종합 → Pro
+    model = gemini_model_for()
 
     langfuse = get_client()
     langfuse.update_current_generation(
@@ -703,7 +703,7 @@ async def _generate_comparison_summary(
     """비교 결과를 종합해 해설 생성. 여러 제품·근거 종합이므로 Pro 모델."""
     evidence_block = _build_comparison_evidence_block(products, presences, evidence_by_id)
     user_prompt = COMPARISON_USER_TEMPLATE.format(evidence_block=evidence_block)
-    model = gemini_model_for(complex_query=True)
+    model = gemini_model_for()
 
     langfuse = get_client()
     langfuse.update_current_generation(
