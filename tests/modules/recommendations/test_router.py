@@ -42,7 +42,6 @@ def test_returns_recommendations(client: TestClient, monkeypatch: pytest.MonkeyP
         return RecommendationResponse(
             status="ok",
             answer=Answer(cause_analysis="원인", recommendation="추천", usage_guide="사용법"),
-            retrieval_mode="vector",
             user_profile=UserProfile(age=32, concerns=["pores"]),
             disclaimer=DISCLAIMER,
         )
@@ -55,7 +54,6 @@ def test_returns_recommendations(client: TestClient, monkeypatch: pytest.MonkeyP
     body = response.json()
     assert body["status"] == "ok"
     assert body["answer"]
-    assert body["retrieval_mode"] == "vector"
     assert "recommended_ingredients" not in body
 
 

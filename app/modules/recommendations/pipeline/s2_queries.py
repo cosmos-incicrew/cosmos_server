@@ -7,11 +7,10 @@
 
 from app.common.skin_concerns import CONCERN_LABEL_BY_CODE
 from app.modules.recommendations import bsti_traits
+from app.modules.recommendations.constants import GENDER_LABELS
 from app.modules.recommendations.schemas import UserContext
 
 _AGE_BUCKET = 10  # "32세" → "30대"
-
-_GENDER_LABELS = {"female": "여성", "male": "남성"}
 
 
 def build_queries(context: UserContext) -> list[tuple[str, str]]:
@@ -30,11 +29,11 @@ def build_queries(context: UserContext) -> list[tuple[str, str]]:
 
 
 def _describe_person(context: UserContext) -> list[str]:
-    """검색어 앞에 붙일 사람 묘사. 값이 없는 요소는 넣지 않는다."""
+    """검색어 뒤 괄호에 붙일 사람 묘사. 값이 없는 요소는 넣지 않는다."""
     parts: list[str] = []
     if context.age:
         parts.append(f"{context.age // _AGE_BUCKET * _AGE_BUCKET}대")
-    gender = _GENDER_LABELS.get(context.gender or "")
+    gender = GENDER_LABELS.get(context.gender or "")
     if gender:
         parts.append(gender)
     skin = bsti_traits.describe(context.bsti_type)

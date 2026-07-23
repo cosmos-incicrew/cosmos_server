@@ -8,12 +8,18 @@
 import pytest
 from fastapi import HTTPException
 
+from app.common.skin_concerns import CONCERN_CODES
 from app.modules.recommendations.constants import MAX_CONCERNS
 from app.modules.recommendations.pipeline import s1_context as context
 
 _USER = "11111111-1111-4111-8111-111111111111"
 
+_OTHER_USER = "99999999-9999-4999-8999-999999999999"
+
+# user_id 를 넣어 두는 이유: FakeQuery 가 `.eq("user_id", …)` 를 실제로 거른다.
+# RLS 미적용(service_role) 경로라 이 필터가 빠지면 남의 프로필이 섞인다.
 _PROFILE = {
+    "user_id": _USER,
     "age": 32,
     "gender": "female",
     "skin_concerns": ["pores", "sensitivity"],
@@ -54,6 +60,31 @@ async def test_no_valid_concern_raises_409(patch_supabase):
     assert exc.value.status_code == 409
 
 
+async def test_profile_and_shelf_are_scoped_to_the_requesting_user(patch_supabase):
+    """RLS 미적용(service_role) 경로라 user_id 필터가 유일한 격리 수단이다.
+
+    필터를 지우면 남의 프로필·화장대가 그대로 추천 입력이 된다.
+    """
+    patch_supabase(
+        {
+            "user_profiles": [
+                {**_PROFILE, "user_id": _OTHER_USER, "age": 55, "gender": "male"},
+                _PROFILE,
+            ],
+            "user_shelf": [
+                {"user_id": _OTHER_USER, "item_type": "ingredient",
+                 "ingredient_name": "남의성분"},
+                {"user_id": _USER, "item_type": "ingredient", "ingredient_name": "판테놀"},
+            ],
+        }
+    )
+
+    ctx = await context.build_context(_USER)
+
+    assert ctx.age == 32 and ctx.gender == "female"
+    assert ctx.owned_ingredients == ["판테놀"]
+
+
 async def test_profile_query_failure_raises_503(patch_supabase):
     patch_supabase(missing={"user_profiles"})
 
@@ -69,7 +100,7 @@ async def test_concerns_capped(patch_supabase):
     patch_supabase(
         {
             "user_profiles": [
-                {**_PROFILE, "skin_concerns": ["pores", "sensitivity", "acne", "wrinkles"]}
+                {**_PROFILE, "skin_concerns": [*CONCERN_CODES]}  # 상한보다 많이 넣는다
             ]
         }
     )
@@ -145,7 +176,9 @@ async def test_shelf_direct_ingredient_registration(patch_supabase):
     patch_supabase(
         {
             "user_profiles": [_PROFILE],
-            "user_shelf": [{"item_type": "ingredient", "ingredient_name": "판테놀"}],
+            "user_shelf": [
+                {"user_id": _USER, "item_type": "ingredient", "ingredient_name": "판테놀"}
+            ],
         }
     )
 
@@ -158,10 +191,12 @@ async def test_shelf_product_resolves_to_ingredients_and_product_names(patch_sup
     patch_supabase(
         {
             "user_profiles": [_PROFILE],
-            "user_shelf": [{"item_type": "product", "product_id": 10001}],
+            "user_shelf": [{"user_id": _USER, "item_type": "product", "product_id": 10001}],
             "product_ingredients": [
-                {"raw_name": "판테놀", "products": {"product_name": "OO 토너"}},
-                {"raw_name": "나이아신아마이드", "products": {"product_name": "OO 토너"}},
+                {"product_id": 10001, "raw_name": "판테놀",
+                 "products": {"product_name": "OO 토너"}},
+                {"product_id": 10001, "raw_name": "나이아신아마이드",
+                 "products": {"product_name": "OO 토너"}},
             ],
         }
     )
@@ -178,8 +213,8 @@ async def test_shelf_row_without_product_id_does_not_crash(patch_supabase):
         {
             "user_profiles": [_PROFILE],
             "user_shelf": [
-                {"item_type": "product", "product_id": None},
-                {"item_type": "ingredient", "ingredient_name": "판테놀"},
+                {"user_id": _USER, "item_type": "product", "product_id": None},
+                {"user_id": _USER, "item_type": "ingredient", "ingredient_name": "판테놀"},
             ],
         }
     )
@@ -194,10 +229,12 @@ async def test_duplicate_raw_name_does_not_duplicate_product_name(patch_supabase
     patch_supabase(
         {
             "user_profiles": [_PROFILE],
-            "user_shelf": [{"item_type": "product", "product_id": 10001}],
+            "user_shelf": [{"user_id": _USER, "item_type": "product", "product_id": 10001}],
             "product_ingredients": [
-                {"raw_name": "판테놀", "products": {"product_name": "OO 토너"}},
-                {"raw_name": "판테놀", "products": {"product_name": "OO 토너"}},
+                {"product_id": 10001, "raw_name": "판테놀",
+                 "products": {"product_name": "OO 토너"}},
+                {"product_id": 10001, "raw_name": "판테놀",
+                 "products": {"product_name": "OO 토너"}},
             ],
         }
     )
@@ -212,8 +249,10 @@ async def test_ingredient_without_product_name_leaves_no_empty_entry(patch_supab
     patch_supabase(
         {
             "user_profiles": [_PROFILE],
-            "user_shelf": [{"item_type": "product", "product_id": 10001}],
-            "product_ingredients": [{"raw_name": "판테놀", "products": None}],
+            "user_shelf": [{"user_id": _USER, "item_type": "product", "product_id": 10001}],
+            "product_ingredients": [
+                {"product_id": 10001, "raw_name": "판테놀", "products": None}
+            ],
         }
     )
 

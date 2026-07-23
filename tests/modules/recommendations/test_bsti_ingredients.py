@@ -12,7 +12,7 @@ from app.modules.recommendations.bsti_ingredients import (
     BSTI_RECOMMENDED,
     recommended_for,
 )
-from app.modules.recommendations.names import normalize_ingredient_name
+from app.modules.recommendations.util.ingredient_names import normalize_ingredient_name
 from app.modules.users.schemas import BSTI_TYPE_PATTERN
 
 

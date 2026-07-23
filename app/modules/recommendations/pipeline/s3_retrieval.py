@@ -20,12 +20,12 @@ from enum import StrEnum
 from typing import Any
 
 from app.common.skin_concerns import CONCERN_LABEL_BY_CODE
-from app.core.supabase import get_supabase
-from app.core.supabase import rows as _narrow
+from app.core.supabase import get_supabase, rows
 from app.modules.recommendations import errors
 from app.modules.recommendations.constants import (
     CASES_TOP_K,
     CONCERN_SEARCH_KEYWORDS,
+    EFFICACY_FIELDS,
     EFFICACY_TOP_K,
     MIN_RETRIEVAL_SCORE,
 )
@@ -63,12 +63,12 @@ async def retrieve(
             if collection is RetrievalCollection.REC_CASES
             else "match_rec_efficacy"
         )
-        rows = _narrow(
+        matched = rows(
             await client.rpc(fn, {"query_embedding": vector, "match_count": top_k}).execute()
         )
         if collection is RetrievalCollection.REC_CASES:
-            return [_case_chunk(row) for row in rows]
-        return [_efficacy_chunk(row) for row in rows]
+            return [_case_chunk(row) for row in matched]
+        return [_efficacy_chunk(row) for row in matched]
     except Exception as exc:  # 실패는 종류를 가리지 않고 하나의 예외로 감싼다
         raise RetrievalError(f"{collection.value} 검색 실패: {exc}") from exc
 
@@ -126,16 +126,9 @@ def _efficacy_chunk(row: dict[str, Any]) -> RetrievedChunk:
             title=f"{name} 효능",
             locator=row.get("reference_source"),
         ),
-        metadata={
-            "name_kor": row.get("name_kor"),
-            "inci": row.get("inci"),
-            "ingredient_id": row.get("ingredient_id"),
-            "efficacy": row.get("efficacy"),
-            "safety_note": row.get("safety_note"),
-            "recommended_concentration": row.get("recommended_concentration"),
-            "recommended_skin_types": row.get("recommended_skin_types"),
-            "regulation_note": row.get("regulation_note"),  # ⑤ 안전성 필터가 소비 (02 §4)
-        },
+        # ④가 그대로 Candidate 에 옮겨 담는 필드들 — 목록은 constants.EFFICACY_FIELDS 하나뿐이다.
+        metadata={"name_kor": row.get("name_kor")}
+        | {field: row.get(field) for field in EFFICACY_FIELDS},
     )
 
 
@@ -187,22 +180,21 @@ async def _retrieve_one(
     )
     if isinstance(cases_r, BaseException) and isinstance(efficacy_r, BaseException):
         raise RetrievalError(f"{code} 고민 양 leg 검색 실패: {cases_r}") from cases_r
+    return (
+        code,
+        _leg_or_empty(cases_r, code, "cases leg 실패, efficacy leg 만 사용"),
+        _leg_or_empty(efficacy_r, code, "efficacy leg 실패, cases leg 만 사용"),
+    )
 
-    cases: list[RetrievedChunk]
-    if isinstance(cases_r, BaseException):
-        logger.warning("%s 고민 cases leg 실패, efficacy leg 만 사용", code, exc_info=cases_r)
-        cases = []
-    else:
-        cases = cases_r
 
-    efficacy: list[RetrievedChunk]
-    if isinstance(efficacy_r, BaseException):
-        logger.warning("%s 고민 efficacy leg 실패, cases leg 만 사용", code, exc_info=efficacy_r)
-        efficacy = []
-    else:
-        efficacy = efficacy_r
-
-    return code, cases, efficacy
+def _leg_or_empty(
+    result: list[RetrievedChunk] | BaseException, code: str, note: str
+) -> list[RetrievedChunk]:
+    """실패한 leg 를 빈 목록으로 낮춘다 — 살아남은 leg 의 근거를 버리지 않기 위함."""
+    if isinstance(result, BaseException):
+        logger.warning("%s 고민 %s", code, note, exc_info=result)
+        return []
+    return result
 
 
 def _above_threshold(chunks: list[RetrievedChunk], concern_code: str) -> list[RetrievedChunk]:

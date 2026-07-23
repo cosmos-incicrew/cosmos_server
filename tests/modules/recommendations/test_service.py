@@ -11,24 +11,33 @@ from fastapi import HTTPException
 from app.modules.recommendations import bsti_traits
 from app.modules.recommendations.constants import (
     BSTI_BOOST,
+    CASE_SKIN_TYPE_BOOST,
     MAX_CANDIDATES,
     MAX_CHUNK_CHARS,
     MAX_EVIDENCE_CHARS,
+    MIN_CANDIDATES_PER_CONCERN,
     OWNED_PENALTY,
     PREGNANCY_AVOID,
 )
-from app.modules.recommendations.names import normalize_ingredient_name
 from app.modules.recommendations.pipeline import s2_queries as queries_stage
 from app.modules.recommendations.pipeline import s4_candidates as candidates_stage
 from app.modules.recommendations.pipeline import s5_safety as safety
 from app.modules.recommendations.pipeline import s6_generation as generation
 from app.modules.recommendations.pipeline import s10_response as response_stage
+
+# `_no_db` 픽스처가 모듈 속성을 목으로 갈아끼우므로, 실제 조회 경로를 태울 테스트를 위해
+# 원본 함수를 임포트 시점에 붙잡아 둔다.
+from app.modules.recommendations.pipeline.s4_candidates import (
+    resolve_ingredient_ids as real_resolve_ingredient_ids,
+)
 from app.modules.recommendations.schemas import (
     Candidate,
     ChunkSource,
     RetrievedChunk,
     UserContext,
 )
+from app.modules.recommendations.util.ingredient_names import normalize_ingredient_name
+from tests.modules.recommendations.conftest import FakeSupabase
 
 
 def _efficacy_chunk(name: str, score: float, concern: str = "pores", **meta) -> RetrievedChunk:
@@ -40,12 +49,14 @@ def _efficacy_chunk(name: str, score: float, concern: str = "pores", **meta) -> 
     )
 
 
-def _case_chunk(names: list[str], score: float, concern: str = "pores") -> RetrievedChunk:
+def _case_chunk(
+    names: list[str], score: float, concern: str = "pores", doc_id: str = "case_1", **meta
+) -> RetrievedChunk:
     return RetrievedChunk(
         content="[상담] ...",
         score=score,
-        source=ChunkSource(doc_id="case_1", title="상담 사례"),
-        metadata={"recommended_ingredients": names, "concern": concern},
+        source=ChunkSource(doc_id=doc_id, title="상담 사례"),
+        metadata={"recommended_ingredients": names, "concern": concern, **meta},
     )
 
 
@@ -85,6 +96,15 @@ def test_bsti_sensitive_axis():
     assert bsti_traits.is_sensitive("ORPW") is False
 
 
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [("OSPW", "지성"), ("DRNT", "건성"), (None, None), ("XX", None)],
+)
+def test_bsti_maps_to_case_skin_type(code, expected):
+    """상담 사례(`rec_cases.skin_type`)와 어휘가 달라 축 하나를 그 표기로 옮긴다."""
+    assert bsti_traits.case_skin_type(code) == expected
+
+
 # ── ④ 후보 집계 ───────────────────────────────────────────────
 
 
@@ -112,6 +132,73 @@ async def test_bsti_boost_applied_once():
 
     # 청크 2개여도 가점은 dedupe 이후 1회만
     assert candidates[0].score == pytest.approx(0.8 + BSTI_BOOST)
+
+
+async def test_weighted_score_does_not_leak_into_displayed_similarity():
+    """가점은 정렬용이다 — ⑩ 카드의 similarity 는 코사인 원점수여야 한다.
+
+    score 를 그대로 실으면 0.92 + BSTI_BOOST = 1.07 이 유사도로 나가고, 같은 성분이
+    `ingredients[]`(청크 원점수 0.92)와 한 응답 안에서 두 값을 갖는다.
+    """
+    context = _context(bsti_recommended=["판테놀"])
+
+    candidates = await candidates_stage.aggregate_candidates(
+        [], [_efficacy_chunk("판테놀", 0.92)], context
+    )
+    cards = response_stage._top_ingredients([(candidates[0], "both")], context, {})
+
+    assert candidates[0].score == pytest.approx(0.92 + BSTI_BOOST)  # 정렬에는 반영
+    assert cards[0].similarity == 0.92
+
+
+async def test_case_skin_type_match_boosts_candidate():
+    """사용자 BSTI 유·수분 축과 피부타입이 같은 사례에서 온 성분을 위로 올린다.
+
+    두 데이터의 피부타입 어휘가 달라 매핑(`bsti_traits.case_skin_type`)을 거친다.
+    """
+    candidates = await candidates_stage.aggregate_candidates(
+        [_case_chunk(["판테놀"], 0.7, skin_type="지성")],
+        [_efficacy_chunk("판테놀", 0.7)],
+        _context(bsti_type="OSPW"),  # O = 지성
+    )
+
+    assert candidates[0].score == pytest.approx(0.7 + CASE_SKIN_TYPE_BOOST)
+
+
+async def test_case_skin_type_boost_needs_a_bsti_type():
+    """BSTI 미검사 사용자의 순위는 이 가점 도입 전과 같아야 한다."""
+    candidates = await candidates_stage.aggregate_candidates(
+        [_case_chunk(["판테놀"], 0.7, skin_type="지성")],
+        [_efficacy_chunk("판테놀", 0.7)],
+        _context(),  # bsti_type=None
+    )
+
+    assert candidates[0].score == pytest.approx(0.7)
+
+
+async def test_unmapped_case_skin_type_is_kept_without_boost():
+    """복합성·중성 사례는 가점만 없다 — 탈락시키면 안 된다.
+
+    BSTI 1축은 O/D 2극뿐이라 실 데이터 8,000건의 69%(복합성 40%·중성 29%)가 어느 극에도
+    대응하지 않는다. 하드필터로 쓰면 사례 3분의 2가 통째로 빠져 회수량이 무너진다.
+    """
+    # 사례 score(0.85)를 효능 근거(0.5)보다 높게, concern 도 다르게 둬 사례 기여가 산출에
+    # 드러나게 한다 — 이름만 비교하면 효능 청크만으로도 통과해 탈락을 못 잡는다.
+    cases = [
+        _case_chunk(["판테놀"], 0.85, concern="wrinkles", skin_type="복합성", doc_id="c_mixed"),
+        _case_chunk(["세라마이드"], 0.85, concern="wrinkles", skin_type="중성", doc_id="c_neutral"),
+    ]
+
+    candidates = await candidates_stage.aggregate_candidates(
+        cases,
+        [_efficacy_chunk("판테놀", 0.5), _efficacy_chunk("세라마이드", 0.5)],
+        _context(bsti_type="OSPW"),
+    )
+
+    assert {c.name_kor for c in candidates} == {"판테놀", "세라마이드"}
+    # 가점도 감점도 없이 사례 기여가 그대로 남는다 (걸러졌다면 효능 청크의 0.5 에 머문다)
+    assert all(c.score == pytest.approx(0.85) for c in candidates)
+    assert all("wrinkles" in c.concerns for c in candidates)
 
 
 async def test_owned_penalty_applied_once():
@@ -181,6 +268,111 @@ async def test_aggregate_drops_case_only_ingredients(monkeypatch):
     assert "알로에신" not in names  # case-only → 제외
 
 
+# ── ④ 재현성 (같은 프로필 → 같은 추천) ─────────────────────────
+
+
+async def test_tied_candidates_rank_identically_whatever_the_db_order():
+    """동점 후보의 순서가 DB 행 도착 순서에 좌우되면 안 된다.
+
+    검색 RPC 는 `order by embedding <=> query_embedding` 뿐이라(migration 015) 거리가
+    같은 행의 순서가 보장되지 않는다. score 만으로 정렬하면 파이썬 안정 정렬이 그 순서를
+    그대로 물려받아, 상한(MAX_CANDIDATES)에서 잘리는 성분이 실행마다 달라진다 — 같은
+    프로필로 두 번 돌린 데모에서 추천 3개 중 2개가 바뀐 원인이다.
+    """
+    names = [f"성분{i}" for i in range(MAX_CANDIDATES + 3)]
+    arrival_orders = [names, list(reversed(names)), names[5:] + names[:5]]
+
+    outcomes = set()
+    for order in arrival_orders:
+        chunks = [_efficacy_chunk(name, 0.71) for name in order]  # 전부 동점
+        result = await candidates_stage.aggregate_candidates([], chunks, _context())
+        outcomes.add(tuple(c.name_kor for c in result))
+
+    assert len(outcomes) == 1, f"도착 순서마다 다른 후보가 나온다: {outcomes}"
+
+
+async def test_duplicate_lookup_key_resolves_to_a_fixed_row(monkeypatch):
+    """한 INCI 에 rec_efficacy 행이 여럿일 때 이기는 행이 고정돼야 한다.
+
+    `.in_()` 조회에는 ORDER BY 가 없어 먼저 온 행이 이기면 같은 요청에도 성분 ID 와
+    한글 표시명이 실행마다 바뀐다 — 표시명이 바뀌면 ⑧ 대표 선정까지 흔들린다.
+    """
+    duplicates = [
+        {"ingredient_id": 9, "inci": "SULFUR", "name_kor": "황(고농도)"},
+        {"ingredient_id": 3, "inci": "SULFUR", "name_kor": "황"},
+    ]
+
+    resolved = []
+    for order in (duplicates, list(reversed(duplicates))):
+        client = FakeSupabase({"ingredients": [], "synonyms": [], "rec_efficacy": order})
+        monkeypatch.setattr(candidates_stage, "get_supabase", _returning(client))
+        candidate = Candidate(name_kor="SULFUR", score=0.7)
+
+        await real_resolve_ingredient_ids([candidate])
+
+        resolved.append((candidate.ingredient_id, candidate.name_kor))
+
+    assert resolved[0] == resolved[1] == (3, "황")
+
+
+def _returning(client: FakeSupabase):
+    async def _fake() -> FakeSupabase:
+        return client
+
+    return _fake
+
+
+# ── ④ 고민별 최소 슬롯 (설계 04 §2-1b) ─────────────────────────
+
+
+async def test_weak_concern_keeps_minimum_candidate_slots():
+    """검색 점수가 높은 고민이 낮은 고민을 후보 목록 밖으로 밀어내면 안 된다.
+
+    ⑥은 후보 목록 안에서만 추천하므로, 밀려난 고민은 응답에서 통째로 사라진다.
+    """
+    strong = [
+        _efficacy_chunk(f"미백{i}", 0.9 - i * 0.001, concern="brightening")
+        for i in range(MAX_CANDIDATES + 5)
+    ]
+    weak = [_efficacy_chunk(f"진정{i}", 0.6 - i * 0.001, concern="redness") for i in range(3)]
+
+    candidates = await candidates_stage.aggregate_candidates(
+        [], strong + weak, _context(concerns=["brightening", "redness"])
+    )
+
+    assert len(candidates) == MAX_CANDIDATES
+    # 예약분도 그 고민 안에서는 점수순이다
+    assert [c.name_kor for c in candidates if "redness" in c.concerns] == [
+        f"진정{i}" for i in range(MIN_CANDIDATES_PER_CONCERN)
+    ]
+
+
+async def test_concern_without_evidence_reserves_no_slot():
+    """근거 없는 고민까지 자리를 예약하면 근거 있는 고민의 성분만 줄어든다.
+
+    그 상태는 ⑩ advisory 의 partial_evidence 가 따로 알린다.
+    """
+    chunks = [
+        _efficacy_chunk(f"성분{i}", 0.9 - i * 0.01, concern="brightening")
+        for i in range(MAX_CANDIDATES + 3)
+    ]
+
+    candidates = await candidates_stage.aggregate_candidates(
+        [], chunks, _context(concerns=["brightening", "redness", "acne"])
+    )
+
+    assert [c.name_kor for c in candidates] == [f"성분{i}" for i in range(MAX_CANDIDATES)]
+
+
+async def test_single_concern_user_keeps_pure_score_order():
+    """고민이 하나면 예약이 상위 몇 개를 다시 집는 것뿐이라 도입 전과 결과가 같다."""
+    chunks = [_efficacy_chunk(f"성분{i}", 0.9 - i * 0.01) for i in range(MAX_CANDIDATES + 3)]
+
+    candidates = await candidates_stage.aggregate_candidates([], chunks, _context())
+
+    assert [c.name_kor for c in candidates] == [f"성분{i}" for i in range(MAX_CANDIDATES)]
+
+
 # ── ⑤ 안전성 필터 ─────────────────────────────────────────────
 
 
@@ -202,27 +394,36 @@ async def test_pregnancy_contraindicated_removed_when_expecting(_no_restrictions
     assert kept == []
 
 
-async def test_pregnancy_unknown_warns_instead_of_removing(_no_restrictions):
+async def test_pregnancy_contraindicated_removed_when_nursing(_no_restrictions):
+    """수유 중도 제외 대상이다.
+
+    `expecting` 판정에서 `is_nursing` 을 빼면 수유부에게 레티놀이 **경고조차 없이**
+    추천된다 — expecting 도 unknown_pregnancy 도 False 가 되기 때문이다.
+    """
     candidates = [Candidate(name_kor="레티놀", score=0.9, ingredient_id=1)]
 
-    kept = await safety.apply_safety_filters(candidates, _context())
-
-    assert len(kept) == 1  # 미수집 상태의 일괄 제거는 과차단이라 경고만
-    assert any(w.type == "임신수유주의" for w in kept[0].warnings)
-
-
-async def test_banned_restriction_removes_candidate(monkeypatch: pytest.MonkeyPatch):
-    async def _banned(candidates):
-        return safety.RestrictionLookup(
-            {1: {"regulate_type": "금지", "ingredient_id": 1}}, {}, ok=True
-        )
-
-    monkeypatch.setattr(safety, "fetch_restrictions", _banned)
-    candidates = [Candidate(name_kor="금지성분", score=0.9, ingredient_id=1)]
-
-    kept = await safety.apply_safety_filters(candidates, _context())
+    kept = await safety.apply_safety_filters(
+        candidates, _context(is_pregnant=False, is_nursing=True)
+    )
 
     assert kept == []
+
+
+async def test_contraindicated_ingredient_not_warned_when_neither_pregnant_nor_nursing(
+    _no_restrictions,
+):
+    """임신·수유가 아님이 확정된 사용자에겐 제외 대상 성분도 경고 없이 나간다.
+
+    `unknown_pregnancy` 게이트를 없애면 모든 사용자에게 임신 경고가 붙는다.
+    """
+    candidates = [Candidate(name_kor="레티놀", score=0.9, ingredient_id=1)]
+
+    kept = await safety.apply_safety_filters(
+        candidates, _context(is_pregnant=False, is_nursing=False)
+    )
+
+    assert len(kept) == 1
+    assert not any(w.type == "임신수유주의" for w in kept[0].warnings)
 
 
 async def test_unmapped_candidate_gets_safety_unknown_warning(_no_restrictions):
@@ -361,20 +562,9 @@ async def test_pregnancy_partially_collected_still_warns(_no_restrictions):
 
 
 # ── 사용제한 조회 (fail-open · 금지 우선) ───────────────────────
-
-
-async def test_restriction_lookup_failure_warns_every_candidate(monkeypatch):
-    """조회 실패를 "제한 없음"으로 읽으면 금지 성분이 무경고로 나간다."""
-
-    async def _failed(candidates):
-        return safety.RestrictionLookup({}, {}, ok=False)
-
-    monkeypatch.setattr(safety, "fetch_restrictions", _failed)
-    candidates = [Candidate(name_kor="어떤성분", score=0.9, ingredient_id=1)]
-
-    kept = await safety.apply_safety_filters(candidates, _context())
-
-    assert any(w.type == "안전성확인불가" for w in kept[0].warnings)
+#
+# 금지 제거·조회 실패 fail-closed 는 실 조회 경로로 test_db_logic 이 검증한다.
+# 여기 목 기반 중복본은 같은 계약을 약하게 반복해 삭제했다.
 
 
 def test_worst_restriction_prefers_ban_over_limit():
@@ -415,6 +605,39 @@ async def test_inci_and_korean_candidate_collapse_after_id_mapping(monkeypatch):
     assert set(candidates[0].concerns) == {"wrinkles", "pores"}
 
 
+async def test_collapsed_candidates_union_concerns_and_source_docs(monkeypatch):
+    """매핑 후 합쳐지는 두 후보의 고민·근거는 **합집합**이어야 한다.
+
+    두 축의 값이 겹치지 않게 구성한다 — 겹쳐 두면 병합 코드를 통째로 지워도 통과한다.
+    잃어버린 doc_id 는 ⑥ 프롬프트 근거 선별(`_relevant_chunks`)에서 그 근거를 통째로
+    탈락시킨다.
+    """
+
+    async def _resolve(candidates):
+        for c in candidates:
+            if c.name_kor == "Hexapeptide-2":
+                c.ingredient_id = 4871
+                c.name_kor = "헥사펩타이드-2"
+            elif c.name_kor == "헥사펩타이드-2":
+                c.ingredient_id = 4871
+
+    monkeypatch.setattr(candidates_stage, "resolve_ingredient_ids", _resolve)
+    chunks = [
+        _case_chunk(["헥사펩타이드-2"], 0.9, concern="wrinkles", doc_id="case_ko"),
+        _case_chunk(["Hexapeptide-2"], 0.85, concern="pores", doc_id="case_inci"),
+    ]
+    # efficacy 근거도 한글 후보 쪽 고민(wrinkles)에만 달아 INCI 후보의 기여를 분리한다.
+    efficacy = [_efficacy_chunk("헥사펩타이드-2", 0.5, concern="wrinkles")]
+
+    candidates = await candidates_stage.aggregate_candidates(chunks, efficacy, _context())
+
+    assert len(candidates) == 1
+    assert set(candidates[0].concerns) == {"wrinkles", "pores"}
+    assert set(candidates[0].source_doc_ids) == {
+        "case_ko", "case_inci", "eff_헥사펩타이드-2"
+    }
+
+
 async def test_notes_collapse_into_single_warning(_no_restrictions):
     candidates = [
         Candidate(
@@ -447,7 +670,7 @@ async def test_sparse_concern_user_gets_insufficient_evidence():
     assert response.status == "insufficient_evidence"
     assert response.advisory.code == "no_evidence"
     assert response.advisory.action == "take_bsti"  # BSTI 미검사 → 검사 유도
-    assert response.cases == [] and response.ingredients == []
+    assert response.cases == [] and response.top_ingredients == []
     assert response.user_profile.concerns == ["sensitivity"]
 
 
@@ -493,6 +716,96 @@ async def test_hallucinated_name_triggers_regeneration(monkeypatch):
     assert calls["n"] == 2
 
 
+async def test_regeneration_prompt_carries_the_failure_reason(monkeypatch):
+    """재시도 프롬프트에 실패 사유가 실려야 한다 (설계 04 §9).
+
+    온도 0·고정 seed 라 같은 프롬프트를 다시 보내면 같은 답이 온다 — 사유를 싣지 않으면
+    재생성이 같은 값에 LLM 호출만 한 번 더 쓰고 오염된 결과를 그대로 쓴다.
+    """
+    from app.modules.recommendations.schemas import LlmNarrative
+
+    prompts: list[str] = []
+
+    async def _fake_gemini(prompt, context, candidates):
+        prompts.append(prompt)
+        names = ["존재하지않는성분"] if len(prompts) == 1 else ["판테놀"]
+        return LlmNarrative(
+            cause_analysis="원인", recommendation="추천", usage_guide="사용법",
+            recommended_names=names,
+        )
+
+    monkeypatch.setattr(generation, "_call_gemini", _fake_gemini)
+
+    await generation.generate(_context(), [Candidate(name_kor="판테놀", score=0.9)], [])
+
+    assert len(prompts) == 2
+    assert "다시 작성" not in prompts[0]  # 첫 시도엔 붙지 않는다 (빈 섹션이 지시를 희석시킨다)
+    assert prompts[0] in prompts[1]  # 후보·근거는 그대로 두고 뒤에 덧붙인다
+    # 이름까지 실려야 모델이 무엇을 빼야 하는지 안다
+    assert "존재하지않는성분" in prompts[1]
+
+
+def test_request_block_asks_for_an_exact_count_when_bounds_are_equal():
+    """MIN == MAX(3) 인데 범위로 렌더하면 "3~3개"가 되어 지시가 흐려진다."""
+    from app.modules.recommendations.constants import MAX_RECOMMENDED, MIN_RECOMMENDED
+
+    count = generation._recommend_count()
+
+    assert count == (
+        f"정확히 {MAX_RECOMMENDED}"
+        if MIN_RECOMMENDED == MAX_RECOMMENDED
+        else f"{MIN_RECOMMENDED}~{MAX_RECOMMENDED}"
+    )
+
+
+async def test_too_few_recommended_names_triggers_regeneration(monkeypatch):
+    """빈 목록(또는 MIN_RECOMMENDED 미만)이면 재생성한다.
+
+    그대로 통과시키면 ⑧·⑨이 쓸 성분이 없어 메인 카드·제품이 통째로 빈 채 status=ok 로
+    나간다 — 서사 본문에는 성분 설명이 그대로 남아 있어 더 어긋난다.
+    """
+    from app.modules.recommendations.schemas import LlmNarrative
+
+    names = ["판테놀", "세라마이드", "아데노신"]
+    calls = {"n": 0}
+
+    async def _fake_gemini(prompt, context, candidates):
+        calls["n"] += 1
+        return LlmNarrative(
+            cause_analysis="원인", recommendation="추천", usage_guide="사용법",
+            recommended_names=[] if calls["n"] == 1 else names,
+        )
+
+    monkeypatch.setattr(generation, "_call_gemini", _fake_gemini)
+    candidates = [Candidate(name_kor=n, score=0.9) for n in names]
+
+    result = await generation.generate(_context(), candidates, [])
+
+    assert calls["n"] == 2
+    assert result.recommended_names == names
+
+
+async def test_min_names_capped_by_candidate_count(monkeypatch):
+    """후보가 MIN_RECOMMENDED 보다 적으면 그 수까지만 요구한다 (못 채울 수를 요구하면
+    매번 재생성만 하고 끝난다)."""
+    from app.modules.recommendations.schemas import LlmNarrative
+
+    calls = {"n": 0}
+
+    async def _fake_gemini(prompt, context, candidates):
+        calls["n"] += 1
+        return LlmNarrative(
+            cause_analysis="원인", recommendation="추천", usage_guide="사용법",
+            recommended_names=["판테놀"],
+        )
+
+    monkeypatch.setattr(generation, "_call_gemini", _fake_gemini)
+
+    await generation.generate(_context(), [Candidate(name_kor="판테놀", score=0.9)], [])
+
+    assert calls["n"] == 1
+
+
 async def test_llm_failure_raises_502_after_one_retry(monkeypatch):
     calls = {"n": 0}
 
@@ -520,6 +833,17 @@ def test_candidate_block_keeps_one_line_per_candidate():
     block = generation._candidate_block(candidates)
 
     assert len(block.splitlines()) == 2
+
+
+def test_candidate_block_labels_the_concern_each_candidate_answers():
+    """고민 코드가 없으면 "고민마다 최소 하나"(템플릿 요청)를 모델이 판단할 수 없다.
+
+    정렬은 재현성 몫이다 — `concerns` 는 검색 결과 도착 순서로 쌓여 그대로 쓰면 같은
+    후보로도 프롬프트 문자열이 실행마다 달라진다.
+    """
+    candidates = [Candidate(name_kor="성분A", score=0.9, concerns=["redness", "brightening"])]
+
+    assert generation._candidate_block(candidates) == "- 성분A [brightening, redness]"
 
 
 async def test_placeholder_notes_are_dropped(_no_restrictions):
@@ -715,12 +1039,16 @@ async def test_retinoid_still_removed_when_pregnant(_no_restrictions):
     assert kept == []
 
 
-async def test_pregnancy_warning_text_says_not_advised_not_forbidden(_no_restrictions):
-    """근거는 '금기'가 아니라 '권고되지 않음'이다 — 문구가 사실보다 세면 안 된다."""
+async def test_pregnancy_unknown_warns_with_text_that_says_not_advised(_no_restrictions):
+    """미수집(unknown) 상태는 제거가 아니라 경고다 — 일괄 제거는 과차단이다.
+
+    문구도 '금기'가 아니라 '권고되지 않음'이어야 한다 (근거보다 세게 쓰면 안 된다).
+    """
     candidates = [Candidate(name_kor="레티놀", score=0.9, ingredient_id=1)]
 
     kept = await safety.apply_safety_filters(candidates, _context())
 
+    assert len(kept) == 1
     text = next(w.text for w in kept[0].warnings if w.type == "임신수유주의")
     assert "권고되지 않는" in text
     assert "금기" not in text
@@ -838,7 +1166,7 @@ async def test_generation_timeout_raises_502_not_hang(monkeypatch):
 
 
 async def test_assemble_builds_narrative_response():
-    from app.modules.recommendations.pipeline import s10_response
+    from app.modules.recommendations.pipeline import s8_top_picks, s10_response
     from app.modules.recommendations.schemas import (
         Candidate,
         ChunkSource,
@@ -861,29 +1189,36 @@ async def test_assemble_builds_narrative_response():
                   "safety_note": "고농도 주의", "recommended_concentration": "1~5%",
                   "concern": "pores"},
     )
-    cand = Candidate(name_kor="판테놀", score=0.9, warnings=[
-        IngredientWarning(type="알레르기유발", text="첩포 검사 권장"),
-        IngredientWarning(type="주의사항", text="ⓧ 이건 safety_note 로 대체되어 제외"),
-    ])
+    cand = Candidate(
+        name_kor="판테놀", score=0.9, inci="PANTHENOL",
+        safety_note="고농도 주의", recommended_concentration="1~5%",
+        warnings=[
+            IngredientWarning(type="알레르기유발", text="첩포 검사 권장"),
+            IngredientWarning(type="주의사항", text="ⓧ 이건 safety_note 로 대체되어 제외"),
+        ],
+    )
     narrative = LlmNarrative(
         cause_analysis="원인 분석", recommendation="판테놀 추천", usage_guide="사용법",
         recommended_names=["판테놀"],
     )
 
-    resp = s10_response.assemble(_context(), [cand], narrative, [case], [eff], [])
+    resp = s10_response.assemble(
+        _context(), narrative, [case], [eff],
+        [(cand, s8_top_picks.SOURCE_CONCERN)], [],
+    )
     assert resp.status == "ok"
     assert resp.answer.cause_analysis == "원인 분석"
     assert resp.answer.recommendation == "판테놀 추천"
     assert resp.cases[0].target_concern == "홍조"
     assert resp.cases[0].skin_type == "건성"
     assert resp.cases[0].recommended_ingredients == ["판테놀", "쑥잎추출물"]
-    ing = resp.ingredients[0]
+    ing = resp.top_ingredients[0]
     assert ing.name_kor == "판테놀"
     assert ing.safety_note == "고농도 주의" and ing.concentration == "1~5%"
     assert [w.type for w in ing.warnings] == ["알레르기유발"]  # 주의사항 제외
     assert resp.user_profile.concerns  # UserProfile 로 이름 변경됨
-    assert not hasattr(resp, "warnings") or "warnings" not in resp.model_dump()
-    assert resp.retrieval_mode == "vector"
+    # 경고는 성분별로 귀속한다 — 응답 최상단의 flat 배열은 없어야 한다.
+    assert "warnings" not in resp.model_dump()
     assert resp.advisory is None  # 케이스 근거 있으니 알림 없음
 
 
@@ -891,7 +1226,6 @@ def test_partial_evidence_advisory_names_uncovered_concern():
     """일부 고민만 근거가 있으면 partial_evidence 로 누락 고민을 알린다 (설계 04 §3-2)."""
     from app.modules.recommendations.pipeline.s10_response import assemble
     from app.modules.recommendations.schemas import (
-        Candidate,
         ChunkSource,
         LlmNarrative,
         RetrievedChunk,
@@ -913,16 +1247,18 @@ def test_partial_evidence_advisory_names_uncovered_concern():
         metadata={"target_concern": "미백", "recommended_ingredients": ["나이아신아마이드"],
                   "concern": "brightening"},
     )
-    cand = Candidate(name_kor="나이아신아마이드", score=0.9, efficacy="미백")
-
-    resp = assemble(ctx, [cand], narrative, [case], [eff], [])
+    resp = assemble(ctx, narrative, [case], [eff], [], [])
     assert resp.advisory is not None
     assert resp.advisory.code == "partial_evidence"
     assert "붉어짐" in resp.advisory.message  # CONCERN_LABEL_BY_CODE["redness"]
 
 
-def test_case_recommended_ingredients_normalized_and_deduped():
-    """케이스 근거의 성분명은 정규화·중복 제거해 노출한다 (알로에신/ALOESIN → 1개)."""
+def test_case_recommended_ingredients_strip_newlines_and_dedupe():
+    """케이스 근거의 성분명은 개행·괄호를 떼고 중복을 제거해 노출한다.
+
+    정규화는 표기 정리까지만 한다 — 한글명과 INCI(`알로에신`/`ALOESIN`)를 합치는 것은
+    ④의 ID 매핑 몫이라 여기서는 별개 항목으로 남는다.
+    """
     from app.modules.recommendations.pipeline.s10_response import _case
     from app.modules.recommendations.schemas import ChunkSource, RetrievedChunk
 
@@ -930,22 +1266,183 @@ def test_case_recommended_ingredients_normalized_and_deduped():
         content="", score=0.8, source=ChunkSource(doc_id="c1", title="t"),
         metadata={
             "target_concern": "미백",
-            "recommended_ingredients": ["알로에신", "ALOESIN", "알로에신\n"],
+            "recommended_ingredients": ["알로에신", "ALOESIN", "알로에신\n", "레티놀(비타민 A)"],
         },
     )
     ev = _case(chunk)
-    # ALOESIN 은 정규화 시 알로에신과 합쳐지지 않을 수 있으나, 최소한 개행 중복은 제거된다
-    assert ev.recommended_ingredients.count("알로에신") == 1
-    assert "알로에신\n" not in ev.recommended_ingredients
+
+    assert ev.recommended_ingredients == ["알로에신", "ALOESIN", "레티놀"]
+
+
+def test_weak_evidence_advisory_when_cases_leg_died_but_efficacy_survived():
+    """고민 근거는 다 있는데 상담 사례가 통째로 없으면 weak_evidence 다.
+
+    `partial_evidence` 가 먼저 걸리는 상황과 구분한다 — 이 조합(cases leg 만 실패)은
+    ③ `_retrieve_one` 의 leg 단위 부분 실패에서 실제로 나오는 상태다.
+    """
+    from app.modules.recommendations.pipeline.s10_response import (
+        CODE_WEAK_EVIDENCE,
+        WEAK_EVIDENCE_MESSAGE,
+        assemble,
+    )
+    from app.modules.recommendations.schemas import LlmNarrative
+
+    ctx = _context(concerns=["pores"])
+    narrative = LlmNarrative(
+        cause_analysis="원인", recommendation="추천", usage_guide="사용법",
+        recommended_names=["판테놀"],
+    )
+    eff = _efficacy_chunk("판테놀", 0.9, concern="pores")
+
+    resp = assemble(ctx, narrative, [], [eff], [], [])
+
+    assert resp.status == "ok"  # 근거가 약할 뿐 추천은 한다
+    assert resp.advisory is not None
+    assert resp.advisory.code == CODE_WEAK_EVIDENCE
+    assert resp.advisory.message == WEAK_EVIDENCE_MESSAGE
+
+
+def test_partial_evidence_wins_over_weak_evidence():
+    """근거 없는 고민이 있으면 사례가 통째로 없어도 partial_evidence 로 그 고민을 지목한다."""
+    from app.modules.recommendations.pipeline.s10_response import CODE_PARTIAL_EVIDENCE, assemble
+    from app.modules.recommendations.schemas import LlmNarrative
+
+    ctx = _context(concerns=["pores", "redness"])
+    narrative = LlmNarrative(
+        cause_analysis="원인", recommendation="추천", usage_guide="사용법",
+        recommended_names=["판테놀"],
+    )
+    eff = _efficacy_chunk("판테놀", 0.9, concern="pores")
+
+    resp = assemble(ctx, narrative, [], [eff], [], [])
+
+    assert resp.advisory.code == CODE_PARTIAL_EVIDENCE
+    assert "붉어짐" in resp.advisory.message
+
+
+def test_assemble_routes_top_lists_to_their_own_slots():
+    """⑩ 은 ⑧ 대표 성분과 그 제품을 각자 자리에 싣는다 (인자 뒤바뀜 방지)."""
+    from app.modules.recommendations.pipeline.s8_top_picks import SOURCE_BSTI
+    from app.modules.recommendations.pipeline.s10_response import assemble
+    from app.modules.recommendations.schemas import (
+        Candidate,
+        LlmNarrative,
+        ProductRecommendation,
+    )
+
+    ctx = _context()
+    narrative = LlmNarrative(
+        cause_analysis="원인", recommendation="추천", usage_guide="사용법",
+        recommended_names=["판테놀"],
+    )
+    bsti_cand = Candidate(name_kor="세라마이드", score=1.0)
+
+    resp = assemble(
+        ctx,
+        narrative,
+        [],
+        [_efficacy_chunk("판테놀", 0.9)],
+        [(bsti_cand, SOURCE_BSTI)],
+        [ProductRecommendation(
+            product_id=3, product_name="제품3", matched_ingredients=["세라마이드"]
+        )],
+    )
+
+    assert [(i.name_kor, i.match_source) for i in resp.top_ingredients] == [
+        ("세라마이드", SOURCE_BSTI)
+    ]
+    assert [p.product_id for p in resp.top_products] == [3]
 
 
 async def test_assemble_empty_answer_returns_insufficient():
     from app.modules.recommendations.pipeline import s10_response
-    from app.modules.recommendations.schemas import Candidate, LlmNarrative
+    from app.modules.recommendations.schemas import LlmNarrative
 
     resp = s10_response.assemble(
-        _context(), [Candidate(name_kor="판테놀", score=0.9)],
-        LlmNarrative(cause_analysis="  ", recommendation="  ", usage_guide="  "), [], [], [],
+        _context(),
+        LlmNarrative(cause_analysis="  ", recommendation="  ", usage_guide="  "),
+        [], [], [], [],
     )
     assert resp.status == "insufficient_evidence"
     assert resp.answer is None
+
+
+# ── ⑥ 영어 원문 번역 요청 ───────────────────────────────────────
+#
+# `rec_efficacy` 원본에 통째로 영어인 행이 있다(제품 연결 가능분 6건). 지우면 설명 칸이
+# 비므로 ⑥ 생성에 번역을 얹는다 — 그 요청이 프롬프트에 제대로/필요할 때만 실리는지.
+
+
+async def _capture_prompt(monkeypatch, candidates, bsti_candidates=None) -> str:
+    from app.modules.recommendations.schemas import LlmNarrative
+
+    captured: dict = {}
+
+    async def _fake_gemini(prompt, context, cands):
+        captured["prompt"] = prompt
+        return LlmNarrative(
+            cause_analysis="원인", recommendation="추천", usage_guide="사용법",
+            recommended_names=[c.name_kor for c in candidates],
+        )
+
+    monkeypatch.setattr(generation, "_call_gemini", _fake_gemini)
+    await generation.generate(_context(), candidates, [], bsti_candidates)
+    return captured["prompt"]
+
+
+async def test_no_translation_block_when_nothing_is_english(monkeypatch):
+    """대부분의 요청이 이 경우다 — 빈 섹션을 늘 붙이면 지시가 희석되고 토큰만 든다."""
+    candidates = [
+        Candidate(
+            name_kor="판테놀",
+            score=0.9,
+            efficacy="보습 효과\n피부 진정",
+            safety_note="대부분 피부 타입에 안전합니다.",
+        )
+    ]
+
+    prompt = await _capture_prompt(monkeypatch, candidates)
+
+    assert "영어 원문 번역" not in prompt
+
+
+async def test_translation_block_covers_bsti_axis_too(monkeypatch):
+    """BSTI 축 성분의 영어도 번역 대상이다 — ⑦을 ⑥ 앞으로 옮긴 이유가 이것이다.
+
+    병풀추출물은 `BSTI_RECOMMENDED` 16타입 중 8개(민감 S 계열 전부)에 들어 있어 자주
+    노출된다. ⑦이 ⑥과 병렬이던 시절엔 프롬프트를 만들 때 BSTI 후보가 아직 없었다.
+    """
+    concern = [
+        Candidate(
+            name_kor="콜라겐",
+            score=0.9,
+            efficacy="Improves skin elasticity and hydration.",
+            safety_note="피부 자극이 적습니다.",
+        )
+    ]
+    bsti = [
+        Candidate(
+            name_kor="병풀추출물",
+            score=1.0,
+            efficacy="피부 진정에 도움을 줍니다.",
+            safety_note="Generally recognized as safe for sensitive skin.",
+        )
+    ]
+
+    prompt = await _capture_prompt(monkeypatch, concern, bsti)
+
+    assert "영어 원문 번역" in prompt
+    assert "Improves skin elasticity" in prompt
+    assert "Generally recognized as safe" in prompt
+    # 한국어가 있는 칸은 요청하지 않는다 — 번역이 아니라 재작성이 된다.
+    assert "피부 자극이 적습니다" not in prompt.split("## 영어 원문 번역")[1]
+    assert "피부 진정에 도움을 줍니다" not in prompt.split("## 영어 원문 번역")[1]
+
+
+def test_translation_block_asks_once_for_an_ingredient_in_both_axes():
+    """두 축에 겹친 성분의 같은 원문을 두 번 번역시키지 않는다."""
+    shared = Candidate(name_kor="콜라겐", score=0.9, efficacy="Improves skin elasticity.")
+
+    block = generation._translation_block([shared, shared])
+
+    assert block.count("- 콜라겐") == 1

@@ -7,7 +7,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ChunkSource(BaseModel):
@@ -52,7 +52,10 @@ class IngredientEvidence(BaseModel):
 
     name_kor: str
     inci: str | None = None
-    similarity: float
+    # 검색 코사인 유사도. **null = 유사도 없음 = 표(BSTI) 기반 추천** — 검색으로 얻은
+    # 값이 아니라서 비운다. 예전엔 표 매칭에 코드가 준 상수 1.0 이 실려, 프론트가 이 값을
+    # 신뢰도로 표시하면 BSTI 성분이 고민 성분(0.7~0.85)보다 정확해 보였다.
+    similarity: float | None = None
     efficacy: str | None = None
     safety_note: str | None = None  # rec_efficacy 원본 서술형 주의
     concentration: str | None = None  # 권장 농도
@@ -60,7 +63,7 @@ class IngredientEvidence(BaseModel):
     owned: bool = False  # 화장대 보유 성분 여부
     owned_products: list[str] = Field(default_factory=list)  # 이 성분을 담은 보유 제품명
     warnings: list[IngredientWarning] = Field(default_factory=list)  # ⑤ 규제 경고 (이 성분)
-    # ⑧ 종합 목록에서만 채운다 — both(고민+타입) | concern(고민) | bsti(타입).
+    # both(고민+타입) | concern(고민) | bsti(타입).
     # 프론트가 "고민·타입 모두 적합" 배지로 근거를 구분해 보여주는 데 쓴다.
     match_source: str | None = None
 
@@ -73,17 +76,47 @@ class Answer(BaseModel):
     usage_guide: str  # ③ 사용법·관리법
 
 
+class TranslatedIngredientText(BaseModel):
+    """⑥이 번역한 영어 **조각**들. 성분명으로 후보와 다시 잇는다.
+
+    임의 키 dict(`{성분명: 번역}`)가 아니라 객체 리스트인 이유는 Gemini
+    `response_schema` 가 고정 키 스키마만 다루기 때문이다.
+
+    값이 문자열이 아니라 리스트인 이유는 원문에 한국어와 영어가 섞여 있기 때문이다
+    (레조시놀 `safety_note`). 통째로 번역시키면 한국어 안전 문구까지 LLM 이 다시 쓰므로,
+    영어 조각만 번호 순서대로 받아 ⑩이 제자리에 끼워 넣는다. 순서와 개수가 곧 자리
+    정보라, 하나라도 빠지면 ⑩이 전량 폐기한다 (`text.apply_translations`).
+    """
+
+    # 필드 설명은 Gemini `response_schema` 로 함께 넘어간다. 지시문에만 적었더니 모델이
+    # 영어 원문을 그대로 복사해 돌려줬다 — 값의 언어를 스키마 쪽에도 못박는다.
+    name_kor: str = Field(description="번역 대상 목록에 적힌 성분명 그대로")
+    efficacy: list[str] = Field(
+        default_factory=list,
+        description="efficacy 의 영어 조각을 번호 순서대로 옮긴 **한국어** 문장들",
+    )
+    safety_note: list[str] = Field(
+        default_factory=list,
+        description="safety_note 의 영어 조각을 번호 순서대로 옮긴 **한국어** 문장들",
+    )
+
+
 class LlmNarrative(BaseModel):
-    """⑥ 생성 전용 — LLM 이 만드는 것은 3단 서사와 추천 성분명뿐이다.
+    """⑥ 생성 전용 — LLM 이 만드는 것은 3단 서사와 추천 성분명, 영어 원문 번역뿐이다.
 
     recommended_names 는 ②에서 추천한 성분명 목록으로, 후보 밖 성분을 추천했는지
     검증(환각 차단)하는 데만 쓴다.
+
+    translations 는 `rec_efficacy` 원문의 영어 조각을 한국어로 옮긴 것이다. DB 에 번역본을
+    저장하지 않고 생성 호출에 얹는 방식이라, 실패해도 ⑩이 `clean_display_text` 로
+    떨어져 파이프라인이 죽지 않는다.
     """
 
     cause_analysis: str
     recommendation: str
     usage_guide: str
     recommended_names: list[str] = Field(default_factory=list)
+    translations: list[TranslatedIngredientText] = Field(default_factory=list)
 
 
 class UserProfile(BaseModel):
@@ -102,7 +135,7 @@ class Advisory(BaseModel):
     `RecommendationResponse.advisory` 자체가 null 이다.
     """
 
-    code: str  # weak_evidence | no_evidence | no_candidates
+    code: str  # weak_evidence | partial_evidence | no_evidence | no_candidates
     message: str  # 사용자 안내 문구
     action: str | None = None  # take_bsti | retry_with_other_concerns | retry_later
 
@@ -116,25 +149,25 @@ class ProductRecommendation(BaseModel):
     product_url: str | None = None
     main_category: str | None = None
     matched_ingredients: list[str] = Field(default_factory=list)  # 이 제품이 담은 추천 성분명
+    # 담은 추천 성분의 출처 — 성분 카드(`IngredientEvidence.match_source`)와 같은 어휘라
+    # 프론트가 배지 매핑을 한 벌만 유지한다. 매칭 출처가 없으면 null.
+    match_source: str | None = None
 
 
 class RecommendationResponse(BaseModel):
+    """필드 순서가 곧 프론트가 읽는 JSON 순서다 (노션 응답 계약).
+
+    ⑧ 종합(`top_*`)이 메인 카드이고 `cases` 는 "왜 이게 뽑혔나"의 상세 근거다.
+    고민 축·BSTI 축을 따로 싣던 배열 4종은 ⑧이 두 축을 대표로 합치면서 걷어냈다
+    (2026-07-23) — 축 구분은 배열이 아니라 `match_source` 로 전달한다.
+    """
+
     status: str  # ok | insufficient_evidence
     answer: Answer | None = None  # ①②③ 서사 섹션 (확인 불가 시 null)
-    # ⑧ 종합 추천 — 고민 축과 BSTI 축을 합친 대표 성분·제품(각 최대 5개). 프론트의
-    # 메인 카드이고, 아래 cases·ingredients·products·bsti_* 는 "왜 이게 뽑혔나"를
-    # 펼쳐보는 상세 근거다.
+    cases: list[CaseEvidence] = Field(default_factory=list)
     top_ingredients: list[IngredientEvidence] = Field(default_factory=list)
     top_products: list[ProductRecommendation] = Field(default_factory=list)
-    cases: list[CaseEvidence] = Field(default_factory=list)
-    ingredients: list[IngredientEvidence] = Field(default_factory=list)  # 성분별 경고 포함
-    products: list[ProductRecommendation] = Field(default_factory=list)  # ⑨ 추천 성분 함유 제품
-    # BSTI 타입 권장 성분·제품 (⑦). 고민 기반 추천과 별개 축이라 따로 싣는다 —
-    # 고민은 "지금 겪는 문제", BSTI 는 "타입상 늘 맞는 성분"이라 섞으면 근거가 흐려진다.
-    bsti_ingredients: list[IngredientEvidence] = Field(default_factory=list)
-    bsti_products: list[ProductRecommendation] = Field(default_factory=list)
     advisory: Advisory | None = None  # 근거 약함/없음 알림 (없으면 null)
-    retrieval_mode: str = "vector"  # 프론트 similarity 신뢰도 표시용
     user_profile: UserProfile
     disclaimer: str
 
@@ -159,10 +192,19 @@ class Candidate(BaseModel):
     """④ 후보 성분 집계의 단위. ⑤ 필터·⑩ 조립이 이 위에 값을 채운다."""
 
     name_kor: str
+    # 정렬용 내부 점수 — ④가 BSTI 가점·보유 하향을 더해 1.0 을 넘길 수 있다.
     score: float
+    # 표시용 원점수(코사인 유사도 0~1). 가중치를 섞으면 ⑩의 similarity 가 1 을 넘고,
+    # 같은 성분이 `ingredients[]`(청크 원점수)와 다른 값으로 실려 한 응답에 두 값이 된다.
+    # 기본값은 아래 검증기가 score 로 채우므로 0.0 이 그대로 남지는 않는다.
+    base_score: float = 0.0
+
+    # 이 후보가 어느 고민에서 회수됐는지. ④가 채우고 ④의 고민당 슬롯 예약과
+    # ⑥ 프롬프트의 고민 라벨이 읽는다 (설계 04 §2-1(b)).
     concerns: list[str] = Field(default_factory=list)
     ingredient_id: int | None = None
     inci: str | None = None
+    product_traits: str | None = None  # ⑩ 이 efficacy 앞에 잇는 선행 서술
     efficacy: str | None = None
     safety_note: str | None = None
     recommended_concentration: str | None = None
@@ -170,3 +212,11 @@ class Candidate(BaseModel):
     regulation_note: str | None = None
     source_doc_ids: list[str] = Field(default_factory=list)
     warnings: list[IngredientWarning] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_base_score(cls, data: Any) -> Any:
+        """base_score 미지정이면 score 와 같다 — 가중치 적용 전이 곧 원점수다."""
+        if isinstance(data, dict) and data.get("base_score") is None:
+            return {**data, "base_score": data.get("score")}
+        return data

@@ -6,6 +6,7 @@
 
 import pytest
 
+from app.modules.recommendations.constants import EFFICACY_FIELDS, MIN_RETRIEVAL_SCORE
 from app.modules.recommendations.pipeline import s3_retrieval
 from app.modules.recommendations.pipeline.s3_retrieval import (
     RetrievalCollection,
@@ -72,7 +73,8 @@ async def test_retrieve_efficacy_maps_rpc_rows(patch_embed, monkeypatch):
     rows = [
         {
             "id": 42, "inci": "NIACINAMIDE", "name_kor": "나이아신아마이드",
-            "efficacy": "피지 조절", "safety_note": "고농도 자극 가능",
+            "efficacy": "피지 조절", "product_traits": "수용성 비타민 B3 유도체입니다.",
+            "safety_note": "고농도 자극 가능",
             "recommended_concentration": "2~5%", "recommended_skin_types": "지성",
             "regulation_note": "배합 한도 있음", "reference_source": "PMID:29061803",
             "ingredient_id": 1234, "score": 0.71,
@@ -92,6 +94,11 @@ async def test_retrieve_efficacy_maps_rpc_rows(patch_embed, monkeypatch):
     assert chunk.score == 0.71
     assert chunk.metadata["ingredient_id"] == 1234
     assert chunk.metadata["safety_note"] == "고농도 자극 가능"
+    # EFFICACY_FIELDS 전량이 metadata 로 넘어가야 ④가 Candidate 를 다 채운다. RPC 가
+    # product_traits 를 빠뜨렸을 때 `.get()` 이라 예외 없이 None 이 흘러, ⑩ 선행 서술만
+    # 조용히 사라졌다 (migration 017).
+    assert set(EFFICACY_FIELDS) <= chunk.metadata.keys()
+    assert chunk.metadata["product_traits"] == "수용성 비타민 B3 유도체입니다."
 
 
 @pytest.mark.asyncio
@@ -202,6 +209,42 @@ async def test_retrieve_one_falls_back_to_concern_label_when_no_keywords(monkeyp
     ]
 
 
-def test_retrieve_for_concerns_is_exported():
-    """retrieve_for_concerns 시그니처는 이번 교체로 바뀌지 않는다 — import 만 확인."""
-    assert callable(retrieve_for_concerns)
+# ── 저score 컷 (MIN_RETRIEVAL_SCORE) ────────────────────────────
+
+
+def _scored_chunk(doc_id: str, score: float):
+    from app.modules.recommendations.schemas import ChunkSource, RetrievedChunk
+
+    return RetrievedChunk(
+        content="근거", score=score, source=ChunkSource(doc_id=doc_id, title="t"), metadata={}
+    )
+
+
+@pytest.mark.asyncio
+async def test_chunks_below_min_score_are_cut(monkeypatch):
+    """임계값 미만 근거는 버린다 — 남기면 관련 없는 자료로 서사를 생성한다."""
+    low = MIN_RETRIEVAL_SCORE - 0.01
+    high = MIN_RETRIEVAL_SCORE + 0.01
+
+    async def _one(code, query):
+        return code, [_scored_chunk("case_low", low), _scored_chunk("case_high", high)], []
+
+    monkeypatch.setattr(s3_retrieval, "_retrieve_one", _one)
+
+    cases, _ = await retrieve_for_concerns([("pores", "q")])
+
+    assert [c.source.doc_id for c in cases] == ["case_high"]
+
+
+@pytest.mark.asyncio
+async def test_threshold_pass_tags_chunk_with_its_concern(monkeypatch):
+    """같은 함수가 concern 태깅도 맡는다 — 죽으면 ⑩ advisory 가 모든 고민을 누락으로 본다."""
+
+    async def _one(code, query):
+        return code, [], [_scored_chunk(f"eff_{code}", 0.9)]
+
+    monkeypatch.setattr(s3_retrieval, "_retrieve_one", _one)
+
+    _, efficacy = await retrieve_for_concerns([("pores", "q1"), ("acne", "q2")])
+
+    assert [c.metadata["concern"] for c in efficacy] == ["pores", "acne"]

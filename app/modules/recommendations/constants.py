@@ -13,6 +13,27 @@ from typing import Final
 # Langfuse metadata 의 module 값 — 비용·품질을 모듈별로 추적한다
 MODULE_TAG: Final = "recommendations"
 
+# 성별 코드 → 표시 라벨. ②는 검색 질의에, ⑥은 Langfuse 트레이스 마스킹에 쓴다.
+# 두 곳이 갈라지면 마스킹만 조용히 새므로(라벨이 안 맞아 치환이 안 된다) 한 곳에 둔다.
+GENDER_LABELS: Final[dict[str, str]] = {"female": "여성", "male": "남성"}
+
+# rec_efficacy 에서 실어 나르는 필드 — ③이 청크 metadata 에 담고, ④가 Candidate 에
+# 옮기고, ⑦이 같은 컬럼을 SELECT 한다. 세 곳에 따로 나열하면 필드를 늘릴 때 하나를
+# 빠뜨려 BSTI 축 카드에만 값이 비는 식으로 조용히 어긋난다.
+EFFICACY_FIELDS: Final[tuple[str, ...]] = (
+    "ingredient_id",
+    "inci",
+    # 원본 xlsx 가 한국어 서술을 `제품적특성`·`효능`·`사용상주의사항` 세 칸에 나눠 적었다.
+    # `효능`만 실으면 "…미백에도 도움을 줄 수 있습니다"처럼 앞 문장 없이 시작한다(접속사·
+    # 조사로 시작하는 행 76건, 전부 앞 문장이 다른 칸에 있다). ⑩이 둘을 이어 보여준다.
+    "product_traits",
+    "efficacy",
+    "safety_note",
+    "recommended_concentration",
+    "recommended_skin_types",
+    "regulation_note",  # ⑤ 안전성 필터가 소비 (02 §4)
+)
+
 # ── rate limit (rate_limit.py) ──────────────────────────────────
 # 사용자당 윈도우 내 최대 호출 수. 1회 = 검색 6쿼리 + Gemini 생성(재시도 최대 2)이라
 # 반복 호출이 과금·워커 고갈로 직결된다. 실사용엔 넉넉하고 루프 남용만 막는 값.
@@ -23,8 +44,6 @@ RATE_LIMIT_WINDOW_SECONDS: Final = 60
 MAX_CONCERNS: Final = 3  # 검색 호출 상한 3고민 × 2컬렉션 = 6회로 고정
 
 # ── ③ 검색 (s3_retrieval) ───────────────────────────────────────
-LOW_SIMILARITY_THRESHOLD: Final = 0.7
-
 CASES_TOP_K: Final = 3
 EFFICACY_TOP_K: Final = 5
 
@@ -51,8 +70,29 @@ CONCERN_SEARCH_KEYWORDS: Final[dict[str, tuple[str, ...]]] = {
 # 작동한다 — 고민과 무관한 BSTI 축 성분(건성 고민이 아닌데 세라마이드)은 애초에 검색되지
 # 않아 가점 대상이 아니다(설계 04 §6).
 BSTI_BOOST: Final = 0.15
+
+# 사례의 피부타입(`rec_cases.skin_type`)이 사용자 BSTI 의 유·수분 축과 같을 때 그 사례에서
+# 온 후보에 주는 가점. 하드필터로 쓰지 않는 이유는 실 분포에 있다 — 8,000건 중 복합성 40%·
+# 중성 29% 로 BSTI 두 극(O/D) 중 어디에도 대응하지 않는 사례가 69% 다. 걸러내면 회수량이
+# 무너지므로 일치할 때만 올리고 불일치·대응없음은 그대로 둔다.
+# BSTI_BOOST 의 1/3 로 잡는다 — 4축 중 한 축만, 그것도 성분 자체가 아니라 성분을 언급한
+# 사례가 맞은 것이라 표(BSTI_RECOMMENDED) 기반 가점보다 근거가 약하다.
+# 두 가점은 겹칠 수 있고 그건 의도다: "타입 권장 표에 있음"과 "같은 피부타입 사례에서 나옴"은
+# 서로 다른 근거라 함께 맞은 성분이 더 위로 가는 게 맞다.
+CASE_SKIN_TYPE_BOOST: Final = 0.05
+
 OWNED_PENALTY: Final = 0.1  # 보유 성분은 제외가 아니라 하향 (긍정 피드백 보존)
 MAX_CANDIDATES: Final = 12  # 프롬프트 크기를 결정적으로 만들기 위한 상한
+
+# 고민 하나가 최종 후보 목록에서 확보하는 최소 칸 수 (설계 04 §2-1b).
+# 전역 점수순만 쓰면 검색 점수가 높은 고민(미백 0.8대)이 낮은 고민(붉어짐 0.7대)을 12칸
+# 밖으로 밀어낸다. ⑥은 후보 목록 밖 성분을 추천할 수 없으니 밀려난 고민은 응답에서
+# 통째로 사라진다.
+# 1이 아니라 2인 이유는 예약 시점에 있다 — 예약은 ④가 하는데 ⑤ 안전 필터가 그 뒤에
+# 후보를 뺀다. 1칸이면 제외 한 번에 그 고민이 다시 0칸이 된다.
+# 상한은 MAX_CONCERNS(3) × 2 = 6 으로 MAX_CANDIDATES 의 절반이며, 나머지 절반은
+# 전역 점수순 몫으로 남는다.
+MIN_CANDIDATES_PER_CONCERN: Final = 2
 
 # ── ⑤ 안전성 필터 (s5_safety) ───────────────────────────────────
 # 권장 피부타입 ↔ 동반 고민 상충 (01 §2-⑤)
@@ -127,13 +167,30 @@ PREGNANCY_AVOID: Final[frozenset[str]] = frozenset(
 PREGNANCY_CAUTION: Final[frozenset[str]] = frozenset({"살리실릭애씨드"})
 
 # ── ⑥ 생성 (s6_generation) ──────────────────────────────────────
-MIN_RECOMMENDED: Final = 3  # 모바일 화면과 생성 품질의 균형 (01 §2-⑥ "3~5개")
-MAX_RECOMMENDED: Final = 5
+MIN_RECOMMENDED: Final = 3  # 모바일 화면과 생성 품질의 균형 (01 §2-⑥)
+# ⑧ 고민 슬롯(MAX_TOP_CONCERN_INGREDIENTS)이 이 값을 그대로 쓴다. 둘이 어긋나 서사가 더
+# 많이 권하면, 넘치는 성분은 top_ingredients 에 못 실린다 — 응답에 성분 배열이 따로 없어
+# (2026-07-23 계약) 그 성분의 안전 경고(임신수유주의·알레르기유발·한도·사용제한)를 실을
+# 곳이 사라진다. 서사는 권하는데 경고는 어디에도 없는 상태가 된다.
+MAX_RECOMMENDED: Final = 3
 
-# ── ⑧ 종합 추천 (s8_top) ─────────────────────────────────────────
+# 재현성 (설계 04 §9). 같은 프로필로 두 번 요청하면 추천 성분이 바뀐다는 데모 피드백에
+# 대한 대응이며, ④ 동점 정렬 고정·⑥ 프롬프트 문자열 고정과 **한 묶음**이다 — 프롬프트가
+# 실행마다 다르면 온도를 0으로 내려도 출력이 달라진다.
+# 0.0 = greedy decoding, seed = 동일 요청 반복 시 같은 응답을 요청하는 값. 다만 Gemini 의
+# seed 는 SDK 문서상 "best effort" 라 재현이 보장되지는 않는다 — 하드 보장은 캐시(v1.1).
+GENERATION_TEMPERATURE: Final = 0.0
+GENERATION_SEED: Final = 20260723
+
+# ── ⑧ 종합 추천 (s8_top_picks) ─────────────────────────────────────────
 # 고민 축 + BSTI 축을 합친 대표 성분 상한. 메인 카드라 한눈에 들어와야 해서 작게 잡는다
 # (제품은 MAX_RECOMMENDED_PRODUCTS 를 그대로 쓴다).
 MAX_TOP_INGREDIENTS: Final = 5
+
+# 고민 축이 가져갈 수 있는 칸 수. 상한이 없으면 ⑥이 5개를 권할 때 BSTI 몫이 산술적으로
+# 0칸이 되어 "고민+BSTI 종합"이 이름만 남는다 (실 데모에서 5칸 전부 고민이었다).
+# 남는 2칸이 BSTI 자리다. ⑥ MAX_RECOMMENDED 를 그대로 쓰는 이유는 그 상수 주석 참고.
+MAX_TOP_CONCERN_INGREDIENTS: Final = MAX_RECOMMENDED
 
 # ── ⑨ 제품 추천 (s9_products) ────────────────────────────────────
 MAX_RECOMMENDED_PRODUCTS: Final = 5  # 추천 성분 함유 제품 상한 (커버리지 순 top-N)
@@ -141,8 +198,6 @@ MAX_RECOMMENDED_PRODUCTS: Final = 5  # 추천 성분 함유 제품 상한 (커�
 # 온다 — ponytail: 커버리지 정렬 전 넉넉히 자르는 휴리스틱. 정확한 커버리지 집계가
 # 필요하면 DB 측 RPC 로 옮긴다. 실제 추천 성분은 ≤5종이라 이 상한이면 충분.
 PRODUCT_FETCH_LIMIT: Final = 500
-# v1은 캐시가 없어 재요청마다 추천이 바뀐다 — 캐시(v1.1) 전까지 온도로 변동을 완화 (§7)
-GENERATION_TEMPERATURE: Final = 0.2
 
 # 생성 1회의 상한. 없으면 Gemini 무응답 시 워커가 무기한 묶여 인스턴스 전체가 죽는다
 # (Render 무료 티어는 워커 수가 적다). 재시도 1회까지 감안해 요청 전체는 이 값의 2배가
