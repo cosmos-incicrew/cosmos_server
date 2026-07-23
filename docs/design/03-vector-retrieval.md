@@ -30,7 +30,7 @@
 |---|---|---|
 | `app/core/config.py` | 수정 | `embedding_model`·`embedding_dimensions` env 필드 추가 |
 | `app/modules/recommendations/embedding.py` | **신규** | 질의 임베딩 유틸 (gemini-embedding-001, async) |
-| `supabase/migrations/011_add_rec_search_rpc.sql` | **신규** | `match_rec_cases`·`match_rec_efficacy` RPC |
+| `supabase/migrations/015_add_rec_search_rpc.sql` | **신규** | `match_rec_cases`·`match_rec_efficacy` RPC |
 | `pipeline/s3_retrieval.py` | 수정 | 키워드 검색 → 순수 벡터 검색으로 교체 |
 | `constants.py` | 수정 | `RETRIEVAL_MODE` 삭제, `MIN_RETRIEVAL_SCORE` 재튜닝 |
 | `scripts/backfill_rec_embeddings.py` | 수정 | 신규 임베더 재사용 (코퍼스·질의 단일 소스화) |
@@ -52,7 +52,7 @@
 | `embedding_model` | `gemini-embedding-001` | 코퍼스와 반드시 동일 |
 | `embedding_dimensions` | `1536` | **자유값 아님** — DB `vector(1536)` 컬럼·HNSW와 결합. 바꾸면 컬럼 재정의 + 전체 재임베딩(10,270행) 필요. 이 제약을 필드 주석에 명기. |
 
-## 3. 검색 RPC (`011_add_rec_search_rpc.sql`)
+## 3. 검색 RPC (`015_add_rec_search_rpc.sql`)
 
 두 leg를 각각의 함수로 노출한다. PostgREST에서 `<=>` 벡터 연산·HNSW 정렬을 직접 못 하므로 DB 함수가 필요하다.
 
