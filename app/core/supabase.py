@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from supabase import AsyncClient, acreate_client
@@ -7,6 +8,9 @@ from app.core.config import get_settings
 # async 라우터에서 이벤트 루프를 막지 않도록 동기 Client 대신 AsyncClient를 쓴다.
 # acreate_client가 코루틴이라 lru_cache로 감쌀 수 없어 모듈 전역 지연 싱글턴으로 둔다.
 _client: AsyncClient | None = None
+# 콜드 스타트에 동시 요청이 들어오면 None 확인과 생성 사이에 다른 코루틴이 끼어들어
+# 클라이언트가 여러 번 생성·마지막만 남고 나머지는 연결 누수가 된다. 락으로 1회 생성 보장.
+_client_lock = asyncio.Lock()
 
 
 async def get_supabase() -> AsyncClient:
@@ -16,9 +20,14 @@ async def get_supabase() -> AsyncClient:
     반드시 user_id로 직접 필터링해야 한다 (docs/conventions.md 참고).
     """
     global _client
-    if _client is None:
-        settings = get_settings()
-        _client = await acreate_client(settings.supabase_url, settings.supabase_service_role_key)
+    if _client is not None:  # 생성 후엔 락 없이 빠르게 반환 (double-checked)
+        return _client
+    async with _client_lock:
+        if _client is None:
+            settings = get_settings()
+            _client = await acreate_client(
+                settings.supabase_url, settings.supabase_service_role_key
+            )
     return _client
 
 

@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import re
+from typing import Any
 
 from langfuse import get_client, observe
 
@@ -29,8 +30,7 @@ from app.modules.recommendations.prompts import (
 )
 from app.modules.recommendations.schemas import (
     Candidate,
-    LlmOutput,
-    LlmPick,
+    LlmNarrative,
     RetrievedChunk,
     UserContext,
 )
@@ -44,62 +44,67 @@ _FALLBACK_REASON = "검색된 근거를 바탕으로 추천된 성분입니다."
 
 async def generate(
     context: UserContext, candidates: list[Candidate], chunks: list[RetrievedChunk]
-) -> list[LlmPick]:
-    """LLM 호출 1회. 파싱·검증 실패 시 1회 재시도하고 재실패면 502."""
+) -> LlmNarrative:
+    """LLM 호출 1회로 ①②③ 서사를 생성한다. 금칙어·후보 밖 추천 시 1회 재생성."""
     prompt = RECOMMENDATION_USER_TEMPLATE.format(
         min_recommended=MIN_RECOMMENDED,
         max_recommended=MAX_RECOMMENDED,
         candidate_block=_candidate_block(candidates),
+        warning_block=_warning_block(candidates),
         evidence_block=_evidence_block(_relevant_chunks(chunks, candidates)),
         user_block=_user_block(context),
     )
-
-    picks: list[LlmPick] = []
+    allowed = {c.name_kor for c in candidates}
+    # 오염(후보밖·금칙어)됐지만 쓸 수 있는 최근 결과. 더 깨끗한 게 안 나오면 이걸 정제해 쓴다.
+    tainted: LlmNarrative | None = None
     for attempt in range(_MAX_ATTEMPTS):
         try:
             # 타임아웃이 없으면 Gemini 가 응답하지 않을 때 워커가 무기한 묶인다.
-            # Pro + 최대 12,000자 근거라 지연이 길고, 재시도까지 하면 두 배가 된다.
+            # Flash + 최대 12,000자 근거라 정상 지연은 짧지만, 무응답 방어로 상한을 둔다.
             async with asyncio.timeout(GENERATION_TIMEOUT_SECONDS):
-                output = await _call_gemini(prompt, context, candidates)
+                out = await _call_gemini(prompt, context, candidates)
         except Exception as exc:
             logger.warning("Gemini 호출 실패 (attempt %d/%d)", attempt + 1, _MAX_ATTEMPTS)
             _trace_generation_error(exc)
-            if picks:
-                # 금칙어 재생성 중 통신 오류가 난 경우다. 1차 결과는 ⑦의 순화를
-                # 거치면 그대로 쓸 수 있으므로, 쓸 수 있는 답을 502 로 버리지 않는다.
-                logger.info("재생성 실패 — 금칙어를 순화해 1차 결과를 사용")
-                return picks
+            if tainted is not None:
+                return tainted
             if attempt == _MAX_ATTEMPTS - 1:
                 raise errors.llm_upstream_error() from exc
             continue
 
-        fresh = _reject_hallucinated(output.picks, candidates)
-        # 화장품법 위반 문구는 문장 삭제로 순화하지만, 위반이 섞였다는 건 지시가 먹지
-        # 않았다는 신호다. 1회는 다시 생성해 온전한 문장을 받아본다 (01 §2-⑥).
-        if attempt == 0 and any(_has_banned_claim(p.reason) for p in fresh):
-            logger.info("생성 결과에 표시·광고 금칙어 포함 — 1회 재생성")
-            picks = fresh
-            continue
-        # 재생성 결과가 환각으로 전부 걸러졌으면 1차를 되살린다. 1차는 금칙어만
-        # 순화하면 쓸 수 있는 답인데, 버리면 사용자는 근거가 있는데도 확인 불가를 받는다.
-        if not fresh and picks:
-            logger.info("재생성 결과가 모두 후보 밖 — 금칙어를 순화해 1차 결과를 사용")
-            return picks
-        return fresh
-    return picks
+        # recommended_names 는 내부 검증용이라 후보밖 이름이 downstream 에 새지 않는다
+        # (⑦은 안 쓰고, ⑧ 제품은 id 매핑된 후보만 씀). 다만 본문 자유텍스트의 유령 성분은
+        # 여기서 못 잡는다 — 한국어 NER 없이는 한계이며, 금칙어는 아래 sanitize 가 방어한다.
+        bad_name = any(n not in allowed for n in out.recommended_names)
+        banned = any(
+            _has_banned_claim(t)
+            for t in (out.cause_analysis, out.recommendation, out.usage_guide)
+        )
+        if not (bad_name or banned):
+            return out  # 깨끗한 결과 — 즉시 반환
+        logger.info("재생성 — 후보밖=%s 금칙어=%s (attempt %d)", bad_name, banned, attempt)
+        tainted = out  # 마지막 시도까지 안 깨끗하면 이 결과를 ⑦ sanitize_claims 로 정제해 쓴다
+    return tainted or LlmNarrative(cause_analysis="", recommendation="", usage_guide="")
 
 
 @observe(as_type="generation")
-async def _call_gemini(prompt: str, context: UserContext, candidates: list[Candidate]) -> LlmOutput:
-    """여러 근거를 종합하는 추천 최종 합성이라 Pro 를 쓴다 (llm-rag-rules 사용 기준)."""
-    model = gemini_model_for(complex_query=True)
+async def _call_gemini(
+    prompt: str, context: UserContext, candidates: list[Candidate]
+) -> LlmNarrative:
+    """추천 최종 합성에 Flash 를 쓴다 (2026-07-22 결정).
 
-    langfuse = get_client()
+    llm-rag-rules 의 Pro 사용 기준(여러 근거 종합)에는 해당하나, Pro 실측 지연이
+    사소한 프롬프트에서도 ~15초라 최대 12,000자 근거를 얹으면 GENERATION_TIMEOUT_SECONDS
+    (30초)를 넘겨 502 가 난다. Render 무료 티어에서 실사용자 502 를 피하려 Flash 로
+    내린다. 생성 품질은 Langfuse groundedness 평가로 관측하고, 미흡하면 Pro 재검토.
+    """
+    model = gemini_model_for(complex_query=False)
+
     # 프롬프트에는 나이·성별·보유 성분이 들어 있다. 트레이스는 외부 SaaS 에 남으므로
     # 개인 속성을 지운 사본을 기록한다 — 품질 디버깅에 필요한 건 지시문·후보·근거이지
     # 그 사람이 누구인지가 아니다. user_id 도 넣지 않는다.
     # Langfuse v4 에는 트레이스 태그 API 가 없어 모듈 구분은 metadata 로 한다.
-    langfuse.update_current_generation(
+    _safe_trace(
         model=model,
         input=_redact_personal(prompt, context),
         metadata={
@@ -116,13 +121,43 @@ async def _call_gemini(prompt: str, context: UserContext, candidates: list[Candi
         contents=f"{RECOMMENDATION_SYSTEM_PROMPT}\n\n{prompt}",
         config={
             "response_mime_type": "application/json",
-            "response_schema": LlmOutput,
+            "response_schema": LlmNarrative,
             "temperature": GENERATION_TEMPERATURE,
         },
     )
     raw = response.text or "{}"
-    langfuse.update_current_generation(output=raw)
-    return LlmOutput.model_validate(json.loads(raw))
+    # 출력에도 나이·성별이 자연어로 되풀이될 수 있다(프롬프트가 "고민·나이를 엮어 쓰라"
+    # 지시). 입력만 가리고 출력을 그대로 남기면 개인 속성이 트레이스로 우회된다.
+    _safe_trace(output=_redact_output(raw, context))
+    return LlmNarrative.model_validate(json.loads(raw))
+
+
+def _redact_output(text: str, context: UserContext) -> str:
+    """Langfuse 기록용 출력 사본에서 개인 속성을 마스킹한다 (best-effort).
+
+    사용자에게 가는 원문(response.text)은 그대로 두고 트레이스 사본만 가린다. 나이 숫자·
+    성별 라벨을 지운다 — 화장품 서사에서 이 값의 오탐 치환은 드물고, 트레이스 사본이라
+    실사용 응답에는 영향이 없다.
+    """
+    redacted = text
+    if context.age is not None:
+        redacted = redacted.replace(str(context.age), "[나이]")
+    gender = {"female": "여성", "male": "남성"}.get(context.gender or "")
+    if gender:
+        redacted = redacted.replace(gender, "[성별]")
+    return redacted
+
+
+def _safe_trace(**fields: Any) -> None:
+    """Langfuse 기록. 트레이싱은 부가 기능이라 SaaS 장애가 생성을 죽이면 안 된다.
+
+    무방어로 두면 Gemini 는 정상인데 Langfuse 지연·오류만으로 generate() 의 except 가
+    잡아 재시도·502 로 번진다 (전 사용자 영향).
+    """
+    try:
+        get_client().update_current_generation(**fields)
+    except Exception:
+        logger.debug("Langfuse 트레이스 기록 실패 — 무시하고 생성 진행", exc_info=True)
 
 
 def _trace_generation_error(exc: Exception) -> None:
@@ -147,6 +182,12 @@ def _candidate_block(candidates: list[Candidate]) -> str:
         efficacy = re.sub(r"\s+", " ", candidate.efficacy).strip() if candidate.efficacy else ""
         lines.append(f"- {candidate.name_kor}" + (f" — {efficacy}" if efficacy else ""))
     return "\n".join(lines)
+
+
+def _warning_block(candidates: list[Candidate]) -> str:
+    """후보에 부착된 ⑤ 경고를 한 줄씩 편다. 없으면 '없음'."""
+    lines = [f"- {c.name_kor}: {w.text}" for c in candidates for w in c.warnings]
+    return "\n".join(lines) if lines else "없음"
 
 
 def _relevant_chunks(
@@ -225,12 +266,6 @@ def _redact_personal(prompt: str, context: UserContext) -> str:
 
 
 # ── 생성 결과 검증 ──────────────────────────────────────────────
-
-
-def _reject_hallucinated(picks: list[LlmPick], candidates: list[Candidate]) -> list[LlmPick]:
-    """후보 목록에 없는 성분을 골랐으면 버린다 (환각 차단)."""
-    allowed = {c.name_kor for c in candidates}
-    return [pick for pick in picks if pick.name_kor in allowed][:MAX_RECOMMENDED]
 
 
 def _has_banned_claim(text: str) -> bool:

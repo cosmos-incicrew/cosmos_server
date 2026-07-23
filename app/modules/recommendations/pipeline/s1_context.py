@@ -39,7 +39,7 @@ async def build_context(user_id: str) -> UserContext:
     if not profile.get("age") or not concerns:
         raise errors.onboarding_required()
 
-    owned, owned_products = await _fetch_shelf(client, user_id)
+    owned, owned_products, owned_product_ids = await _fetch_shelf(client, user_id)
 
     return UserContext(
         user_id=user_id,
@@ -49,17 +49,21 @@ async def build_context(user_id: str) -> UserContext:
         bsti_recommended=bsti_ingredients.recommended_for(profile.get("bsti_type")),
         owned_ingredients=owned,
         owned_products_by_ingredient=owned_products,
+        owned_product_ids=owned_product_ids,
         is_pregnant=profile.get("is_pregnant"),
         is_nursing=profile.get("is_nursing"),
         concerns=concerns[:MAX_CONCERNS],  # 검색 호출 상한을 6회로 고정
     )
 
 
-async def _fetch_shelf(client: Any, user_id: str) -> tuple[list[str], dict[str, list[str]]]:
-    """화장대 보유 성분과 그 성분이 든 보유 제품명을 읽는다.
+async def _fetch_shelf(
+    client: Any, user_id: str
+) -> tuple[list[str], dict[str, list[str]], list[int]]:
+    """화장대 보유 성분·보유 제품명·보유 제품 ID를 읽는다.
 
     `user_shelf` 는 박금별 구현 대기 중이라 컬럼이 확정 전이다(01 §7). 없거나 비어
-    있으면 빈 집합으로 진행한다 — 보정(하향·보유 표시)만 생략된다.
+    있으면 빈 집합으로 진행한다 — 보정(하향·보유 표시)·제품 추천 제외만 생략된다.
+    제품 ID 는 ⑧ 제품 추천에서 이미 보유한 제품을 빼는 데 쓴다.
     """
     try:
         items = rows(
@@ -70,7 +74,7 @@ async def _fetch_shelf(client: Any, user_id: str) -> tuple[list[str], dict[str, 
         )
     except Exception:
         logger.info("화장대 조회 불가 — 보유 성분 보정 생략", exc_info=True)
-        return [], {}
+        return [], {}, []
 
     owned = {
         normalize_ingredient_name(str(item["ingredient_name"]))
@@ -85,7 +89,7 @@ async def _fetch_shelf(client: Any, user_id: str) -> tuple[list[str], dict[str, 
     ]
     from_products, products_by_ingredient = await _fetch_product_ingredients(client, product_ids)
 
-    return sorted(owned | from_products), products_by_ingredient
+    return sorted(owned | from_products), products_by_ingredient, product_ids
 
 
 async def _fetch_product_ingredients(

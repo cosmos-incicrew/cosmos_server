@@ -8,7 +8,8 @@
   ④ 후보 집계      `s4_candidates.py`  — 병합·가중치·식약처 ID 연결
   ⑤ 안전성 필터    `s5_safety.py`      — 금지 제거·경고 부착
   ⑥ 생성           `s6_generation.py`  — LLM 호출 1회
-  ⑦ 응답 조립      `s7_response.py`    — 배지·출처·확인 불가 응답
+  ⑧ 제품 추천      `s8_products.py`    — 추천 성분 함유 제품 조회 (LLM 미관여)
+  ⑦ 응답 조립      `s7_response.py`    — 배지·출처·제품·확인 불가 응답
 
 설계는 docs/design/01-recommendations-pipeline.md.
 """
@@ -21,6 +22,7 @@ from app.modules.recommendations.pipeline import (
     s5_safety,
     s6_generation,
     s7_response,
+    s8_products,
 )
 from app.modules.recommendations.schemas import RecommendationResponse
 
@@ -37,15 +39,20 @@ async def create_recommendations(user_id: str) -> RecommendationResponse:
     search_queries = s2_queries.build_queries(user)
     case_chunks, efficacy_chunks = await s3_retrieval.retrieve_for_concerns(search_queries)
     if not case_chunks and not efficacy_chunks:
-        return s7_response.insufficient(user, s7_response.NO_EVIDENCE_MESSAGE)
+        return s7_response.insufficient(
+            user, s7_response.CODE_NO_EVIDENCE, s7_response.NO_EVIDENCE_MESSAGE
+        )
 
     found = await s4_candidates.aggregate_candidates(case_chunks, efficacy_chunks, user)
     safe = await s5_safety.apply_safety_filters(found, user)
     if not safe:
         return s7_response.insufficient(
-            user, s7_response.NO_CANDIDATE_MESSAGE, action="retry_with_other_concerns"
+            user,
+            s7_response.CODE_NO_CANDIDATES,
+            s7_response.NO_CANDIDATE_MESSAGE,
+            action="retry_with_other_concerns",
         )
 
-    chunks = case_chunks + efficacy_chunks
-    picks = await s6_generation.generate(user, safe, chunks)
-    return s7_response.assemble(user, safe, picks, chunks)
+    narrative = await s6_generation.generate(user, safe, case_chunks + efficacy_chunks)
+    products = await s8_products.fetch(safe, narrative, user.owned_product_ids)
+    return s7_response.assemble(user, safe, narrative, case_chunks, efficacy_chunks, products)

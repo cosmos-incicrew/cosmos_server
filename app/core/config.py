@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     gemini_model_flash: str = "gemini-3.6-flash"
     # Pro 는 2.5 유지 — 3.x Pro 는 아직 preview 뿐이라 종료 예고가 짧다 (발표 7/27).
     gemini_model_pro: str = "gemini-2.5-pro"
+    # 검색 임베딩 모델·차원. 코퍼스(rec_cases·rec_efficacy embedding)를 채운 값과
+    # 반드시 같아야 코사인 검색이 맞는다. 차원은 DB vector(1536) 컬럼·HNSW 인덱스와
+    # 결합돼 있어 바꾸면 컬럼 재정의 + 전체 재임베딩이 필요하다.
+    embedding_model: str = "gemini-embedding-001"
+    embedding_dimensions: int = 1536
     product_compare_max_count: int = 4
     log_level: str = "INFO"
 

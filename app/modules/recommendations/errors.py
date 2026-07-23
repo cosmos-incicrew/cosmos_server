@@ -32,3 +32,14 @@ def llm_upstream_error() -> HTTPException:
         status_code=status.HTTP_502_BAD_GATEWAY,
         detail={"code": "LLM_UPSTREAM_ERROR", "message": "추천 생성에 실패했습니다."},
     )
+
+
+def too_many_requests() -> HTTPException:
+    """429 — 짧은 시간에 너무 많이 호출했다 (LLM 과금·워커 고갈 방어)."""
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+            "code": "RATE_LIMITED",
+            "message": "요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+        },
+    )
