@@ -89,7 +89,7 @@ async def generate(
     return picks
 
 
-@observe(as_type="generation")
+@observe(as_type="generation", capture_input=False, capture_output=False)
 async def _call_gemini(prompt: str, context: UserContext, candidates: list[Candidate]) -> LlmOutput:
     """여러 근거를 종합하는 추천 최종 합성이라 Pro 를 쓴다 (llm-rag-rules 사용 기준)."""
     model = gemini_model_for(complex_query=True)
@@ -121,7 +121,7 @@ async def _call_gemini(prompt: str, context: UserContext, candidates: list[Candi
         },
     )
     raw = response.text or "{}"
-    langfuse.update_current_generation(output=raw)
+    langfuse.update_current_generation(output=_redact_model_output(raw, context))
     return LlmOutput.model_validate(json.loads(raw))
 
 
@@ -222,6 +222,35 @@ def _redact_personal(prompt: str, context: UserContext) -> str:
     """
     user_block = _user_block(context)
     return prompt.replace(user_block, "[개인 속성 생략 — 트레이스 미기록]")
+
+
+def _redact_model_output(output: str, context: UserContext) -> str:
+    """모델이 개인 속성을 되풀이해도 trace output에는 남기지 않는다."""
+    values = {
+        context.user_id,
+        str(context.age) if context.age is not None else "",
+        context.gender or "",
+        *context.owned_ingredients,
+        *context.owned_products_by_ingredient,
+        *(
+            product
+            for products in context.owned_products_by_ingredient.values()
+            for product in products
+        ),
+    }
+    if context.gender == "female":
+        values.add("여성")
+    elif context.gender == "male":
+        values.add("남성")
+    if context.is_pregnant:
+        values.update({"임신", "임산부"})
+    if context.is_nursing:
+        values.add("수유")
+
+    redacted = output
+    for value in sorted(values - {""}, key=len, reverse=True):
+        redacted = redacted.replace(value, "[개인 속성 생략]")
+    return redacted
 
 
 # ── 생성 결과 검증 ──────────────────────────────────────────────

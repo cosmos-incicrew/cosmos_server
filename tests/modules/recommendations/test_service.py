@@ -3,7 +3,9 @@
 DB·Gemini 는 부르지 않는다. 순수 로직만 떼어 검증한다.
 """
 
+import ast
 import asyncio
+import inspect
 
 import pytest
 from fastapi import HTTPException
@@ -54,6 +56,19 @@ def _case_chunk(names: list[str], score: float, concern: str = "pores") -> Retri
 def _context(**kwargs) -> UserContext:
     base = {"user_id": "u1", "age": 32, "gender": "female", "concerns": ["pores"]}
     return UserContext(**{**base, **kwargs})
+
+
+def test_generation_trace_disables_automatic_io_capture() -> None:
+    """개인 컨텍스트는 decorator 자동 수집에서 차단하고 정제본만 수동 기록한다."""
+    tree = ast.parse(inspect.getsource(generation._call_gemini))
+    decorator = tree.body[0].decorator_list[0]
+
+    assert isinstance(decorator, ast.Call)
+    options = {keyword.arg: keyword.value for keyword in decorator.keywords}
+    assert isinstance(options["capture_input"], ast.Constant)
+    assert options["capture_input"].value is False
+    assert isinstance(options["capture_output"], ast.Constant)
+    assert options["capture_output"].value is False
 
 
 @pytest.fixture(autouse=True)
@@ -690,6 +705,23 @@ def test_langfuse_input_omits_personal_attributes():
     assert "female" not in redacted and "여성" not in redacted
     assert "판테놀" not in redacted
     assert "지시문" in redacted, "프롬프트 본문은 남아야 디버깅이 된다"
+
+
+def test_langfuse_output_omits_echoed_personal_attributes():
+    ctx = _context(
+        user_id="user-123",
+        age=32,
+        gender="female",
+        owned_ingredients=["판테놀"],
+        owned_products_by_ingredient={"판테놀": ["보습크림"]},
+        is_pregnant=True,
+    )
+    output = "user-123 32세 여성 임신 사용자는 보습크림의 판테놀을 보유"
+
+    redacted = generation._redact_model_output(output, ctx)
+
+    for personal_value in ["user-123", "32", "여성", "임신", "보습크림", "판테놀"]:
+        assert personal_value not in redacted
 
 
 # ── 임신·수유 2단계 (2026-07-20 근거 조사 반영) ─────────────────

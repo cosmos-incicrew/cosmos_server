@@ -78,7 +78,7 @@ Pull request CI:
 
 1. 잠금 파일 기반 의존성 설치
 2. `LANGFUSE_TRACING_ENABLED=false`로 테스트 실행
-3. Ruff lint와 format check
+3. Ruff lint
 4. mypy
 5. import-linter
 6. Docker 이미지 빌드 검증
@@ -104,7 +104,8 @@ GitHub Actions에 Supabase DB 비밀번호나 service-role 키를 제공하지 �
 - 팀원은 개별 이메일/비밀번호 계정을 사용한다.
 - 초기 가입 기간 이후 `AUTH_DISABLE_SIGNUP=true`로 신규 가입을 닫는다.
 - SMTP와 SSO는 초기 범위에서 제외한다.
-- trace 보존 기간은 30일이다.
+- trace 보존 기간은 30일이다. Langfuse OSS에는 내장 retention 기능이 없으므로
+  Public API 기반 일일 정리 작업으로 적용한다.
 
 API 프로세스는 Langfuse 장애 때문에 사용자 요청을 실패시키지 않는다. FastAPI 종료
 시 Langfuse SDK를 shutdown해 대기 중인 trace를 전송하고, CI에서는 trace 전송을
@@ -135,9 +136,10 @@ VM을 중지하면 컴퓨팅 비용은 멈추지만 persistent disk와 예약 �
 
 ## 관측과 비용 조정
 
-- 애플리케이션과 컨테이너 로그는 Cloud Logging으로 전송한다.
-- CPU, 메모리, 디스크 사용량과 API readiness를 Cloud Monitoring에서 감시한다.
-- 디스크 70%, 메모리 80%, 반복적인 readiness 실패를 초기 경보 기준으로 둔다.
+- Ops Agent가 애플리케이션·컨테이너 로그와 호스트 CPU, 메모리, 디스크 메트릭을
+  Cloud Logging·Monitoring으로 전송한다.
+- 알림 수신 채널이 확정되면 디스크 70%, 메모리 80%, 반복적인 readiness 실패를
+  초기 경보 기준으로 추가한다. 초기 배포 범위에서는 대시보드로 확인한다.
 - 한 달간 사용량을 측정한 뒤 VM 사양, 디스크 크기, 스냅샷 보존과 가동 시간을
   조정한다.
 

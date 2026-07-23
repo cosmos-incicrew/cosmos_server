@@ -1,7 +1,6 @@
 from functools import lru_cache
 
 from google import genai
-from google.oauth2 import service_account
 
 from app.core.config import get_settings
 
@@ -10,23 +9,15 @@ from app.core.config import get_settings
 def get_gemini() -> genai.Client:
     """GCP_PROJECT_ID 가 있으면 Vertex, 없으면 AI Studio.
 
-    Vertex 는 API 키 대신 ADC 를 쓴다 — GOOGLE_APPLICATION_CREDENTIALS 가
-    서비스 계정 키 파일을 가리켜야 한다. 모델 ID·호출부는 양쪽이 동일하다.
+    Vertex 는 API 키나 JSON 키 파일 대신 런타임 ADC를 쓴다.
+    모델 ID·호출부는 양쪽이 동일하다.
     """
     settings = get_settings()
     if settings.gcp_project_id:
-        credentials = None
-        if settings.google_application_credentials:
-            # google-auth 쪽이 타입 미표기 — strict 모드에서만 걸린다.
-            credentials = service_account.Credentials.from_service_account_file(  # type: ignore[no-untyped-call]
-                settings.google_application_credentials,
-                scopes=["https://www.googleapis.com/auth/cloud-platform"],
-            )
         return genai.Client(
             vertexai=True,
             project=settings.gcp_project_id,
             location=settings.gcp_location,
-            credentials=credentials,
         )
     return genai.Client(api_key=settings.gemini_api_key)
 

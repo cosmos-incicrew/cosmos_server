@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: backend-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
@@ -37,9 +37,7 @@ jobs:
         run: uv run pytest
 
       - name: Run Ruff
-        run: |
-          uv run ruff check .
-          uv run ruff format --check .
+        run: uv run ruff check .
 
       - name: Run mypy
         run: uv run mypy

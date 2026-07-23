@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,9 +10,23 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        # 제거된 레거시 키가 개발자 로컬 .env에 남아 있어도 새 설정 로딩을 막지 않는다.
-        extra="ignore",
+        extra="forbid",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_known_legacy_keys(cls, data: object) -> object:
+        """알려진 로컬 키만 이전하고 다른 오타는 실패시킨다."""
+        if not isinstance(data, dict):
+            return data
+        cleaned = dict(data)
+        cleaned.pop("supabase_jwt_secret", None)
+        cleaned.pop("SUPABASE_JWT_SECRET", None)
+        legacy_langfuse_host = cleaned.pop("langfuse_host", None)
+        legacy_langfuse_host = cleaned.pop("LANGFUSE_HOST", legacy_langfuse_host)
+        if legacy_langfuse_host is not None:
+            cleaned.setdefault("langfuse_base_url", legacy_langfuse_host)
+        return cleaned
 
     supabase_url: str
     supabase_service_role_key: str
@@ -22,14 +37,10 @@ class Settings(BaseSettings):
     # AI Studio 모드에서만 쓴다. Vertex 모드(GCP_PROJECT_ID 지정)면 비워둔다.
     gemini_api_key: str = ""
     # 이 값이 있으면 Vertex(Agent Platform), 없으면 AI Studio. app/core/gemini.py 참고.
-    # 인증은 API 키가 아니라 ADC — GOOGLE_APPLICATION_CREDENTIALS 로 키 파일을 가리킨다.
+    # 인증은 API 키나 JSON 키 파일이 아니라 런타임의 ADC를 사용한다.
     gcp_project_id: str = ""
     # Gemini 3.x 는 global 엔드포인트에서만 서비스된다 — us-central1·asia-northeast3 는 404.
     gcp_location: str = "global"
-    # 서비스 계정 키 파일 경로. 필드로 받는 이유: pydantic 은 .env 값을 os.environ 으로
-    # 내보내지 않아, 이름만 같게 적어두면 google-auth 가 못 읽고 만료된 ADC 로 폴백한다.
-    # 비우면 ADC 기본 탐색(gcloud 로그인, Render 의 실제 환경변수)에 맡긴다.
-    google_application_credentials: str = ""
     langfuse_public_key: str
     langfuse_secret_key: str
     langfuse_base_url: str = "https://cloud.langfuse.com"
