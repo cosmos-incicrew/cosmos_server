@@ -101,14 +101,18 @@ async def test_generates_explanation_when_evidence_present(monkeypatch: pytest.M
             "ingredients": [{"origin_definition": "니코틴산 유도체"}],
         },
     )
-    _patch_gemini(monkeypatch, "나이아신아마이드는 피부 톤 개선에 도움을 줍니다.")
+    _patch_gemini(
+        monkeypatch,
+        "[해설]\n나이아신아마이드는 피부 톤 개선에 도움을 줍니다.\n[주의]\n자극이 낮은 편입니다.",
+    )
 
     result = await service.get_ingredient_detail(1)
 
     assert result.status == "ok"
     assert result.name == "나이아신아마이드"
     assert result.body is not None
-    assert result.safety == "자극 낮음"
+    # 주의사항은 LLM이 정제한 [주의] 부분에서 온다.
+    assert result.safety == "자극이 낮은 편입니다."
 
 
 async def test_raises_not_found_when_ingredient_absent(
@@ -562,11 +566,15 @@ async def test_ignores_empty_restriction_rows(
             ],
         },
     )
-    _patch_gemini(monkeypatch, "보습 성분입니다.")
+    _patch_gemini(
+        monkeypatch,
+        "[해설]\n보습 성분입니다.\n[주의]\n자극이 낮은 편입니다.",
+    )
 
     result = await service.get_ingredient_detail(11)
 
-    assert result.safety == "자극 낮음"
+    # 내용이 빈 규제 행은 무시되므로 공식 규제 표기가 붙지 않는다.
+    assert result.safety == "자극이 낮은 편입니다."
     assert "공식 규제" not in (result.safety or "")
 
 
