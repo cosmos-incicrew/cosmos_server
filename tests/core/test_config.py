@@ -10,6 +10,7 @@ def test_settings_load_from_env():
     assert settings.supabase_url == TEST_ENV["SUPABASE_URL"]
     assert settings.langfuse_base_url == TEST_ENV["LANGFUSE_BASE_URL"]
     assert settings.langfuse_tracing_enabled is False
+    assert settings.cors_allowed_origins == ["https://cosmos-incicrew.vercel.app"]
     assert not hasattr(settings, "supabase_jwt_secret")
     assert not hasattr(settings, "google_application_credentials")
     assert settings.gemini_model  # 기본값 존재
@@ -49,6 +50,31 @@ def test_settings_reject_unknown_dotenv_keys(tmp_path):
 
     with pytest.raises(ValidationError):
         Settings(_env_file=typo_env)
+
+
+def test_settings_parse_cors_origins_from_json_env(monkeypatch):
+    monkeypatch.setenv(
+        "CORS_ALLOWED_ORIGINS",
+        '["https://cosmos-incicrew.vercel.app","http://localhost:8123"]',
+    )
+
+    settings = Settings()
+
+    assert settings.cors_allowed_origins == [
+        "https://cosmos-incicrew.vercel.app",
+        "http://localhost:8123",
+    ]
+
+
+def test_settings_default_to_deployed_and_local_web_origins(monkeypatch):
+    monkeypatch.delenv("CORS_ALLOWED_ORIGINS")
+
+    settings = Settings()
+
+    assert settings.cors_allowed_origins == [
+        "https://cosmos-incicrew.vercel.app",
+        "http://localhost:8123",
+    ]
 
 
 def test_get_settings_is_singleton():

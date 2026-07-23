@@ -1,7 +1,12 @@
 from functools import lru_cache
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEVELOPMENT_CORS_ORIGINS = [
+    "https://cosmos-incicrew.vercel.app",
+    "http://localhost:8123",
+]
 
 
 class Settings(BaseSettings):
@@ -47,6 +52,9 @@ class Settings(BaseSettings):
     embedding_dimensions: int = 1536
 
     product_compare_max_count: int = 4
+    cors_allowed_origins: list[str] = Field(
+        default_factory=lambda: list(_DEVELOPMENT_CORS_ORIGINS)
+    )
     log_level: str = "INFO"
 
 

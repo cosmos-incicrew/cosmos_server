@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -18,8 +19,10 @@ from app.modules.product_compare.router import router as product_compare_router
 from app.modules.recommendations.router import router as recommendations_router
 from app.modules.users.router import router as users_router
 
+settings = get_settings()
+
 logging.basicConfig(
-    level=get_settings().log_level,
+    level=settings.log_level,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 logger = logging.getLogger("cosmos")
@@ -40,6 +43,14 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="cosmos API", version="0.1.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 app.include_router(ingredient_search_router)
 app.include_router(ingredient_detail_router)

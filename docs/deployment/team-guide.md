@@ -14,6 +14,7 @@
 | ReDoc | `https://api.35-255-31-62.nip.io/redoc` |
 | OpenAPI JSON | `https://api.35-255-31-62.nip.io/openapi.json` |
 | Langfuse | `https://langfuse.35-188-208-32.nip.io` |
+| Flutter Web | `https://cosmos-incicrew.vercel.app` |
 | 배포 대상 | GCE `cosmos-api-dev`, `us-central1-a` |
 
 이 주소는 팀 내부 개발·테스트용입니다. 고정 IP를 사용하므로 노트북이나 휴대폰의
@@ -22,6 +23,10 @@
 API 문서에는 Caddy Basic Auth가 적용되어 있습니다. 사용자명은 `cosmos`이고,
 비밀번호는 팀의 안전한 비밀 공유 채널에서 받습니다. 이 인증은 문서 노출을 막기 위한
 것이며, 실제 API의 사용자 인증과는 별개입니다.
+
+브라우저 CORS는 정식 Vercel 주소와 로컬 Flutter Web 주소
+`http://localhost:8123`만 허용합니다. 새 프론트 도메인을 추가할 때는 백엔드의
+`CORS_ALLOWED_ORIGINS` 설정과 테스트를 함께 변경합니다.
 
 ## 가장 자주 쓰는 흐름
 

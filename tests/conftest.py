@@ -15,6 +15,7 @@ TEST_ENV = {
     "LANGFUSE_BASE_URL": "http://langfuse.test",
     # 테스트와 CI에서는 외부 Langfuse로 span을 내보내지 않는다.
     "LANGFUSE_TRACING_ENABLED": "false",
+    "CORS_ALLOWED_ORIGINS": '["https://cosmos-incicrew.vercel.app"]',
 }
 
 for _key, _value in TEST_ENV.items():

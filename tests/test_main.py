@@ -13,6 +13,36 @@ def test_health_returns_200_without_auth():
     assert response.json() == {"status": "ok"}
 
 
+def test_cors_allows_deployed_vercel_frontend():
+    response = _client().options(
+        "/api/v1/products/search",
+        headers={
+            "Origin": "https://cosmos-incicrew.vercel.app",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.headers["access-control-allow-origin"]
+        == "https://cosmos-incicrew.vercel.app"
+    )
+
+
+def test_cors_does_not_allow_unknown_origin():
+    response = _client().options(
+        "/api/v1/products/search",
+        headers={
+            "Origin": "https://untrusted.example.com",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert "access-control-allow-origin" not in response.headers
+
+
 async def _reachable() -> bool:
     return True
 

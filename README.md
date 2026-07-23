@@ -24,6 +24,7 @@ cp .env.example .env    # 환경 변수 채우기
 | `KAKAO_ADMIN_KEY` | Kakao Developers → 앱 설정 → 앱 키 → Admin 키. 회원 탈퇴 시 카카오 앱 연결 해제에만 쓴다. 비워도 기동한다 |
 | `GCP_PROJECT_ID` | Vertex AI를 사용하는 GCP 프로젝트. 로컬에서는 ADC 로그인 필요 |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | 개발 Langfuse 프로젝트 Settings |
+| `CORS_ALLOWED_ORIGINS` | 브라우저 프론트 주소의 JSON 배열. 기본값은 개발 Vercel과 로컬 웹 |
 | `GEMINI_MODEL`, `LANGFUSE_BASE_URL`, `LOG_LEVEL` | 기본값이 `app/core/config.py`에 있음. 바꿀 때만 지정 |
 
 필수값이 하나라도 비면 서버가 **기동 시점에** 즉시 실패한다.
