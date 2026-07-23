@@ -1,0 +1,2 @@
+﻿model,recall@5,recall@10,MRR,concern_hit@3
+multilingual-e5-large,0.375,0.625,0.225,0.75
