@@ -34,10 +34,7 @@ class Settings(BaseSettings):
     # Kakao Developers → 앱 설정 → 앱 키 → Admin 키.
     # 비어 있으면 연결 해제를 건너뛴다 — 계정 삭제 자체는 그대로 동작한다.
     kakao_admin_key: str = ""
-    # AI Studio 모드에서만 쓴다. Vertex 모드(GCP_PROJECT_ID 지정)면 비워둔다.
-    gemini_api_key: str = ""
-    # 이 값이 있으면 Vertex(Agent Platform), 없으면 AI Studio. app/core/gemini.py 참고.
-    # 인증은 API 키나 JSON 키 파일이 아니라 런타임의 ADC를 사용한다.
+    # Vertex AI는 API 키나 JSON 키 파일 대신 런타임의 ADC를 사용한다.
     gcp_project_id: str = ""
     # Gemini 3.x 는 global 엔드포인트에서만 서비스된다 — us-central1·asia-northeast3 는 404.
     gcp_location: str = "global"
@@ -45,9 +42,10 @@ class Settings(BaseSettings):
     langfuse_secret_key: str
     langfuse_base_url: str = "https://cloud.langfuse.com"
     langfuse_tracing_enabled: bool = True
-    gemini_model_flash: str = "gemini-3.6-flash"
-    # Pro 는 2.5 유지 — 3.x Pro 는 아직 preview 뿐이라 종료 예고가 짧다 (발표 7/27).
-    gemini_model_pro: str = "gemini-2.5-pro"
+    gemini_model: str = "gemini-3.5-flash-lite"
+    embedding_model: str = "gemini-embedding-001"
+    embedding_dimensions: int = 1536
+
     product_compare_max_count: int = 4
     log_level: str = "INFO"
 

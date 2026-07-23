@@ -1,6 +1,7 @@
 """ingredient_search 모듈의 Supabase 조회 어댑터."""
 
 import asyncio
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from time import perf_counter
@@ -14,10 +15,10 @@ from app.common.restrictions import RestrictionRow, fetch_restriction_rows
 from app.core.supabase import get_supabase
 from app.modules.ingredient_search.ingredient_matching import (
     IngredientMatchCandidate,
-    ingredient_like_pattern,
     rank_ingredient_candidates,
 )
 from app.modules.ingredient_search.matching import (
+    ProductMatchCandidate,
     format_tolerant_like_pattern,
     rank_candidates,
     requires_literal_product_lookup,
@@ -28,7 +29,6 @@ from app.modules.ingredient_search.schemas import (
 )
 
 _CANDIDATE_LIMIT_PER_QUERY = 100
-_EXPANDED_CANDIDATE_LIMIT_PER_QUERY = 500
 _PRODUCT_SEARCH_TIMEOUT_SECONDS = 2.0
 
 
@@ -91,15 +91,15 @@ class SupabaseIngredientSearchRepository:
         self.last_search_diagnostics = ProductSearchDiagnostics()
         candidate_limit = _CANDIDATE_LIMIT_PER_QUERY
         selection = (
-            "id,product_name,brand,main_category,sub_category,detailed_category,product_url,"
-            "product_ingredients!inner()"
+            "id,product_name,cleaned_product_name,brand,main_category,sub_category,"
+            "detailed_category,product_url,product_ingredients!inner()"
         )
         tolerant_query = (
             self._client.table("products")
             .select(selection)
             .not_.is_("product_ingredients.ingredient_id", "null")
-            .ilike("product_name", format_tolerant_like_pattern(query))
-            .order("product_name")
+            .ilike("cleaned_product_name", format_tolerant_like_pattern(query))
+            .order("cleaned_product_name")
             .order("id")
             .limit(candidate_limit)
         )
@@ -128,10 +128,10 @@ class SupabaseIngredientSearchRepository:
         if direct_response is not None:
             responses.append(direct_response)
         direct_count = len(_rows(direct_response.data)) if direct_response is not None else 0
-        candidates_by_id: dict[int, ProductSearchCandidate] = {}
+        candidates_by_id: dict[int, ProductMatchCandidate] = {}
         for response in responses:
             for candidate in _product_candidates(_rows(response.data)):
-                candidates_by_id.setdefault(candidate.id, candidate)
+                candidates_by_id.setdefault(candidate.product.id, candidate)
         self.last_candidate_pool_truncated = tolerant_count >= candidate_limit
         ranked = rank_candidates(query, list(candidates_by_id.values()))
         self.last_search_diagnostics = ProductSearchDiagnostics(
@@ -163,133 +163,38 @@ class SupabaseIngredientSearchRepository:
         self, query: str, limit: int
     ) -> list[IngredientSearchCandidate]:
         candidate_limit = _CANDIDATE_LIMIT_PER_QUERY
-        pattern = ingredient_like_pattern(query)
-        ingredient_selection = "ingredient_id,name_kor,name_eng"
-        synonym_selection = (
-            "ingredient_id,synonym,ingredients!inner(ingredient_id,name_kor,name_eng)"
+        response, _latency_ms = await _execute_with_latency(
+            self._client.rpc(
+                "search_ingredient_candidates",
+                {"search_query": query, "result_limit": candidate_limit},
+            ),
+            self._search_timeout_seconds,
+            IngredientSearchDataSourceError,
         )
-
-        queries = (
-            self._client.table("ingredients")
-            .select(ingredient_selection)
-            .ilike("name_kor", pattern)
-            .order("name_kor")
-            .order("ingredient_id")
-            .limit(candidate_limit),
-            self._client.table("ingredients")
-            .select(ingredient_selection)
-            .ilike("name_eng", pattern)
-            .order("name_eng")
-            .order("ingredient_id")
-            .limit(candidate_limit),
-            self._client.table("synonyms")
-            .select(synonym_selection)
-            .ilike("synonym", pattern)
-            .order("synonym")
-            .order("ingredient_id")
-            .limit(candidate_limit),
+        rows_by_source: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for row in _rows(response.data):
+            source = row.get("match_source")
+            if isinstance(source, str):
+                rows_by_source[source].append(row)
+        self.last_ingredient_candidate_pool_truncated = any(
+            len(source_rows) > candidate_limit for source_rows in rows_by_source.values()
         )
-        timed_responses = await asyncio.gather(
-            *(
-                _execute_with_latency(
-                    candidate_query,
-                    self._search_timeout_seconds,
-                    IngredientSearchDataSourceError,
-                )
-                for candidate_query in queries
-            )
-        )
-
-        standard_responses = [timed_responses[0][0], timed_responses[1][0]]
-        synonym_responses = [timed_responses[2][0]]
-        truncated_sources = [
-            source_index
-            for source_index, (response, _latency_ms) in enumerate(timed_responses)
-            if len(_rows(response.data)) >= candidate_limit
+        rows = [
+            row
+            for source_rows in rows_by_source.values()
+            for row in source_rows[:candidate_limit]
         ]
-        self.last_ingredient_fallback_triggered = bool(truncated_sources)
-        if truncated_sources:
-            direct_queries = (
-                self._client.table("ingredients")
-                .select(ingredient_selection)
-                .ilike("name_kor", _escape_like(query))
-                .order("ingredient_id")
-                .limit(candidate_limit),
-                self._client.table("ingredients")
-                .select(ingredient_selection)
-                .ilike("name_eng", _escape_like(query))
-                .order("ingredient_id")
-                .limit(candidate_limit),
-                self._client.table("synonyms")
-                .select(synonym_selection)
-                .ilike("synonym", _escape_like(query))
-                .order("ingredient_id")
-                .limit(candidate_limit),
-            )
-            expanded_queries = (
-                self._client.table("ingredients")
-                .select(ingredient_selection)
-                .ilike("name_kor", pattern)
-                .order("name_kor")
-                .order("ingredient_id")
-                .limit(_EXPANDED_CANDIDATE_LIMIT_PER_QUERY),
-                self._client.table("ingredients")
-                .select(ingredient_selection)
-                .ilike("name_eng", pattern)
-                .order("name_eng")
-                .order("ingredient_id")
-                .limit(_EXPANDED_CANDIDATE_LIMIT_PER_QUERY),
-                self._client.table("synonyms")
-                .select(synonym_selection)
-                .ilike("synonym", pattern)
-                .order("synonym")
-                .order("ingredient_id")
-                .limit(_EXPANDED_CANDIDATE_LIMIT_PER_QUERY),
-            )
-            fallback_queries = [
-                (source_index, fallback_query)
-                for source_index in truncated_sources
-                for fallback_query in (
-                    direct_queries[source_index],
-                    expanded_queries[source_index],
-                )
-            ]
-            fallback_responses = await asyncio.gather(
-                *(
-                    _execute_with_latency(
-                        fallback_query,
-                        self._search_timeout_seconds,
-                        IngredientSearchDataSourceError,
-                    )
-                    for _source_index, fallback_query in fallback_queries
-                )
-            )
-            expanded_responses = fallback_responses[1::2]
-            self.last_ingredient_candidate_pool_truncated = any(
-                len(_rows(response.data)) >= _EXPANDED_CANDIDATE_LIMIT_PER_QUERY
-                for response, _latency_ms in expanded_responses
-            )
-            for source_index, (response, _latency_ms) in zip(
-                (item[0] for item in fallback_queries),
-                fallback_responses,
-                strict=True,
-            ):
-                if source_index < 2:
-                    standard_responses.append(response)
-                else:
-                    synonym_responses.append(response)
 
         candidates_by_id: dict[int, IngredientMatchCandidate] = {}
-        for response in standard_responses:
-            for row in _rows(response.data):
+        for row in rows:
+            if str(row.get("match_source", "")).startswith("standard_name_"):
                 candidate = _ingredient_match_candidate(row)
                 if candidate is not None:
                     candidates_by_id.setdefault(candidate.ingredient_id, candidate)
 
-        for synonym_response in synonym_responses:
-            for row in _rows(synonym_response.data):
-                ingredient = _embedded_row(row.get("ingredients"))
-                candidate = _ingredient_match_candidate(ingredient)
+        for row in rows:
+            if row.get("match_source") == "synonym":
+                candidate = _ingredient_match_candidate(row)
                 synonym = row.get("synonym")
                 if candidate is None or not isinstance(synonym, str):
                     continue
@@ -375,20 +280,25 @@ def _rows(data: Any) -> Sequence[dict[str, Any]]:
     return [row for row in data if isinstance(row, dict)]
 
 
-def _product_candidates(rows: Sequence[dict[str, Any]]) -> list[ProductSearchCandidate]:
+def _product_candidates(rows: Sequence[dict[str, Any]]) -> list[ProductMatchCandidate]:
     return [
-        ProductSearchCandidate(
-            id=product_id,
-            product_name=product_name,
-            brand=_optional_text(row.get("brand")),
-            main_category=_optional_text(row.get("main_category")),
-            sub_category=_optional_text(row.get("sub_category")),
-            detailed_category=_optional_text(row.get("detailed_category")),
-            product_url=_optional_text(row.get("product_url")),
+        ProductMatchCandidate(
+            product=ProductSearchCandidate(
+                id=product_id,
+                product_name=product_name,
+                brand=_optional_text(row.get("brand")),
+                main_category=_optional_text(row.get("main_category")),
+                sub_category=_optional_text(row.get("sub_category")),
+                detailed_category=_optional_text(row.get("detailed_category")),
+                product_url=_optional_text(row.get("product_url")),
+            ),
+            cleaned_product_name=cleaned_product_name,
         )
         for row in rows
         if (product_id := _integer(row.get("id"))) is not None
         and isinstance((product_name := row.get("product_name")), str)
+        and isinstance((cleaned_product_name := row.get("cleaned_product_name")), str)
+        and cleaned_product_name.strip()
     ]
 
 
@@ -408,14 +318,6 @@ def _optional_text(value: Any) -> str | None:
     return value if isinstance(value, str) else None
 
 
-def _embedded_row(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    if isinstance(value, list) and value and isinstance(value[0], dict):
-        return value[0]
-    return {}
-
-
 def _integer(value: Any) -> int | None:
     if isinstance(value, int):
         return value
@@ -433,8 +335,8 @@ def _direct_product_query(client: AsyncClient, selection: str, query: str, limit
         client.table("products")
         .select(selection)
         .not_.is_("product_ingredients.ingredient_id", "null")
-        .ilike("product_name", f"%{_escape_like(query)}%")
-        .order("product_name")
+        .ilike("cleaned_product_name", f"%{_escape_like(query)}%")
+        .order("cleaned_product_name")
         .order("id")
         .limit(limit)
     )

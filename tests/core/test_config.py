@@ -12,7 +12,7 @@ def test_settings_load_from_env():
     assert settings.langfuse_tracing_enabled is False
     assert not hasattr(settings, "supabase_jwt_secret")
     assert not hasattr(settings, "google_application_credentials")
-    assert settings.gemini_model_flash  # 기본값 존재
+    assert settings.gemini_model  # 기본값 존재
 
 
 def test_settings_fail_without_required_env(monkeypatch, tmp_path):

@@ -18,5 +18,4 @@ def test_langfuse_client_is_singleton():
 
 def test_gemini_model_selection():
     settings = get_settings()
-    assert gemini_model_for() == settings.gemini_model_flash
-    assert gemini_model_for(complex_query=True) == settings.gemini_model_pro
+    assert gemini_model_for() == settings.gemini_model

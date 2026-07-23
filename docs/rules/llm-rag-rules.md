@@ -33,8 +33,13 @@
 
 ## 모델 선택
 
-- 기본은 Flash (`gemini_model_for()`), 복합 질의만 Pro (`gemini_model_for(complex_query=True)`).
-- Pro 사용 기준: 멀티 제품 교차 주의 문구, 추천 최종 합성처럼 여러 근거를 종합하는 생성.
+- 전 기능이 단일 모델(`gemini_model_for()` = `settings.gemini_model`)을 쓴다. flash/pro
+  구분을 폐지했다 (2026-07-23).
+- 현재 모델은 flash-lite. 여러 근거를 종합하는 생성(멀티 제품 교차 주의 문구·추천 최종
+  합성)도 기준상 Pro감이나, Pro 실측 지연이 ~15초라 최대 12,000자 근거를 얹으면 30초
+  타임아웃을 넘겨 502가 나 저지연 모델로 통일했다 (recommendations §2-⑥). 지연이 비용·
+  품질보다 큰 제약이기 때문이다.
+- 품질이 미흡하면 `config.py`의 `gemini_model` 값만 올린다 (Langfuse groundedness 로 관측).
 - 모델명을 코드에 하드코딩하지 않는다 — 반드시 `app/core/gemini.py`를 거친다.
 
 ## 프롬프트 관리

@@ -1,0 +1,2 @@
+﻿model,recall@5,recall@10,MRR,concern_hit@3
+bge-m3,0.25,0.5,0.2833,0.875

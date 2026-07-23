@@ -110,11 +110,15 @@ async def get_ingredient_detail(ingredient_id: int) -> IngredientDetailResponse:
             reason="해설 근거(효능·특성) 없음",
         )
 
-    safety = _build_safety_text(evidence)
     safety_unknown = not evidence.has_safety_basis()
 
-    raw_body = await _generate_explanation(evidence, safety_unknown)
+    raw_output = await _generate_explanation(evidence, safety_unknown)
+    raw_body, raw_safety = _split_explanation(raw_output)
     clean_body, verified = _verify_sources(raw_body, evidence)
+
+    # LLM이 [주의]를 다듬어 주지만, 공식 규제는 원문을 신뢰해 앞에 덧붙인다.
+    # (수치·조건이 LLM 정제 과정에서 변형되는 것을 막는다.)
+    safety = _finalize_safety(evidence, raw_safety, safety_unknown)
 
     return IngredientDetailResponse(
         status="ok",
@@ -249,10 +253,58 @@ def _high_risk_notes(evidences: list[IngredientEvidence]) -> list[str]:
     return notes
 
 
-def _build_safety_text(evidence: IngredientEvidence) -> str:
-    """주의사항 문구 조립. 공식 규제(restrictions)를 우선하고 safety_note를 보조로 붙인다.
+def _split_explanation(raw: str) -> tuple[str, str | None]:
+    """LLM 출력을 [해설]/[주의] 두 부분으로 분리한다.
 
-    근거가 하나도 없으면 "안전성 확인 불가"로 명시한다(안전하다고 단정하지 않는다).
+    형식을 지키지 않으면(표시가 없으면) 전체를 본문으로 보고 주의는 None.
+    안전 정보를 놓치지 않도록, 파싱 실패 시에도 본문은 살린다.
+    """
+    body_match = re.search(r"\[해설\]\s*(.*?)(?=\[주의\]|$)", raw, re.DOTALL)
+    safety_match = re.search(r"\[주의\]\s*(.*)", raw, re.DOTALL)
+
+    if not body_match:
+        # 표시가 없으면 전체를 본문으로.
+        return raw.strip(), None
+
+    body = body_match.group(1).strip()
+    safety = safety_match.group(1).strip() if safety_match else None
+
+    # "없음"만 있으면 주의사항 없는 것으로 처리.
+    if safety and safety.replace(".", "").strip() in ("없음", "없습니다"):
+        safety = None
+    return body, (safety or None)
+
+
+def _finalize_safety(
+    evidence: IngredientEvidence, refined_safety: str | None, safety_unknown: bool
+) -> str | None:
+    """최종 주의사항 필드를 만든다.
+
+    공식 규제(restrictions)는 법적 사실이므로 원문을 신뢰해 앞에 붙인다.
+    LLM이 정제한 일반 안전성 문구는 그 뒤에 둔다.
+    안전성 근거가 아예 없으면 종전과 같이 "안전성 확인 불가".
+    """
+    parts: list[str] = []
+
+    # 공식 규제는 원문 유지 (수치·조건 변형 방지)
+    regulation = _regulation_text(evidence)
+    if regulation:
+        parts.append(f"[공식 규제] {regulation}")
+
+    if refined_safety:
+        parts.append(refined_safety)
+
+    if parts:
+        return " ".join(parts)
+    if safety_unknown:
+        return _SAFETY_UNKNOWN
+    return None
+
+
+def _regulation_text(evidence: IngredientEvidence) -> str | None:
+    """공식 규제(restrictions)만 원문 그대로 조립한다.
+
+    법적 사실이라 LLM 정제를 거치지 않는다 — 수치·조건이 바뀌면 안 되기 때문이다.
     """
     parts: list[str] = []
     for restriction in evidence.restrictions:
@@ -268,10 +320,8 @@ def _build_safety_text(evidence: IngredientEvidence) -> str:
             if text
         )
         if detail:
-            parts.append(f"[공식 규제] {detail}")
-    if evidence.safety_note:
-        parts.append(evidence.safety_note)
-    return " ".join(parts) if parts else _SAFETY_UNKNOWN
+            parts.append(detail)
+    return " / ".join(parts) if parts else None
 
 
 def _build_evidence_block(evidence: IngredientEvidence, safety_unknown: bool) -> str:
@@ -312,14 +362,14 @@ def _build_evidence_block(evidence: IngredientEvidence, safety_unknown: bool) ->
 
 @observe(as_type="generation")
 async def _generate_explanation(evidence: IngredientEvidence, safety_unknown: bool) -> str:
-    """근거를 엮어 Gemini로 해설 생성. Flash 기본(단일 근거 생성).
+    """근거를 엮어 Gemini로 해설 생성.
 
     @observe가 Langfuse generation 트레이스를 자동 생성한다.
     module 태그를 붙여 비용·품질을 모듈별로 추적한다.
     """
     evidence_block = _build_evidence_block(evidence, safety_unknown)
     user_prompt = EXPLANATION_USER_TEMPLATE.format(evidence_block=evidence_block)
-    model = gemini_model_for()  # Flash: 단일 성분 해설은 복합 질의 아님
+    model = gemini_model_for()
 
     langfuse = get_client()
     langfuse.update_current_generation(
@@ -476,7 +526,7 @@ async def _generate_product_summary(
 ) -> str:
     """여러 성분 근거를 종합해 제품 요약 생성.
 
-    여러 근거를 종합하는 복합 질의이므로 Pro 모델을 사용한다(llm-rag-rules).
+    여러 근거를 종합하는 복합 질의.
     """
     evidence_block = _build_product_evidence_block(evidences, caution_count)
     if high_risk_notes:
@@ -484,7 +534,7 @@ async def _generate_product_summary(
         joined = "\n".join(f"- {note}" for note in high_risk_notes)
         evidence_block += f"\n\n[특별히 주의가 필요한 성분]\n{joined}"
     user_prompt = PRODUCT_SUMMARY_USER_TEMPLATE.format(evidence_block=evidence_block)
-    model = gemini_model_for(complex_query=True)  # 여러 근거 종합 → Pro
+    model = gemini_model_for()
 
     langfuse = get_client()
     langfuse.update_current_generation(
@@ -653,7 +703,7 @@ async def _generate_comparison_summary(
     """비교 결과를 종합해 해설 생성. 여러 제품·근거 종합이므로 Pro 모델."""
     evidence_block = _build_comparison_evidence_block(products, presences, evidence_by_id)
     user_prompt = COMPARISON_USER_TEMPLATE.format(evidence_block=evidence_block)
-    model = gemini_model_for(complex_query=True)
+    model = gemini_model_for()
 
     langfuse = get_client()
     langfuse.update_current_generation(

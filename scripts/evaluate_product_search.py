@@ -24,7 +24,7 @@ from app.core.supabase import create_supabase_client
 from app.modules.ingredient_search.repository import SupabaseIngredientSearchRepository
 from scripts.product_search_dataset import EvaluationCase, EvaluationDataset, load_dataset
 
-DEFAULT_DATASET = Path("evaluation/product_search/datasets/development-v1.0.0.json")
+DEFAULT_DATASET = Path("evaluation/product_search/datasets/development-v2.0.0.json")
 DEFAULT_OUTPUT_DIRECTORY = Path("artifacts/search-evaluation")
 DEFAULT_REPEAT_COUNT = 5
 DEFAULT_RESULT_LIMIT = 10
@@ -275,22 +275,26 @@ async def _observe(
 
 
 async def database_fingerprint(client: AsyncClient) -> DatabaseFingerprint:
-    products: list[tuple[int, str]] = []
+    products: list[tuple[int, str, str | None]] = []
     offset = 0
     while True:
         response = await (
             client.table("products")
-            .select("id,product_name")
+            .select("id,product_name,cleaned_product_name")
             .order("id")
             .range(offset, offset + _DB_PAGE_SIZE - 1)
             .execute()
         )
         rows = _rows(response.data)
         products.extend(
-            (product_id, product_name)
+            (product_id, product_name, cleaned_product_name)
             for row in rows
             if isinstance((product_id := row.get("id")), int)
             and isinstance((product_name := row.get("product_name")), str)
+            and (
+                isinstance((cleaned_product_name := row.get("cleaned_product_name")), str)
+                or cleaned_product_name is None
+            )
         )
         if len(rows) < _DB_PAGE_SIZE:
             break

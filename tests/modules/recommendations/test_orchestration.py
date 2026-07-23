@@ -16,15 +16,16 @@ from app.modules.recommendations.pipeline import (
     s5_safety,
     s6_generation,
     s7_response,
+    s8_products,
 )
 from app.modules.recommendations.schemas import (
     Candidate,
     ChunkSource,
-    ContextUsed,
-    LlmPick,
+    LlmNarrative,
     RecommendationResponse,
     RetrievedChunk,
     UserContext,
+    UserProfile,
 )
 
 _USER = "22222222-2222-4222-8222-222222222222"
@@ -37,7 +38,7 @@ def _chunk(doc_id: str) -> RetrievedChunk:
 
 
 def _ok_response(status: str = "ok") -> RecommendationResponse:
-    return RecommendationResponse(status=status, context_used=ContextUsed(), disclaimer="d")
+    return RecommendationResponse(status=status, user_profile=UserProfile(), disclaimer="d")
 
 
 @pytest.fixture()
@@ -50,7 +51,10 @@ def stages(monkeypatch: pytest.MonkeyPatch) -> dict:
         "efficacy": [_chunk("eff_1")],
         "candidates": [Candidate(name_kor="판테놀", score=0.9)],
         "safe": [Candidate(name_kor="판테놀", score=0.9)],
-        "picks": [LlmPick(name_kor="판테놀", reason="r")],
+        "narrative": LlmNarrative(
+            cause_analysis="원인", recommendation="판테놀 추천", usage_guide="사용법",
+            recommended_names=["판테놀"],
+        ),
     }
 
     async def _build_context(user_id: str) -> UserContext:
@@ -77,15 +81,21 @@ def stages(monkeypatch: pytest.MonkeyPatch) -> dict:
     async def _generate(context, candidates, chunks):
         calls.append("s6_generation")
         state["generated_with"] = candidates
-        return state["picks"]
+        return state["narrative"]
 
-    def _assemble(context, candidates, picks, chunks):
+    async def _fetch_products(candidates, narrative, owned_product_ids):
+        calls.append("s8_products")
+        state["products_from"] = candidates
+        return []
+
+    def _assemble(context, candidates, narrative, case_chunks, efficacy_chunks, products):
         calls.append("s7_response.assemble")
         state["assembled_with"] = candidates
         return _ok_response()
 
-    def _insufficient(context, message, action=None):
+    def _insufficient(context, code, message, action=None):
         calls.append("s7_response.insufficient")
+        state["insufficient_code"] = code
         state["insufficient_message"] = message
         state["insufficient_action"] = action
         return _ok_response("insufficient_evidence")
@@ -96,6 +106,7 @@ def stages(monkeypatch: pytest.MonkeyPatch) -> dict:
     monkeypatch.setattr(s4_candidates, "aggregate_candidates", _aggregate)
     monkeypatch.setattr(s5_safety, "apply_safety_filters", _safety)
     monkeypatch.setattr(s6_generation, "generate", _generate)
+    monkeypatch.setattr(s8_products, "fetch", _fetch_products)
     monkeypatch.setattr(s7_response, "assemble", _assemble)
     monkeypatch.setattr(s7_response, "insufficient", _insufficient)
     return state
@@ -111,6 +122,7 @@ async def test_happy_path_runs_all_seven_stages_in_order(stages):
         "s4_candidates",
         "s5_safety",
         "s6_generation",
+        "s8_products",
         "s7_response.assemble",
     ]
     assert response.status == "ok"
@@ -173,7 +185,7 @@ async def test_generation_receives_both_chunk_sets(stages, monkeypatch: pytest.M
 
     async def _generate(context, candidates, chunks):
         captured["chunks"] = chunks
-        return stages["picks"]
+        return stages["narrative"]
 
     monkeypatch.setattr(s6_generation, "generate", _generate)
 

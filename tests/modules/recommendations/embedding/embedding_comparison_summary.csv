@@ -1,0 +1,5 @@
+﻿model,recall@5,recall@10,MRR,concern_hit@3
+bge-m3,0.25,0.5,0.2833,0.875
+gemini-embedding-001,0.75,0.875,0.3514,0.8796
+jina-embeddings-v3,0.25,0.375,0.1741,0.9306
+multilingual-e5-large,0.375,0.625,0.225,0.75

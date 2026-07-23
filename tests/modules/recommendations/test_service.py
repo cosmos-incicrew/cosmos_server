@@ -28,8 +28,6 @@ from app.modules.recommendations.pipeline import s7_response as response_stage
 from app.modules.recommendations.schemas import (
     Candidate,
     ChunkSource,
-    LlmOutput,
-    LlmPick,
     RetrievedChunk,
     UserContext,
 )
@@ -233,16 +231,6 @@ async def test_concern_conflict_warning(_no_restrictions):
 # ── ⑥ 환각 차단 · 표현 규제 ────────────────────────────────────
 
 
-def test_picks_outside_candidates_are_dropped():
-    candidates = [Candidate(name_kor="판테놀", score=0.9)]
-    picks = [
-        LlmPick(name_kor="판테놀", reason="진정에 도움"),
-        LlmPick(name_kor="존재하지않는성분", reason="지어낸 성분"),
-    ]
-
-    assert [p.name_kor for p in generation._reject_hallucinated(picks, candidates)] == ["판테놀"]
-
-
 def test_banned_claim_sentence_removed():
     text = "여드름을 치료해 줍니다. 피부 진정에 도움이 됩니다."
 
@@ -256,53 +244,11 @@ def test_all_sentences_banned_falls_back_to_safe_text():
 # ── ⑦ 응답 조립 ───────────────────────────────────────────────
 
 
-def test_assemble_attaches_badge_owned_and_sources():
-    candidate = Candidate(
-        name_kor="나이아신아마이드",
-        score=0.9,
-        ingredient_id=42,
-        efficacy="피지 조절",
-        concerns=["pores"],
-        source_doc_ids=["eff_1"],
-    )
-    chunk = RetrievedChunk(
-        content="근거",
-        score=0.9,
-        source=ChunkSource(doc_id="eff_1", title="효능", locator="PMID:1"),
-        metadata={},
-    )
-    picks = [
-        LlmPick(name_kor="나이아신아마이드", reason="모공 관리에 도움", cited_doc_ids=["eff_1"])
-    ]
-    context = _context(
-        owned_ingredients=["나이아신아마이드"],
-        owned_products_by_ingredient={"나이아신아마이드": ["OO 토너"]},
-    )
-
-    response = response_stage.assemble(context, [candidate], picks, [chunk])
-
-    item = response.recommended_ingredients[0]
-    assert response.status == "ok"
-    assert item.badges == ["기능성고시_미백"]  # LLM 이 아니라 코드가 붙인다
-    assert item.owned is True
-    assert item.owned_products == ["OO 토너"]
-    assert item.sources[0].locator == "PMID:1"
-    assert response.recommended_products == []  # v1은 항상 빈 배열
-
-
-def test_assemble_without_usable_picks_returns_insufficient():
-    response = response_stage.assemble(_context(), [], [], [])
-
-    assert response.status == "insufficient_evidence"
-    assert response.recommended_ingredients == []
-
-
 def test_insufficient_suggests_bsti_when_not_taken():
-    assert response_stage.insufficient(_context(), "없음").suggested_action == "take_bsti"
-    assert (
-        response_stage.insufficient(_context(bsti_type="OSPW"), "없음").suggested_action
-        == "retry_with_other_concerns"
-    )
+    no_bsti = response_stage.insufficient(_context(), "no_evidence", "없음")
+    assert no_bsti.advisory.action == "take_bsti"
+    with_bsti = response_stage.insufficient(_context(bsti_type="OSPW"), "no_evidence", "없음")
+    assert with_bsti.advisory.action == "retry_with_other_concerns"
 
 
 # ── ② 질의 구성 ───────────────────────────────────────────────
@@ -458,69 +404,55 @@ async def test_sparse_concern_user_gets_insufficient_evidence():
     근거가 없으면 LLM 을 부르지 않고 정형 응답 + 행동 유도를 돌려줘야 한다."""
     context = _context(concerns=["sensitivity"], bsti_type=None)
 
-    response = response_stage.insufficient(context, "근거 없음")
+    response = response_stage.insufficient(context, "no_evidence", "근거 없음")
 
     assert response.status == "insufficient_evidence"
-    assert response.suggested_action == "take_bsti"  # BSTI 미검사 → 검사 유도
-    assert response.recommended_ingredients == []
-    assert response.context_used.concerns == ["sensitivity"]
-
-
-async def test_empty_shelf_skips_only_owned_adjustments():
-    """화장대가 비어도 추천은 정상 진행되고 하향·보유 표시만 생략된다."""
-    chunks = [_efficacy_chunk("판테놀", 0.8)]
-
-    candidates = await candidates_stage.aggregate_candidates(
-        [], chunks, _context(owned_ingredients=[])
-    )
-
-    assert candidates[0].score == pytest.approx(0.8), "빈 화장대에서는 감점이 없다"
-
-    response = response_stage.assemble(
-        _context(owned_ingredients=[]),
-        candidates,
-        [LlmPick(name_kor="판테놀", reason="진정에 도움")],
-        [],
-    )
-
-    item = response.recommended_ingredients[0]
-    assert response.status == "ok"
-    assert item.owned is False
-    assert item.owned_products == []
+    assert response.advisory.code == "no_evidence"
+    assert response.advisory.action == "take_bsti"  # BSTI 미검사 → 검사 유도
+    assert response.cases == [] and response.ingredients == []
+    assert response.user_profile.concerns == ["sensitivity"]
 
 
 # ── ⑥ 재생성·에러 트레이스 ─────────────────────────────────────
 
 
 async def test_banned_claim_triggers_one_regeneration(monkeypatch):
-    """금칙어가 섞이면 문장 삭제로 끝내지 않고 1회 재생성한다 (설계 §2-⑥ "순화·재생성")."""
+    from app.modules.recommendations.pipeline import s6_generation as generation
+    from app.modules.recommendations.schemas import Candidate, LlmNarrative
+
     calls = {"n": 0}
 
     async def _fake_gemini(prompt, context, candidates):
         calls["n"] += 1
-        reason = "여드름을 치료합니다." if calls["n"] == 1 else "피부 진정에 도움이 됩니다."
-        return LlmOutput(picks=[LlmPick(name_kor="판테놀", reason=reason)])
+        rec = "여드름을 치료합니다." if calls["n"] == 1 else "피부 진정에 도움이 됩니다."
+        return LlmNarrative(
+            cause_analysis="원인", recommendation=rec, usage_guide="사용법",
+            recommended_names=["판테놀"],
+        )
 
     monkeypatch.setattr(generation, "_call_gemini", _fake_gemini)
-
-    picks = await generation.generate(_context(), [Candidate(name_kor="판테놀", score=0.9)], [])
-
-    assert calls["n"] == 2, "1회 재생성해야 한다"
-    assert "치료" not in picks[0].reason
+    result = await generation.generate(_context(), [Candidate(name_kor="판테놀", score=0.9)], [])
+    assert calls["n"] == 2
+    assert "치료" not in result.recommendation
 
 
-async def test_clean_generation_does_not_regenerate(monkeypatch):
+async def test_hallucinated_name_triggers_regeneration(monkeypatch):
+    from app.modules.recommendations.pipeline import s6_generation as generation
+    from app.modules.recommendations.schemas import Candidate, LlmNarrative
+
     calls = {"n": 0}
 
     async def _fake_gemini(prompt, context, candidates):
         calls["n"] += 1
-        return LlmOutput(picks=[LlmPick(name_kor="판테놀", reason="피부 진정에 도움이 됩니다.")])
+        names = ["존재하지않는성분"] if calls["n"] == 1 else ["판테놀"]
+        return LlmNarrative(
+            cause_analysis="원인", recommendation="판테놀 추천", usage_guide="사용법",
+            recommended_names=names,
+        )
 
     monkeypatch.setattr(generation, "_call_gemini", _fake_gemini)
-
     await generation.generate(_context(), [Candidate(name_kor="판테놀", score=0.9)], [])
-
-    assert calls["n"] == 1
+    assert calls["n"] == 2
 
 
 async def test_llm_failure_raises_502_after_one_retry(monkeypatch):
@@ -575,21 +507,26 @@ async def test_regeneration_failure_keeps_first_result(monkeypatch):
 
     ⑦의 순화로 처리 가능한 문제인데 502 로 버리면, 일시적 오류가 멀쩡한 추천을 죽인다.
     """
+    from app.modules.recommendations.schemas import LlmNarrative
+
     calls = {"n": 0}
 
     async def _fake_gemini(prompt, context, candidates):
         calls["n"] += 1
         if calls["n"] == 1:
-            return LlmOutput(picks=[LlmPick(name_kor="판테놀", reason="여드름을 치료합니다.")])
+            return LlmNarrative(
+                cause_analysis="원인", recommendation="여드름을 치료합니다.",
+                usage_guide="사용법", recommended_names=["판테놀"],
+            )
         raise ConnectionError("일시적 오류")
 
     monkeypatch.setattr(generation, "_call_gemini", _fake_gemini)
 
-    picks = await generation.generate(_context(), [Candidate(name_kor="판테놀", score=0.9)], [])
+    result = await generation.generate(_context(), [Candidate(name_kor="판테놀", score=0.9)], [])
 
     assert calls["n"] == 2
-    assert [p.name_kor for p in picks] == ["판테놀"], "1차 결과를 502 로 버리면 안 된다"
-    assert "치료" not in generation.sanitize_claims(picks[0].reason)
+    assert result.recommended_names == ["판테놀"], "1차 결과를 502 로 버리면 안 된다"
+    assert "치료" not in generation.sanitize_claims(result.recommendation)
 
 
 async def test_first_attempt_failure_still_raises_502(monkeypatch):
@@ -660,11 +597,16 @@ async def test_evidence_drops_chunks_unlinked_to_candidates(monkeypatch):
     헬퍼만 직접 부르면 `generate()` 안의 호출을 지워도 통과한다. 실제 프롬프트를
     잡아서 확인한다.
     """
+    from app.modules.recommendations.schemas import LlmNarrative
+
     captured: dict = {}
 
     async def _fake_gemini(prompt, context, candidates):
         captured["prompt"] = prompt
-        return LlmOutput(picks=[LlmPick(name_kor="판테놀", reason="도움이 됩니다.")])
+        return LlmNarrative(
+            cause_analysis="원인", recommendation="판테놀 추천", usage_guide="사용법",
+            recommended_names=["판테놀"],
+        )
 
     monkeypatch.setattr(generation, "_call_gemini", _fake_gemini)
     candidates = [Candidate(name_kor="판테놀", score=0.9, source_doc_ids=["eff_1"])]
@@ -808,11 +750,16 @@ async def test_evidence_sorted_by_score_before_truncation(monkeypatch):
     ⑥에 들어오는 청크는 `case_chunks + efficacy_chunks` 라 고민 순서다. 정렬 없이
     자르면 마지막 고민의 근거가 통째로 날아가고 그 고민은 추천에서 조용히 빠진다.
     """
+    from app.modules.recommendations.schemas import LlmNarrative
+
     captured: dict = {}
 
     async def _fake_gemini(prompt, context, candidates):
         captured["prompt"] = prompt
-        return LlmOutput(picks=[LlmPick(name_kor="판테놀", reason="도움이 됩니다.")])
+        return LlmNarrative(
+            cause_analysis="원인", recommendation="판테놀 추천", usage_guide="사용법",
+            recommended_names=["판테놀"],
+        )
 
     monkeypatch.setattr(generation, "_call_gemini", _fake_gemini)
     # 개별 청크는 _clip(1,500자)에 걸리므로, 총량 상한을 채우려면 여러 개가 필요하다.
@@ -854,28 +801,6 @@ def test_evidence_deduplicates_same_doc_id():
     assert block.count("같은 근거") == 1
 
 
-async def test_regeneration_all_hallucinated_keeps_first_result(monkeypatch):
-    """재생성이 전부 후보 밖을 고르면 1차를 되살린다.
-
-    버리면 사용자는 근거가 있는데도 insufficient_evidence 를 받는다 — 1차는 금칙어만
-    순화하면 쓸 수 있는 답이다.
-    """
-    calls = {"n": 0}
-
-    async def _fake_gemini(prompt, context, candidates):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return LlmOutput(picks=[LlmPick(name_kor="판테놀", reason="여드름을 치료합니다.")])
-        return LlmOutput(picks=[LlmPick(name_kor="존재하지않는성분", reason="정상 문장입니다.")])
-
-    monkeypatch.setattr(generation, "_call_gemini", _fake_gemini)
-
-    picks = await generation.generate(_context(), [Candidate(name_kor="판테놀", score=0.9)], [])
-
-    assert calls["n"] == 2
-    assert [p.name_kor for p in picks] == ["판테놀"]
-
-
 async def test_generation_timeout_raises_502_not_hang(monkeypatch):
     """타임아웃이 없으면 Gemini 무응답 시 워커가 무기한 묶인다."""
 
@@ -889,3 +814,64 @@ async def test_generation_timeout_raises_502_not_hang(monkeypatch):
         await generation.generate(_context(), [Candidate(name_kor="판테놀", score=0.9)], [])
 
     assert exc.value.status_code == 502
+
+
+async def test_assemble_builds_narrative_response():
+    from app.modules.recommendations.pipeline import s7_response
+    from app.modules.recommendations.schemas import (
+        Candidate,
+        ChunkSource,
+        IngredientWarning,
+        LlmNarrative,
+        RetrievedChunk,
+    )
+
+    case = RetrievedChunk(
+        content="…", score=0.8,
+        source=ChunkSource(doc_id="c1", title="37 홍조 상담"),
+        metadata={"target_concern": "홍조", "skin_type": "건성", "gender": "여성",
+                  "age": 37, "recommended_ingredients": ["판테놀", "쑥잎추출물"],
+                  "question": "질문", "answer": "답변"},
+    )
+    eff = RetrievedChunk(
+        content="…", score=0.7,
+        source=ChunkSource(doc_id="eff_1", title="판테놀 효능"),
+        metadata={"name_kr": "판테놀", "inci": "PANTHENOL", "efficacy": "진정",
+                  "safety_note": "고농도 주의", "recommended_concentration": "1~5%"},
+    )
+    cand = Candidate(name_kor="판테놀", score=0.9, warnings=[
+        IngredientWarning(type="알레르기유발", text="첩포 검사 권장"),
+        IngredientWarning(type="주의사항", text="ⓧ 이건 safety_note 로 대체되어 제외"),
+    ])
+    narrative = LlmNarrative(
+        cause_analysis="원인 분석", recommendation="판테놀 추천", usage_guide="사용법",
+        recommended_names=["판테놀"],
+    )
+
+    resp = s7_response.assemble(_context(), [cand], narrative, [case], [eff], [])
+    assert resp.status == "ok"
+    assert resp.answer.cause_analysis == "원인 분석"
+    assert resp.answer.recommendation == "판테놀 추천"
+    assert resp.cases[0].target_concern == "홍조"
+    assert resp.cases[0].skin_type == "건성"
+    assert resp.cases[0].recommended_ingredients == ["판테놀", "쑥잎추출물"]
+    ing = resp.ingredients[0]
+    assert ing.name_kor == "판테놀"
+    assert ing.safety_note == "고농도 주의" and ing.concentration == "1~5%"
+    assert [w.type for w in ing.warnings] == ["알레르기유발"]  # 주의사항 제외
+    assert resp.user_profile.concerns  # UserProfile 로 이름 변경됨
+    assert not hasattr(resp, "warnings") or "warnings" not in resp.model_dump()
+    assert resp.retrieval_mode == "vector"
+    assert resp.advisory is None  # 케이스 근거 있으니 알림 없음
+
+
+async def test_assemble_empty_answer_returns_insufficient():
+    from app.modules.recommendations.pipeline import s7_response
+    from app.modules.recommendations.schemas import Candidate, LlmNarrative
+
+    resp = s7_response.assemble(
+        _context(), [Candidate(name_kor="판테놀", score=0.9)],
+        LlmNarrative(cause_analysis="  ", recommendation="  ", usage_guide="  "), [], [], [],
+    )
+    assert resp.status == "insufficient_evidence"
+    assert resp.answer is None

@@ -7,6 +7,7 @@ import httpx
 import pytest
 from supabase import AsyncClient
 
+from app.modules.ingredient_search.ingredient_matching import normalize_ingredient_text
 from app.modules.ingredient_search.repository import (
     IngredientSearchDataSourceError,
     ProductSearchDataSourceError,
@@ -90,6 +91,7 @@ def _ilike_matches(pattern: str, value: str) -> bool:
 class FakeSupabase:
     def __init__(self, rows_by_table: dict[str, Any]) -> None:
         self._rows_by_table = rows_by_table
+        self.rpc_calls: list[tuple[str, dict[str, Any]]] = []
 
     def table(self, table_name: str) -> FakeQuery:
         data = self._rows_by_table[table_name]
@@ -102,6 +104,71 @@ class FakeSupabase:
             }
             data = [row for row in data if row.get("id") in mapped_ids]
         return FakeQuery(data)
+
+    def rpc(self, function_name: str, params: dict[str, Any]) -> FakeQuery:
+        self.rpc_calls.append((function_name, params))
+        assert function_name == "search_ingredient_candidates"
+        query = normalize_ingredient_text(str(params["search_query"]))
+        limit = int(params["result_limit"])
+        sources: dict[str, list[dict[str, Any]]] = {
+            "name_kor": [],
+            "name_eng": [],
+            "synonym": [],
+        }
+        for row in self._rows_by_table.get("ingredients", []):
+            if not isinstance(row, dict):
+                continue
+            for column in ("name_kor", "name_eng"):
+                value = row.get(column)
+                if isinstance(value, str) and query in normalize_ingredient_text(value):
+                    sources[column].append(
+                        {
+                            "ingredient_id": row.get("ingredient_id"),
+                            "name_kor": row.get("name_kor"),
+                            "name_eng": row.get("name_eng"),
+                            "synonym": None,
+                            "match_source": f"standard_{column}",
+                            "match_value": value,
+                        }
+                    )
+        ingredients_by_id = {
+            row.get("ingredient_id"): row
+            for row in self._rows_by_table.get("ingredients", [])
+            if isinstance(row, dict)
+        }
+        for row in self._rows_by_table.get("synonyms", []):
+            if not isinstance(row, dict):
+                continue
+            value = row.get("synonym")
+            if not isinstance(value, str) or query not in normalize_ingredient_text(value):
+                continue
+            ingredient = row.get("ingredients")
+            if not isinstance(ingredient, dict):
+                ingredient = ingredients_by_id.get(row.get("ingredient_id"), {})
+            sources["synonym"].append(
+                {
+                    "ingredient_id": row.get("ingredient_id"),
+                    "name_kor": ingredient.get("name_kor"),
+                    "name_eng": ingredient.get("name_eng"),
+                    "synonym": value,
+                    "match_source": "synonym",
+                    "match_value": value,
+                }
+            )
+        results: list[dict[str, Any]] = []
+        for rows in sources.values():
+            rows.sort(key=lambda row: _fake_rpc_match_key(query, str(row["match_value"])))
+            for row in rows[: limit + 1]:
+                row.pop("match_value")
+                row["source_match_count"] = None
+                results.append(row)
+        return FakeQuery(results)
+
+
+def _fake_rpc_match_key(query: str, value: str) -> tuple[int, int, str]:
+    normalized = normalize_ingredient_text(value)
+    tier = 0 if normalized == query else 1 if normalized.startswith(query) else 2
+    return tier, len(normalized), normalized
 
 
 class FailingFakeQuery(FakeQuery):
@@ -123,6 +190,9 @@ class FailingIngredientFakeSupabase(FakeSupabase):
             return FailingFakeQuery([])
         return super().table(table_name)
 
+    def rpc(self, function_name: str, params: dict[str, Any]) -> FakeQuery:
+        return FailingFakeQuery([])
+
 
 class SlowFakeQuery(FakeQuery):
     async def execute(self) -> FakeResponse:
@@ -143,6 +213,9 @@ class SlowIngredientFakeSupabase(FakeSupabase):
             return SlowFakeQuery([])
         return super().table(table_name)
 
+    def rpc(self, function_name: str, params: dict[str, Any]) -> FakeQuery:
+        return SlowFakeQuery([])
+
 
 @pytest.mark.asyncio
 async def test_repository_filters_products_without_mapped_ingredients() -> None:
@@ -155,6 +228,7 @@ async def test_repository_filters_products_without_mapped_ingredients() -> None:
                         {
                             "id": 1,
                             "product_name": "분석 가능한 세럼",
+                            "cleaned_product_name": "분석 가능한 세럼",
                             "brand": "브랜드 A",
                             "main_category": "스킨케어",
                             "sub_category": "세럼",
@@ -164,6 +238,7 @@ async def test_repository_filters_products_without_mapped_ingredients() -> None:
                         {
                             "id": 2,
                             "product_name": "성분 없는 세럼",
+                            "cleaned_product_name": "성분 없는 세럼",
                             "brand": "브랜드 B",
                             "main_category": "스킨케어",
                             "sub_category": "세럼",
@@ -202,6 +277,7 @@ async def test_repository_keeps_each_analyzable_product_in_the_same_flagship_gro
                         {
                             "id": 1,
                             "product_name": "아이크림 35ml",
+                            "cleaned_product_name": "아이크림",
                             "brand": "브랜드 A",
                             "main_category": "스킨케어",
                             "sub_category": "크림",
@@ -212,6 +288,7 @@ async def test_repository_keeps_each_analyzable_product_in_the_same_flagship_gro
                         {
                             "id": 2,
                             "product_name": "아이크림 기획세트",
+                            "cleaned_product_name": "아이크림",
                             "brand": "브랜드 A",
                             "main_category": "스킨케어",
                             "sub_category": "크림",
@@ -242,9 +319,15 @@ async def test_repository_matches_spacing_and_punctuation_variations() -> None:
                         {
                             "id": 7,
                             "product_name": "[단독기획] 허블룸 데일리 톤업 비건 선스크린 50ml",
+                            "cleaned_product_name": "허블룸 데일리 톤업 비건 선스크린",
                             "brand": "허블룸",
                         },
-                        {"id": 8, "product_name": "허블룸 수분 크림", "brand": "허블룸"},
+                        {
+                            "id": 8,
+                            "product_name": "허블룸 수분 크림",
+                            "cleaned_product_name": "허블룸 수분 크림",
+                            "brand": "허블룸",
+                        },
                     ],
                     "product_ingredients": [{"product_id": 7}, {"product_id": 8}],
                 }
@@ -252,7 +335,7 @@ async def test_repository_matches_spacing_and_punctuation_variations() -> None:
         )
     )
 
-    results = await repository.search_products("허블룸데일리톤업비건선스크린50ml", 10)
+    results = await repository.search_products("허블룸데일리톤업비건선스크린", 10)
 
     assert [candidate.id for candidate in results] == [7]
 
@@ -265,8 +348,16 @@ async def test_repository_does_not_require_every_anchor_to_match() -> None:
             FakeSupabase(
                 {
                     "products": [
-                        {"id": 9, "product_name": "더샘 내추럴 마스크팩 알로에"},
-                        {"id": 10, "product_name": "다른 브랜드 수분 크림"},
+                        {
+                            "id": 9,
+                            "product_name": "더샘 내추럴 마스크팩 알로에",
+                            "cleaned_product_name": "더샘 내추럴 마스크팩 알로에",
+                        },
+                        {
+                            "id": 10,
+                            "product_name": "다른 브랜드 수분 크림",
+                            "cleaned_product_name": "다른 브랜드 수분 크림",
+                        },
                     ],
                     "product_ingredients": [{"product_id": 9}, {"product_id": 10}],
                 }
@@ -292,14 +383,20 @@ async def test_repository_preserves_literal_lookup_for_compatibility_characters(
             AsyncClient,
             FakeSupabase(
                 {
-                    "products": [{"id": 11, "product_name": "브랜드 크림 ５０ｍｌ"}],
+                    "products": [
+                        {
+                            "id": 11,
+                            "product_name": "[한정] 브랜드 크림 Ｂ５",
+                            "cleaned_product_name": "브랜드 크림 Ｂ５",
+                        }
+                    ],
                     "product_ingredients": [{"product_id": 11}],
                 }
             ),
         )
     )
 
-    results = await repository.search_products("크림 ５０ｍｌ", 10)
+    results = await repository.search_products("크림 Ｂ５", 10)
 
     assert [candidate.id for candidate in results] == [11]
     assert repository.last_search_diagnostics.direct_query_executed is True
@@ -308,7 +405,11 @@ async def test_repository_preserves_literal_lookup_for_compatibility_characters(
 @pytest.mark.asyncio
 async def test_repository_runs_direct_query_only_when_tolerant_pool_is_truncated() -> None:
     products = [
-        {"id": product_id, "product_name": f"공통 검색 제품 {product_id}"}
+        {
+            "id": product_id,
+            "product_name": f"[기획] 공통 검색 제품 {product_id}",
+            "cleaned_product_name": f"공통 검색 제품 {product_id}",
+        }
         for product_id in range(1, 102)
     ]
     repository = SupabaseIngredientSearchRepository(
@@ -363,10 +464,15 @@ async def test_repository_prioritizes_core_name_match_over_partial_match() -> No
             FakeSupabase(
                 {
                     "products": [
-                        {"id": 1, "product_name": "아토베리어365 크림 미스트"},
+                        {
+                            "id": 1,
+                            "product_name": "아토베리어365 크림 미스트",
+                            "cleaned_product_name": "아토베리어365 크림 미스트",
+                        },
                         {
                             "id": 2,
                             "product_name": "[기획] 에스트라 아토베리어365 크림 80ml (+10ml)",
+                            "cleaned_product_name": "에스트라 아토베리어365 크림",
                         },
                     ],
                     "product_ingredients": [{"product_id": 1}, {"product_id": 2}],
@@ -381,13 +487,19 @@ async def test_repository_prioritizes_core_name_match_over_partial_match() -> No
 
 
 @pytest.mark.asyncio
-async def test_repository_removes_capacity_attached_to_product_name() -> None:
+async def test_repository_searches_cleaned_name_and_returns_original_name() -> None:
     repository = SupabaseIngredientSearchRepository(
         cast(
             AsyncClient,
             FakeSupabase(
                 {
-                    "products": [{"id": 1, "product_name": "브랜드 에센스200ml"}],
+                    "products": [
+                        {
+                            "id": 1,
+                            "product_name": "[단독기획] 브랜드 에센스200ml",
+                            "cleaned_product_name": "브랜드 에센스",
+                        }
+                    ],
                     "product_ingredients": [{"product_id": 1}],
                 }
             ),
@@ -397,6 +509,30 @@ async def test_repository_removes_capacity_attached_to_product_name() -> None:
     results = await repository.search_products("브랜드 에센스", 10)
 
     assert [candidate.id for candidate in results] == [1]
+    assert results[0].product_name == "[단독기획] 브랜드 에센스200ml"
+
+
+@pytest.mark.asyncio
+async def test_repository_does_not_search_removed_marketing_text() -> None:
+    repository = SupabaseIngredientSearchRepository(
+        cast(
+            AsyncClient,
+            FakeSupabase(
+                {
+                    "products": [
+                        {
+                            "id": 1,
+                            "product_name": "[단독기획] 브랜드 에센스200ml",
+                            "cleaned_product_name": "브랜드 에센스",
+                        }
+                    ],
+                    "product_ingredients": [{"product_id": 1}],
+                }
+            ),
+        )
+    )
+
+    assert await repository.search_products("단독기획", 10) == []
 
 
 @pytest.mark.asyncio
@@ -445,42 +581,44 @@ async def test_repository_deduplicates_alias_matches_by_integer_ingredient_id() 
 
 @pytest.mark.asyncio
 async def test_repository_searches_partial_standard_names_and_synonyms() -> None:
-    repository = SupabaseIngredientSearchRepository(
-        cast(
-            AsyncClient,
-            FakeSupabase(
+    client = FakeSupabase(
+        {
+            "ingredients": [
                 {
-                    "ingredients": [
-                        {
-                            "ingredient_id": 1,
-                            "name_kor": "판테놀",
-                            "name_eng": "Panthenol",
-                        },
-                        {
-                            "ingredient_id": 2,
-                            "name_kor": "덱스판테놀",
-                            "name_eng": "Dexpanthenol",
-                        },
-                    ],
-                    "synonyms": [
-                        {
-                            "ingredient_id": 3,
-                            "synonym": "판테놀 전구체",
-                            "ingredients": {
-                                "ingredient_id": 3,
-                                "name_kor": "디판테놀",
-                                "name_eng": "D-Panthenol",
-                            },
-                        }
-                    ],
+                    "ingredient_id": 1,
+                    "name_kor": "판테놀",
+                    "name_eng": "Panthenol",
+                },
+                {
+                    "ingredient_id": 2,
+                    "name_kor": "덱스판테놀",
+                    "name_eng": "Dexpanthenol",
+                },
+            ],
+            "synonyms": [
+                {
+                    "ingredient_id": 3,
+                    "synonym": "판테놀 전구체",
+                    "ingredients": {
+                        "ingredient_id": 3,
+                        "name_kor": "디판테놀",
+                        "name_eng": "D-Panthenol",
+                    },
                 }
-            ),
-        )
+            ],
+        }
     )
+    repository = SupabaseIngredientSearchRepository(cast(AsyncClient, client))
 
     results = await repository.search_ingredients("판테", 20)
 
     assert [candidate.ingredient_id for candidate in results] == [1, 3, 2]
+    assert client.rpc_calls == [
+        (
+            "search_ingredient_candidates",
+            {"search_query": "판테", "result_limit": 100},
+        )
+    ]
 
 
 @pytest.mark.asyncio
@@ -532,13 +670,13 @@ async def test_repository_maps_ingredient_search_supabase_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_repository_recovers_exact_ingredient_after_partial_pool_truncation() -> None:
+async def test_repository_prioritizes_exact_ingredient_when_candidate_pool_is_truncated() -> None:
     ingredients = [
-        {
-            "ingredient_id": ingredient_id,
-            "name_kor": f"오{ingredient_id}이",
-            "name_eng": None,
-        }
+            {
+                "ingredient_id": ingredient_id,
+                "name_kor": f"오이{ingredient_id}",
+                "name_eng": None,
+            }
         for ingredient_id in range(1, 101)
     ]
     ingredients.append({"ingredient_id": 101, "name_kor": "오이", "name_eng": None})
@@ -552,12 +690,12 @@ async def test_repository_recovers_exact_ingredient_after_partial_pool_truncatio
     results = await repository.search_ingredients("오이", 10)
 
     assert results[0].ingredient_id == 101
-    assert repository.last_ingredient_fallback_triggered is True
-    assert repository.last_ingredient_candidate_pool_truncated is False
+    assert repository.last_ingredient_fallback_triggered is False
+    assert repository.last_ingredient_candidate_pool_truncated is True
 
 
 @pytest.mark.asyncio
-async def test_repository_expands_truncated_pool_for_format_tolerant_partial_match() -> None:
+async def test_repository_normalizes_format_without_broad_character_gap_candidates() -> None:
     ingredients = [
         {
             "ingredient_id": ingredient_id,
@@ -583,7 +721,7 @@ async def test_repository_expands_truncated_pool_for_format_tolerant_partial_mat
     results = await repository.search_ingredients("sodiumal", 10)
 
     assert results[0].ingredient_id == 151
-    assert repository.last_ingredient_fallback_triggered is True
+    assert repository.last_ingredient_fallback_triggered is False
     assert repository.last_ingredient_candidate_pool_truncated is False
 
 

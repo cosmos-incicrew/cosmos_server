@@ -44,6 +44,20 @@ class MissingTable(RuntimeError):
     """실 DB 에 없는 테이블을 조회했을 때 PostgREST 가 내는 오류 대역."""
 
 
+class FakeRpc:
+    """`client.rpc(fn, params).execute()` 체이닝 흉내 — match_rec_* 전용."""
+
+    def __init__(self, rows: list[dict[str, Any]]):
+        self._rows = rows
+
+    async def execute(self) -> Any:
+        return type("Result", (), {"data": self._rows})()
+
+
+# RPC 함수명 → 소스 테이블. s3_retrieval.retrieve() 가 부르는 두 함수만 대역한다.
+_RPC_TO_TABLE = {"match_rec_cases": "rec_cases", "match_rec_efficacy": "rec_efficacy"}
+
+
 class FakeSupabase:
     """table 이름별 행을 돌려준다. `missing` 에 든 이름은 조회 시 예외를 던진다."""
 
@@ -59,6 +73,16 @@ class FakeSupabase:
         if name in self._missing:
             raise MissingTable(f'relation "public.{name}" does not exist')
         return FakeQuery(self._tables.get(name, []))
+
+    def rpc(self, fn: str, params: dict[str, Any]) -> FakeRpc:
+        """match_rec_cases/match_rec_efficacy 대역 — 테이블 행에 고정 score 를 붙인다.
+
+        실 RPC 의 코사인 계산은 흉내낼 수 없으니, MIN_RETRIEVAL_SCORE(0.5)를 넘는
+        고정값을 채워 검색 결과가 그대로 후속 단계로 흘러가게 한다.
+        """
+        table = _RPC_TO_TABLE[fn]
+        rows = [{**row, "score": row.get("score", 0.9)} for row in self._tables.get(table, [])]
+        return FakeRpc(rows)
 
 
 @pytest.fixture()

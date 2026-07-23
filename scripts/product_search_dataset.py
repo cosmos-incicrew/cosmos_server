@@ -19,10 +19,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from supabase import AsyncClient
 
 from app.core.supabase import create_supabase_client
+from app.modules.ingredient_search.matching import normalize_product_text
 from app.modules.ingredient_search.repository import SupabaseIngredientSearchRepository
 
 ProductCategory = Literal["스킨케어", "마스크팩", "선케어", "클렌징"]
 SearchScenario = Literal[
+    "exact_cleaned_name",
+    "brand_and_partial_name",
     "full_product_name",
     "brand_and_core_name",
     "core_product_name",
@@ -34,7 +37,7 @@ ExpectedResult = Literal["found", "empty"]
 ReviewStatus = Literal["draft", "approved", "excluded"]
 DatasetKind = Literal["development", "final", "confirmation"]
 
-DATASET_VERSION = "1.0.0"
+DATASET_VERSION = "2.0.0"
 DEFAULT_SAMPLING_SEED = 20260722
 DEFAULT_DATASET_DIRECTORY = Path("evaluation/product_search/datasets")
 DEFAULT_CANDIDATE_OUTPUT = Path(
@@ -51,6 +54,43 @@ _MIN_QUERY_LENGTH = 2
 _MAX_QUERY_LENGTH = 100
 
 FINAL_LAYOUT: dict[ProductCategory, dict[SearchScenario, int]] = {
+    "스킨케어": {
+        "exact_cleaned_name": 8,
+        "brand_and_partial_name": 7,
+        "core_product_name": 5,
+        "format_variation": 5,
+    },
+    "마스크팩": {
+        "exact_cleaned_name": 9,
+        "brand_and_partial_name": 6,
+        "core_product_name": 5,
+        "format_variation": 5,
+    },
+    "선케어": {
+        "exact_cleaned_name": 6,
+        "brand_and_partial_name": 6,
+        "core_product_name": 5,
+        "format_variation": 3,
+    },
+    "클렌징": {
+        "exact_cleaned_name": 7,
+        "brand_and_partial_name": 6,
+        "core_product_name": 5,
+        "format_variation": 2,
+    },
+}
+
+DEVELOPMENT_LAYOUT: dict[ProductCategory, dict[SearchScenario, int]] = {
+    category: {
+        "exact_cleaned_name": 2,
+        "brand_and_partial_name": 1,
+        "core_product_name": 1,
+        "format_variation": 1,
+    }
+    for category in FINAL_LAYOUT
+}
+
+LEGACY_FINAL_LAYOUT: dict[ProductCategory, dict[SearchScenario, int]] = {
     "스킨케어": {
         "full_product_name": 4,
         "brand_and_core_name": 7,
@@ -81,7 +121,7 @@ FINAL_LAYOUT: dict[ProductCategory, dict[SearchScenario, int]] = {
     },
 }
 
-DEVELOPMENT_LAYOUT: dict[ProductCategory, dict[SearchScenario, int]] = {
+LEGACY_DEVELOPMENT_LAYOUT: dict[ProductCategory, dict[SearchScenario, int]] = {
     category: {
         "full_product_name": 1,
         "brand_and_core_name": 1,
@@ -89,7 +129,7 @@ DEVELOPMENT_LAYOUT: dict[ProductCategory, dict[SearchScenario, int]] = {
         "sales_and_capacity_removed": 1,
         "format_variation": 1,
     }
-    for category in FINAL_LAYOUT
+    for category in LEGACY_FINAL_LAYOUT
 }
 
 NOT_REGISTERED_QUERIES = [
@@ -153,6 +193,7 @@ _VERSION_PATTERN = re.compile(r"^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$
 class ProductRecord(BaseModel):
     id: int
     product_name: str
+    cleaned_product_name: str
     brand: str | None
     main_category: ProductCategory
     ingredient_ids: list[int]
@@ -162,6 +203,7 @@ class ProductRecord(BaseModel):
 class ProductMetadata(BaseModel):
     id: int
     product_name: str
+    cleaned_product_name: str
     brand: str | None
     main_category: ProductCategory
 
@@ -173,6 +215,7 @@ class EvaluationCase(BaseModel):
     product_category: ProductCategory | None
     source_product_id: int | None
     source_product_name: str | None
+    source_cleaned_product_name: str | None = None
     source_brand: str | None
     acceptable_product_ids: list[int]
     expected_result: ExpectedResult
@@ -207,8 +250,11 @@ def build_draft_datasets(
     """확정된 배분으로 사람 검수 전 개발용·최종 평가용 초안을 만든다."""
 
     eligible = [
-        product for product in products if product.ingredient_ids and product.product_name.strip()
+        product
+        for product in products
+        if product.ingredient_ids and product.cleaned_product_name.strip()
     ]
+    acceptable_ids_by_name = _acceptable_ids_by_cleaned_name(products)
     grouped: dict[ProductCategory, list[ProductRecord]] = defaultdict(list)
     for product in eligible:
         grouped[product.main_category].append(product)
@@ -233,6 +279,7 @@ def build_draft_datasets(
         case_prefix="PS",
         used_product_ids=used_product_ids,
         enforce_brand_limit=True,
+        acceptable_ids_by_name=acceptable_ids_by_name,
     )
     development_cases = _allocate_registered_cases(
         development_pools,
@@ -240,6 +287,7 @@ def build_draft_datasets(
         case_prefix="DEV",
         used_product_ids=used_product_ids,
         enforce_brand_limit=False,
+        acceptable_ids_by_name=acceptable_ids_by_name,
     )
     final_cases.extend(_not_registered_cases())
 
@@ -268,12 +316,19 @@ def build_confirmation_dataset(
 ) -> EvaluationDataset:
     """기존 회귀셋과 제품이 겹치지 않는 미확인 평가 초안을 만든다."""
 
+    acceptable_ids_by_name = _acceptable_ids_by_cleaned_name(products)
+    excluded_names = {
+        _cleaned_name_key(product.cleaned_product_name)
+        for product in products
+        if product.id in excluded_product_ids
+    }
     grouped: dict[ProductCategory, list[ProductRecord]] = defaultdict(list)
     for product in products:
         if (
             product.id not in excluded_product_ids
             and product.ingredient_ids
-            and product.product_name.strip()
+            and product.cleaned_product_name.strip()
+            and _cleaned_name_key(product.cleaned_product_name) not in excluded_names
         ):
             grouped[product.main_category].append(product)
 
@@ -289,6 +344,7 @@ def build_confirmation_dataset(
         case_prefix="CONF",
         used_product_ids=used_product_ids,
         enforce_brand_limit=True,
+        acceptable_ids_by_name=acceptable_ids_by_name,
     )
     cases.extend(_not_registered_cases(CONFIRMATION_NOT_REGISTERED_QUERIES, "CONF-NR"))
     return EvaluationDataset(
@@ -306,6 +362,7 @@ def _allocate_registered_cases(
     case_prefix: str,
     used_product_ids: set[int],
     enforce_brand_limit: bool,
+    acceptable_ids_by_name: dict[str, list[int]],
 ) -> list[EvaluationCase]:
     cases: list[EvaluationCase] = []
     brand_counts: Counter[str] = Counter()
@@ -319,7 +376,10 @@ def _allocate_registered_cases(
                     brand_counts,
                     enforce_brand_limit,
                 )
-                used_product_ids.add(product.id)
+                acceptable_product_ids = acceptable_ids_by_name[
+                    _cleaned_name_key(product.cleaned_product_name)
+                ]
+                used_product_ids.update(acceptable_product_ids)
                 if product.brand:
                     brand_counts[product.brand.casefold()] += 1
                 query = query_for_scenario(product, scenario)
@@ -331,8 +391,9 @@ def _allocate_registered_cases(
                         product_category=category,
                         source_product_id=product.id,
                         source_product_name=product.product_name,
+                        source_cleaned_product_name=product.cleaned_product_name,
                         source_brand=product.brand,
-                        acceptable_product_ids=[product.id],
+                        acceptable_product_ids=acceptable_product_ids,
                         expected_result="found",
                         review_note=_draft_review_note(product),
                     )
@@ -369,23 +430,24 @@ def _take_product(
 
 
 def _suitable_for_scenario(product: ProductRecord, scenario: SearchScenario, query: str) -> bool:
-    if scenario in {"brand_and_core_name", "core_product_name"} and not product.brand:
+    if scenario in {"brand_and_partial_name", "core_product_name"} and not product.brand:
         return False
-    if scenario == "sales_and_capacity_removed":
-        return query != product.product_name.strip()
     if scenario == "format_variation":
-        return query != product.product_name.strip()
+        return query != product.cleaned_product_name.strip()
+    if scenario == "brand_and_partial_name":
+        return query != product.cleaned_product_name.strip()
     return True
 
 
 def query_for_scenario(product: ProductRecord, scenario: SearchScenario) -> str:
-    product_name = _SPACE_PATTERN.sub(" ", product.product_name).strip()
-    if scenario == "full_product_name":
+    product_name = _SPACE_PATTERN.sub(" ", product.cleaned_product_name).strip()
+    if scenario == "exact_cleaned_name":
         return product_name
-    if scenario in {"brand_and_core_name", "sales_and_capacity_removed"}:
-        return core_product_name(product_name)
+    if scenario == "brand_and_partial_name":
+        parts = product_name.split()
+        return " ".join(parts[:-1]) if len(parts) > 2 else ""
     if scenario == "core_product_name":
-        core_name = core_product_name(product_name)
+        core_name = product_name
         if product.brand:
             core_name = re.sub(
                 re.escape(product.brand), " ", core_name, count=1, flags=re.IGNORECASE
@@ -393,7 +455,25 @@ def query_for_scenario(product: ProductRecord, scenario: SearchScenario) -> str:
         return _clean_spacing(core_name)
     if scenario == "format_variation":
         return _SPACE_PATTERN.sub("", product_name)
+    if scenario == "full_product_name":
+        return _SPACE_PATTERN.sub(" ", product.product_name).strip()
+    if scenario in {"brand_and_core_name", "sales_and_capacity_removed"}:
+        return core_product_name(product.product_name)
     raise ValueError(f"등록 제품에 지원하지 않는 시나리오입니다: {scenario}")
+
+
+def _acceptable_ids_by_cleaned_name(
+    products: list[ProductRecord],
+) -> dict[str, list[int]]:
+    grouped: dict[str, list[int]] = defaultdict(list)
+    for product in products:
+        if product.ingredient_ids and product.cleaned_product_name.strip():
+            grouped[_cleaned_name_key(product.cleaned_product_name)].append(product.id)
+    return {name: sorted(set(product_ids)) for name, product_ids in grouped.items()}
+
+
+def _cleaned_name_key(value: str) -> str:
+    return normalize_product_text(value)
 
 
 def core_product_name(product_name: str) -> str:
@@ -475,8 +555,18 @@ def validate_confirmation_dataset(
         errors.append("확인 데이터셋의 dataset_kind는 confirmation이어야 합니다.")
     if len(confirmation.cases) != _FINAL_CASE_COUNT:
         errors.append(f"확인 데이터셋은 {_FINAL_CASE_COUNT}개 케이스여야 합니다.")
-    _validate_cases(confirmation.cases, errors, require_approved=require_approved)
-    _validate_layout(confirmation.cases, FINAL_LAYOUT, errors, label="확인용")
+    _validate_cases(
+        confirmation.cases,
+        errors,
+        require_approved=require_approved,
+        require_cleaned_name=_uses_cleaned_name_contract(confirmation.dataset_version),
+    )
+    confirmation_layout = (
+        FINAL_LAYOUT
+        if _uses_cleaned_name_contract(confirmation.dataset_version)
+        else LEGACY_FINAL_LAYOUT
+    )
+    _validate_layout(confirmation.cases, confirmation_layout, errors, label="확인용")
     if overlap := _all_product_ids(confirmation.cases) & excluded_product_ids:
         errors.append(f"기존 데이터셋과 중복된 제품 ID가 있습니다: {sorted(overlap)}")
     not_registered_count = sum(case.scenario == "not_registered" for case in confirmation.cases)
@@ -512,16 +602,29 @@ def validate_dataset_pair(
     if development.sampling_seed != final.sampling_seed:
         errors.append("개발용·최종 평가용 샘플링 시드가 다릅니다.")
 
-    _validate_cases(development.cases, errors, require_approved=require_approved)
-    _validate_cases(final.cases, errors, require_approved=require_approved)
+    require_cleaned_name = _uses_cleaned_name_contract(development.dataset_version)
+    _validate_cases(
+        development.cases,
+        errors,
+        require_approved=require_approved,
+        require_cleaned_name=require_cleaned_name,
+    )
+    _validate_cases(
+        final.cases,
+        errors,
+        require_approved=require_approved,
+        require_cleaned_name=require_cleaned_name,
+    )
 
     development_ids = _all_product_ids(development.cases)
     final_ids = _all_product_ids(final.cases)
     if development_ids & final_ids:
         errors.append("개발용 제품과 최종 평가용 제품이 중복됩니다.")
 
-    _validate_layout(development.cases, DEVELOPMENT_LAYOUT, errors, label="개발용")
-    _validate_layout(final.cases, FINAL_LAYOUT, errors, label="최종")
+    development_layout = DEVELOPMENT_LAYOUT if require_cleaned_name else LEGACY_DEVELOPMENT_LAYOUT
+    final_layout = FINAL_LAYOUT if require_cleaned_name else LEGACY_FINAL_LAYOUT
+    _validate_layout(development.cases, development_layout, errors, label="개발용")
+    _validate_layout(final.cases, final_layout, errors, label="최종")
     not_registered_count = sum(case.scenario == "not_registered" for case in final.cases)
     if not_registered_count != len(NOT_REGISTERED_QUERIES):
         errors.append(
@@ -544,7 +647,11 @@ def validate_dataset_pair(
 
 
 def _validate_cases(
-    cases: list[EvaluationCase], errors: list[str], *, require_approved: bool
+    cases: list[EvaluationCase],
+    errors: list[str],
+    *,
+    require_approved: bool,
+    require_cleaned_name: bool,
 ) -> None:
     case_ids = [case.case_id for case in cases]
     if len(case_ids) != len(set(case_ids)):
@@ -573,6 +680,8 @@ def _validate_cases(
                 errors.append(f"{case.case_id}: 등록 제품 케이스의 제품 ID가 비어 있습니다.")
             elif case.source_product_id not in case.acceptable_product_ids:
                 errors.append(f"{case.case_id}: 원본 제품 ID가 허용 제품 ID에 포함되지 않았습니다.")
+            if require_cleaned_name and not case.source_cleaned_product_name:
+                errors.append(f"{case.case_id}: 정제 제품명이 비어 있습니다.")
         elif case.acceptable_product_ids or case.source_product_id is not None:
             errors.append(f"{case.case_id}: 미등록 검색어에는 제품 ID를 지정할 수 없습니다.")
         if require_approved and (
@@ -585,6 +694,10 @@ def _validate_cases(
     }
     if shared_ids:
         errors.append(f"하나의 허용 제품 ID가 여러 평가 케이스에 사용됐습니다: {shared_ids}")
+
+
+def _uses_cleaned_name_contract(version: str) -> bool:
+    return bool(_VERSION_PATTERN.fullmatch(version)) and int(version.split(".", 1)[0]) >= 2
 
 
 def _validate_layout(
@@ -644,8 +757,9 @@ def replace_excluded_cases(
 
     grouped: dict[ProductCategory, list[ProductRecord]] = defaultdict(list)
     for product in products:
-        if product.ingredient_ids and product.product_name.strip():
+        if product.ingredient_ids and product.cleaned_product_name.strip():
             grouped[product.main_category].append(product)
+    acceptable_ids_by_name = _acceptable_ids_by_cleaned_name(products)
     randomizer = random.Random(development.sampling_seed)
     for category in grouped:
         grouped[category].sort(key=lambda product: product.id)
@@ -668,7 +782,10 @@ def replace_excluded_cases(
                 final_brand_counts,
                 enforce_brand_limit,
             )
-            used_product_ids.add(product.id)
+            acceptable_product_ids = acceptable_ids_by_name[
+                _cleaned_name_key(product.cleaned_product_name)
+            ]
+            used_product_ids.update(acceptable_product_ids)
             if enforce_brand_limit and product.brand:
                 final_brand_counts[product.brand.casefold()] += 1
             dataset.cases[index] = EvaluationCase(
@@ -678,8 +795,9 @@ def replace_excluded_cases(
                 product_category=case.product_category,
                 source_product_id=product.id,
                 source_product_name=product.product_name,
+                source_cleaned_product_name=product.cleaned_product_name,
                 source_brand=product.brand,
-                acceptable_product_ids=[product.id],
+                acceptable_product_ids=acceptable_product_ids,
                 expected_result="found",
                 review_note=(
                     f"{_draft_review_note(product)}; {case.source_product_id} 제외 후 자동 교체"
@@ -702,6 +820,12 @@ async def fetch_candidate_records(
 
     metadata = await _fetch_product_metadata(client)
     selected = _select_metadata_candidates(metadata, seed, excluded_product_ids or set())
+    selected_names = {_cleaned_name_key(product.cleaned_product_name) for product in selected}
+    selected = [
+        product
+        for product in metadata
+        if _cleaned_name_key(product.cleaned_product_name) in selected_names
+    ]
     ingredients_by_product, unmapped_by_product = await _fetch_ingredient_mappings(
         client, [product.id for product in selected]
     )
@@ -709,6 +833,7 @@ async def fetch_candidate_records(
         ProductRecord(
             id=product.id,
             product_name=product.product_name,
+            cleaned_product_name=product.cleaned_product_name,
             brand=product.brand,
             main_category=product.main_category,
             ingredient_ids=sorted(ingredients_by_product.get(product.id, set())),
@@ -736,9 +861,15 @@ async def fetch_candidate_records_by_ids(
     for product_id in product_ids:
         row = products_by_id[product_id]
         product_name = row.get("product_name")
+        cleaned_product_name = row.get("cleaned_product_name")
         category = row.get("main_category")
         brand = row.get("brand")
-        if not isinstance(product_name, str) or category not in FINAL_LAYOUT:
+        if (
+            not isinstance(product_name, str)
+            or not isinstance(cleaned_product_name, str)
+            or not cleaned_product_name.strip()
+            or category not in FINAL_LAYOUT
+        ):
             raise ValueError(
                 f"{product_id}: 저장된 후보의 현재 제품 메타데이터가 유효하지 않습니다."
             )
@@ -749,6 +880,7 @@ async def fetch_candidate_records_by_ids(
             ProductRecord(
                 id=product_id,
                 product_name=product_name,
+                cleaned_product_name=cleaned_product_name,
                 brand=brand if isinstance(brand, str) and brand.strip() else None,
                 main_category=category,
                 ingredient_ids=ingredient_ids,
@@ -764,7 +896,7 @@ async def _fetch_product_metadata(client: AsyncClient) -> list[ProductMetadata]:
     while True:
         response = await (
             client.table("products")
-            .select("id,product_name,brand,main_category")
+            .select("id,product_name,cleaned_product_name,brand,main_category")
             .order("id")
             .range(offset, offset + _PRODUCT_PAGE_SIZE - 1)
             .execute()
@@ -773,17 +905,21 @@ async def _fetch_product_metadata(client: AsyncClient) -> list[ProductMetadata]:
         for row in rows:
             product_id = row.get("id")
             product_name = row.get("product_name")
+            cleaned_product_name = row.get("cleaned_product_name")
             category = row.get("main_category")
             brand = row.get("brand")
             if (
                 isinstance(product_id, int)
                 and isinstance(product_name, str)
+                and isinstance(cleaned_product_name, str)
+                and cleaned_product_name.strip()
                 and category in FINAL_LAYOUT
             ):
                 products.append(
                     ProductMetadata(
                         id=product_id,
                         product_name=product_name,
+                        cleaned_product_name=cleaned_product_name,
                         brand=brand if isinstance(brand, str) and brand.strip() else None,
                         main_category=category,
                     )
@@ -796,9 +932,17 @@ async def _fetch_product_metadata(client: AsyncClient) -> list[ProductMetadata]:
 def _select_metadata_candidates(
     products: list[ProductMetadata], seed: int, excluded_product_ids: set[int]
 ) -> list[ProductMetadata]:
+    excluded_names = {
+        _cleaned_name_key(product.cleaned_product_name)
+        for product in products
+        if product.id in excluded_product_ids
+    }
     grouped: dict[ProductCategory, list[ProductMetadata]] = defaultdict(list)
     for product in products:
-        if product.id not in excluded_product_ids:
+        if (
+            product.id not in excluded_product_ids
+            and _cleaned_name_key(product.cleaned_product_name) not in excluded_names
+        ):
             grouped[product.main_category].append(product)
 
     randomizer = random.Random(seed)
@@ -868,15 +1012,38 @@ async def validate_dataset_collection_against_supabase(
     if missing_ids:
         errors.append(f"현재 DB에 없는 제품 ID가 있습니다: {missing_ids}")
 
-    ingredients_by_product, unmapped_by_product = await _fetch_ingredient_mappings(
+    ingredients_by_product, _unmapped_by_product = await _fetch_ingredient_mappings(
         client, product_ids
     )
+    source_name_keys = {
+        _cleaned_name_key(case.source_cleaned_product_name)
+        for case in cases
+        if case.expected_result == "found" and case.source_cleaned_product_name
+    }
+    current_metadata = [
+        product
+        for product in await _fetch_product_metadata(client)
+        if _cleaned_name_key(product.cleaned_product_name) in source_name_keys
+    ]
+    current_mappings, _current_unmapped = await _fetch_ingredient_mappings(
+        client, [product.id for product in current_metadata]
+    )
+    current_acceptable_ids: dict[str, set[int]] = defaultdict(set)
+    for product in current_metadata:
+        if current_mappings.get(product.id):
+            current_acceptable_ids[_cleaned_name_key(product.cleaned_product_name)].add(product.id)
     for case in cases:
         if case.expected_result != "found" or case.source_product_id is None:
             continue
         if current_product := products_by_id.get(case.source_product_id):
             if current_product.get("product_name") != case.source_product_name:
                 errors.append(f"{case.case_id}: 원본 제품명이 현재 DB와 다릅니다.")
+            if (
+                case.source_cleaned_product_name is not None
+                and current_product.get("cleaned_product_name")
+                != case.source_cleaned_product_name
+            ):
+                errors.append(f"{case.case_id}: 정제 제품명이 현재 DB와 다릅니다.")
             if current_product.get("main_category") != case.product_category:
                 errors.append(f"{case.case_id}: 제품군이 현재 DB와 다릅니다.")
             current_brand = current_product.get("brand") or None
@@ -884,18 +1051,12 @@ async def validate_dataset_collection_against_supabase(
                 errors.append(f"{case.case_id}: 브랜드가 현재 DB와 다릅니다.")
         if not ingredients_by_product.get(case.source_product_id):
             errors.append(f"{case.case_id}: 원본 제품에 매핑된 성분 ID가 없습니다.")
-        acceptable_ids = case.acceptable_product_ids
-        if len(acceptable_ids) <= 1:
-            continue
-        ingredient_sets = [
-            ingredients_by_product.get(product_id, set()) for product_id in acceptable_ids
-        ]
-        if any(unmapped_by_product.get(product_id, 0) for product_id in acceptable_ids):
-            errors.append(f"{case.case_id}: 복수 허용 제품 중 미매핑 성분이 있는 제품이 있습니다.")
-        if not ingredient_sets or any(
-            values != ingredient_sets[0] for values in ingredient_sets[1:]
-        ):
-            errors.append(f"{case.case_id}: 복수 허용 제품의 성분 ID 집합이 다릅니다.")
+        if case.source_cleaned_product_name is not None:
+            name_key = _cleaned_name_key(case.source_cleaned_product_name)
+            if set(case.acceptable_product_ids) != current_acceptable_ids[name_key]:
+                errors.append(
+                    f"{case.case_id}: 허용 제품 ID가 현재 분석 가능한 동일 정제명 제품과 다릅니다."
+                )
 
     repository = SupabaseIngredientSearchRepository(client)
     for case in cases:
@@ -914,7 +1075,7 @@ async def _fetch_products_by_id(
         chunk = product_ids[chunk_start : chunk_start + _PRODUCT_LOOKUP_CHUNK_SIZE]
         response = await (
             client.table("products")
-            .select("id,product_name,brand,main_category")
+            .select("id,product_name,cleaned_product_name,brand,main_category")
             .in_("id", chunk)
             .execute()
         )
@@ -959,6 +1120,7 @@ def _write_candidate_summary(records: list[ProductRecord], path: Path, seed: int
             {
                 "id": product.id,
                 "product_name": product.product_name,
+                "cleaned_product_name": product.cleaned_product_name,
                 "brand": product.brand,
                 "main_category": product.main_category,
                 "mapped_ingredient_count": len(product.ingredient_ids),
