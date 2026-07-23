@@ -13,20 +13,27 @@ from typing import Final
 # Langfuse metadata 의 module 값 — 비용·품질을 모듈별로 추적한다
 MODULE_TAG: Final = "recommendations"
 
+# ── rate limit (rate_limit.py) ──────────────────────────────────
+# 사용자당 윈도우 내 최대 호출 수. 1회 = 검색 6쿼리 + Gemini 생성(재시도 최대 2)이라
+# 반복 호출이 과금·워커 고갈로 직결된다. 실사용엔 넉넉하고 루프 남용만 막는 값.
+RATE_LIMIT_MAX: Final = 10
+RATE_LIMIT_WINDOW_SECONDS: Final = 60
+
 # ── ① 컨텍스트 조립 (s1_context) ────────────────────────────────
 MAX_CONCERNS: Final = 3  # 검색 호출 상한 3고민 × 2컬렉션 = 6회로 고정
 
 # ── ③ 검색 (s3_retrieval) ───────────────────────────────────────
+LOW_SIMILARITY_THRESHOLD: Final = 0.7
+
 CASES_TOP_K: Final = 3
 EFFICACY_TOP_K: Final = 5
 
-# 저score 컷 — retrieval 이 아니라 호출자가 수행한다.
-# 키워드 검색 모드의 score 는 순위 기반(0.55~0.9)이라 이 컷이 걸리지 않는다. 즉 지금은
-# 검색 0행일 때만 insufficient_evidence 가 난다. 벡터 검색 교체 시 실제 분포로 재튜닝.
+# 저score 컷 — retrieval 이 아니라 호출자가 수행한다. 코사인 유사도(0~1) 기준.
+# 초기값이며 Langfuse 트레이스의 실제 score 분포로 재튜닝한다(설계 03 §5).
 MIN_RETRIEVAL_SCORE: Final = 0.5
 
-# 고민 코드 → 키워드 검색어. 라벨 원문("미백(색소침착/기미/칙칙함)")은 효능 텍스트와
-# 문자열 일치하지 않는다. 벡터 검색 전까지 쓰는 임시 수단이며 교체 시 함께 제거한다.
+# 고민 코드 → efficacy leg 검색 구절. 라벨 원문("미백(색소침착/기미/칙칙함)")보다
+# 짧은 구절이 효능 텍스트와 코사인 유사도가 더 잘 맞는다 (설계 03 §4).
 CONCERN_SEARCH_KEYWORDS: Final[dict[str, tuple[str, ...]]] = {
     "pores": ("모공", "피지"),
     "brightening": ("미백", "색소", "멜라닌"),
@@ -118,6 +125,13 @@ PREGNANCY_CAUTION: Final[frozenset[str]] = frozenset({"살리실릭애씨드"})
 # ── ⑥ 생성 (s6_generation) ──────────────────────────────────────
 MIN_RECOMMENDED: Final = 3  # 모바일 화면과 생성 품질의 균형 (01 §2-⑥ "3~5개")
 MAX_RECOMMENDED: Final = 5
+
+# ── ⑧ 제품 추천 (s8_products) ────────────────────────────────────
+MAX_RECOMMENDED_PRODUCTS: Final = 5  # 추천 성분 함유 제품 상한 (커버리지 순 top-N)
+# 역조회 fetch 상한. 정제수·글리세린 같은 초빈출 성분이 추천되면 수만 행이 앱으로 실려
+# 온다 — ponytail: 커버리지 정렬 전 넉넉히 자르는 휴리스틱. 정확한 커버리지 집계가
+# 필요하면 DB 측 RPC 로 옮긴다. 실제 추천 성분은 ≤5종이라 이 상한이면 충분.
+PRODUCT_FETCH_LIMIT: Final = 500
 # v1은 캐시가 없어 재요청마다 추천이 바뀐다 — 캐시(v1.1) 전까지 온도로 변동을 완화 (§7)
 GENERATION_TEMPERATURE: Final = 0.2
 

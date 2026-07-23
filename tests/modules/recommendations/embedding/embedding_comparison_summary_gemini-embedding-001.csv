@@ -1,0 +1,2 @@
+﻿model,recall@5,recall@10,MRR,concern_hit@3
+gemini-embedding-001,0.75,0.875,0.3514,0.8796

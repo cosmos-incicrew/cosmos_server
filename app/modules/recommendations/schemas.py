@@ -1,8 +1,8 @@
 """성분 추천 요청·응답 스키마. API 계약은 docs/design/01-recommendations-pipeline.md §3.
 
-`LlmPick`·`LlmOutput` 은 Gemini `response_schema` 로 넘겨 구조를 강제하는 **생성 전용**
-모델이다. LLM 이 지어낼 수 없는 값(ingredient_id·badges·warnings·sources)은 여기에
-두지 않고 코드가 ⑦에서 조립한다.
+`LlmNarrative` 는 Gemini `response_schema` 로 넘겨 구조를 강제하는 **생성 전용**
+모델이다. LLM 이 지어낼 수 없는 값(근거·경고·유사도)은 여기에 두지 않고 코드가
+⑦에서 조립한다.
 """
 
 from typing import Any
@@ -33,55 +33,98 @@ class IngredientWarning(BaseModel):
     text: str
 
 
-class Source(BaseModel):
-    doc_id: str
-    title: str
-    locator: str | None = None
+class CaseEvidence(BaseModel):
+    """📂 근거 보기 — 유사 케이스 한 건 (③검색 결과에서 조립)."""
+
+    id: str
+    target_concern: str
+    gender: str | None = None
+    age: int | None = None
+    skin_type: str | None = None
+    recommended_ingredients: list[str] = Field(default_factory=list)  # 그 케이스가 추천한 성분
+    similarity: float
+    question: str
+    answer: str  # 전문가 답변 발췌
 
 
-class RecommendedIngredient(BaseModel):
-    ingredient_id: int | None = None  # 식약처 미매핑이면 null (상세 링크 없음)
+class IngredientEvidence(BaseModel):
+    """📂 근거 보기 — 성분 마스터 한 건. 성분별 주의를 여기 귀속한다."""
+
     name_kor: str
     inci: str | None = None
-    concerns: list[str] = Field(default_factory=list)
-    reason: str
+    similarity: float
     efficacy: str | None = None
-    badges: list[str] = Field(default_factory=list)
-    owned: bool = False
-    owned_products: list[str] = Field(default_factory=list)
-    warnings: list[IngredientWarning] = Field(default_factory=list)
-    sources: list[Source] = Field(default_factory=list)
+    safety_note: str | None = None  # rec_efficacy 원본 서술형 주의
+    concentration: str | None = None  # 권장 농도
+    badges: list[str] = Field(default_factory=list)  # ⑦ 기능성 고시 배지 (미백·주름개선 등)
+    owned: bool = False  # 화장대 보유 성분 여부
+    owned_products: list[str] = Field(default_factory=list)  # 이 성분을 담은 보유 제품명
+    warnings: list[IngredientWarning] = Field(default_factory=list)  # ⑤ 규제 경고 (이 성분)
 
 
-class ContextUsed(BaseModel):
+class Answer(BaseModel):
+    """①②③ 서사 — 프론트가 섹션별로 렌더한다 (마크다운 파싱 불필요)."""
+
+    cause_analysis: str  # ① 원인 분석
+    recommendation: str  # ② 추천 성분과 근거
+    usage_guide: str  # ③ 사용법·관리법
+
+
+class LlmNarrative(BaseModel):
+    """⑥ 생성 전용 — LLM 이 만드는 것은 3단 서사와 추천 성분명뿐이다.
+
+    recommended_names 는 ②에서 추천한 성분명 목록으로, 후보 밖 성분을 추천했는지
+    검증(환각 차단)하는 데만 쓴다.
+    """
+
+    cause_analysis: str
+    recommendation: str
+    usage_guide: str
+    recommended_names: list[str] = Field(default_factory=list)
+
+
+class UserProfile(BaseModel):
+    """추천에 사용된 사용자 프로필 (구 ContextUsed). 프론트 표시·디버깅용."""
+
     age: int | None = None
     gender: str | None = None
     bsti_type: str | None = None
     concerns: list[str] = Field(default_factory=list)
 
 
+class Advisory(BaseModel):
+    """응답에 대한 알림 — 근거가 약하거나(추천은 함) 없을(추천 불가) 때만 채워진다.
+
+    구 `low_similarity`·`message`·`suggested_action` 을 하나로 묶은 것. 알릴 게 없으면
+    `RecommendationResponse.advisory` 자체가 null 이다.
+    """
+
+    code: str  # weak_evidence | no_evidence | no_candidates
+    message: str  # 사용자 안내 문구
+    action: str | None = None  # take_bsti | retry_with_other_concerns | retry_later
+
+
+class ProductRecommendation(BaseModel):
+    """🛒 추천 성분을 담은 실제 제품 (⑧ 제품 조회). LLM 미관여 — 코드가 조인·정렬한다."""
+
+    product_id: int
+    product_name: str
+    brand: str | None = None
+    product_url: str | None = None
+    main_category: str | None = None
+    matched_ingredients: list[str] = Field(default_factory=list)  # 이 제품이 담은 추천 성분명
+
+
 class RecommendationResponse(BaseModel):
     status: str  # ok | insufficient_evidence
-    message: str | None = None
-    # 확인 불가 시 행동 유도: retry_with_other_concerns | take_bsti | retry_later
-    suggested_action: str | None = None
-    recommended_ingredients: list[RecommendedIngredient] = Field(default_factory=list)
-    recommended_products: list[dict[str, Any]] = Field(default_factory=list)  # v1은 항상 빈 배열
-    context_used: ContextUsed
+    answer: Answer | None = None  # ①②③ 서사 섹션 (확인 불가 시 null)
+    cases: list[CaseEvidence] = Field(default_factory=list)
+    ingredients: list[IngredientEvidence] = Field(default_factory=list)  # 성분별 경고 포함
+    products: list[ProductRecommendation] = Field(default_factory=list)  # ⑧ 추천 성분 함유 제품
+    advisory: Advisory | None = None  # 근거 약함/없음 알림 (없으면 null)
+    retrieval_mode: str = "vector"  # 프론트 similarity 신뢰도 표시용
+    user_profile: UserProfile
     disclaimer: str
-
-
-class LlmPick(BaseModel):
-    """LLM 이 생성하는 것 — 성분 선택·이유·대응 고민·인용한 근거 doc_id 뿐이다."""
-
-    name_kor: str
-    reason: str
-    concerns: list[str] = Field(default_factory=list)
-    cited_doc_ids: list[str] = Field(default_factory=list)
-
-
-class LlmOutput(BaseModel):
-    picks: list[LlmPick] = Field(default_factory=list)
 
 
 class UserContext(BaseModel):
@@ -94,6 +137,7 @@ class UserContext(BaseModel):
     bsti_recommended: list[str] = Field(default_factory=list)
     owned_ingredients: list[str] = Field(default_factory=list)
     owned_products_by_ingredient: dict[str, list[str]] = Field(default_factory=dict)
+    owned_product_ids: list[int] = Field(default_factory=list)  # ⑧ 제품 추천에서 제외
     is_pregnant: bool | None = None  # None = 온보딩 미수집(unknown)
     is_nursing: bool | None = None
     concerns: list[str] = Field(default_factory=list)

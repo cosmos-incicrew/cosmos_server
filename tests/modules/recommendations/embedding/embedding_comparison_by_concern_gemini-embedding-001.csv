@@ -1,0 +1,9 @@
+﻿model,concern,n_answer_ings,recall@5,recall@10,MRR,concern_hit@3
+gemini-embedding-001,과각질/악건성,17,0.0,0.0,0.0,1.0
+gemini-embedding-001,모공,25,1.0,1.0,0.3333,1.0
+gemini-embedding-001,미백(색소침착/기미/칙칙함),26,1.0,1.0,0.5,1.0
+gemini-embedding-001,민감성(트러블/자극감),7,1.0,1.0,0.3333,0.4259
+gemini-embedding-001,붉어짐(홍조),15,0.0,1.0,0.1111,1.0
+gemini-embedding-001,여드름/뾰루지,22,1.0,1.0,0.3333,1.0
+gemini-embedding-001,주름,25,1.0,1.0,1.0,0.8889
+gemini-embedding-001,피부처짐/탄력저하,12,1.0,1.0,0.2,0.7222

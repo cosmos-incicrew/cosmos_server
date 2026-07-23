@@ -9,9 +9,9 @@
   - 저score 컷은 여기서 하지 않는다 — 부르는 쪽(service)이 판단
   - 결과 없으면 예외가 아니라 빈 목록
 
-**현재 모드: 키워드 대체 검색.** 벡터 인덱스·검색 RPC(서지우 소유)가 아직 없어 의미
-검색 대신 컬럼 필터·ILIKE 로 실제 행을 가져오고 순위에 비례한 가짜 score 를 매긴다.
-실검색으로 바꿀 때 이 모듈 내부만 교체하면 되고 호출부는 무변경이다.
+**벡터 검색.** 질의를 gemini-embedding-001 로 임베딩(embedding.py)해 Postgres RPC
+(`match_rec_cases`/`match_rec_efficacy`, HNSW 코사인, 설계 03)로 top_k 를 가져온다.
+score 는 RPC 가 계산한 코사인 유사도를 그대로 쓴다.
 """
 
 import asyncio
@@ -29,24 +29,10 @@ from app.modules.recommendations.constants import (
     EFFICACY_TOP_K,
     MIN_RETRIEVAL_SCORE,
 )
+from app.modules.recommendations.embedding import embed_query, to_pgvector
 from app.modules.recommendations.schemas import ChunkSource, RetrievedChunk
 
 logger = logging.getLogger(__name__)
-
-# ponytail: 벡터 검색 전까지 순위 기반 고정 score. 이 모드의 천장은 명확하다 —
-# ILIKE + id 순 limit 이라 "관련성 높은 순"이 아니라 "id 작은 순"이다(주름 검색에
-# 레티놀·아데노신이 안 잡힌다). 결정성만 보장하고 관련성은 포기한 상태이며,
-# 서지우 RPC 연결 시 실제 코사인 유사도로 교체하고 이 상수를 지운다. 그때 분포가
-# 달라지므로 호출자의 임계값(MIN_RETRIEVAL_SCORE)은 Langfuse 트레이스로 재튜닝한다.
-_FAKE_TOP_SCORE = 0.9
-_FAKE_SCORE_STEP = 0.05
-_FAKE_MIN_SCORE = 0.55
-
-# 무필터 fallback 으로 가져온 사례의 score. 이 행들은 고민과의 관련성이 검증되지
-# 않았는데(아래 `_search_cases` 참조) 일반 경로와 같은 0.9 를 주면 실제로 관련 있는
-# 근거를 밀어내고 프롬프트 앞자리를 차지한다. 임계값은 넘겨 "있는 근거"로는 쓰되
-# 항상 맨 뒤에 서도록 최하위 점수를 준다 — ⑥의 분량 절단에서 가장 먼저 버려진다.
-_FALLBACK_SCORE = MIN_RETRIEVAL_SCORE
 
 
 class RetrievalCollection(StrEnum):
@@ -62,83 +48,29 @@ class RetrievalError(RuntimeError):
 
 async def retrieve(
     collection: RetrievalCollection,
-    query: str,
-    filters: dict[str, Any] | None = None,
+    query_text: str,
     top_k: int = 5,
 ) -> list[RetrievedChunk]:
-    """질의로 컬렉션을 검색해 표준 청크 목록을 반환한다.
+    """질의 텍스트를 임베딩해 벡터 검색 RPC 로 top_k 청크를 가져온다.
 
-    filters 키(키워드 모드에서 사용):
-      - `concern_labels: list[str]` — rec_cases 의 skin_concerns 배열 겹침 매칭
-      - `keywords: list[str]` — rec_efficacy 의 efficacy·name_kr ILIKE 매칭
+    score 는 RPC 가 준 코사인 유사도(0~1). 결과 없으면 빈 목록, 실패는 RetrievalError.
     """
-    filters = filters or {}
     try:
+        vector = to_pgvector(await embed_query(query_text))
         client = await get_supabase()
+        fn = (
+            "match_rec_cases"
+            if collection is RetrievalCollection.REC_CASES
+            else "match_rec_efficacy"
+        )
+        rows = _narrow(
+            await client.rpc(fn, {"query_embedding": vector, "match_count": top_k}).execute()
+        )
         if collection is RetrievalCollection.REC_CASES:
-            cases, is_fallback = await _search_cases(client, filters, top_k)
-            return [_case_chunk(row, rank, is_fallback) for rank, row in enumerate(cases)]
-        efficacy = await _search_efficacy(client, filters, top_k)
-        return [_efficacy_chunk(row, rank) for rank, row in enumerate(efficacy)]
+            return [_case_chunk(row) for row in rows]
+        return [_efficacy_chunk(row) for row in rows]
     except Exception as exc:  # 실패는 종류를 가리지 않고 하나의 예외로 감싼다
         raise RetrievalError(f"{collection.value} 검색 실패: {exc}") from exc
-
-
-def _rank_score(rank: int) -> float:
-    return max(_FAKE_MIN_SCORE, _FAKE_TOP_SCORE - rank * _FAKE_SCORE_STEP)
-
-
-async def _search_cases(
-    client: Any, filters: dict[str, Any], top_k: int
-) -> tuple[list[dict[str, Any]], bool]:
-    """고민 라벨 배열 겹침 → 부족하면 무필터 1회 fallback (01 §2-③ 희소 고민 보완).
-
-    (행 목록, fallback 여부) 를 반환한다. fallback 여부를 호출자에게 알려야 하는 이유는
-    그 행들이 고민과 무관하기 때문이다 — 같은 score 를 주면 근거 기반 생성 규칙이
-    형해화된다 (`_FALLBACK_SCORE` 주석 참조).
-    """
-    labels = [label for label in filters.get("concern_labels", []) if label]
-    query = client.table("rec_cases").select(
-        "case_id, target_concern, skin_concerns, question, answer, cot, "
-        "recommended_ingredients, evidence_sources, gender, age"
-    )
-    if labels:
-        query = query.overlaps("skin_concerns", labels)
-    # 정렬 없는 limit 은 Postgres 스캔 순서를 그대로 받아 매 요청 다른 행이 나올 수
-    # 있다. 벡터 유사도가 없는 지금은 case_id 로라도 결정적 순서를 만든다.
-    rows = _narrow(await query.order("case_id").limit(top_k).execute())
-    if rows or not labels:
-        return rows, False
-
-    # 배열 겹침이 0건인 희소 고민(민감성 6건 등) 보완 — 설계 01 §2-③의 무필터
-    # fallback. target_concern 으로 다시 거르면 겹침과 결과가 같아 의미가 없다.
-    fallback = _narrow(
-        await client.table("rec_cases")
-        .select(
-            "case_id, target_concern, skin_concerns, question, answer, cot, "
-            "recommended_ingredients, evidence_sources, gender, age"
-        )
-        .order("case_id")
-        .limit(top_k)
-        .execute()
-    )
-    return fallback, True
-
-
-async def _search_efficacy(
-    client: Any, filters: dict[str, Any], top_k: int
-) -> list[dict[str, Any]]:
-    keywords = [kw for kw in filters.get("keywords", []) if kw]
-    query = client.table("rec_efficacy").select(
-        "id, inci, name_kr, efficacy, safety_note, recommended_concentration, "
-        "recommended_skin_types, regulation_note, reference_source, ingredient_id"
-    )
-    if keywords:
-        conditions = ",".join(f"efficacy.ilike.%{kw}%" for kw in keywords)
-        query = query.or_(conditions)
-    # 정렬 부재 시 id 물리 순서로 앞쪽 행만 반복 회수된다(아스코르빈산류만 나오고
-    # 레티놀·아데노신은 어떤 요청에서도 안 나옴). 결정적 순서를 명시한다.
-    return _narrow(await query.order("id").limit(top_k).execute())
 
 
 def _cot_reasoning(cot: Any) -> str:
@@ -160,12 +92,12 @@ def _cot_reasoning(cot: Any) -> str:
     return " ".join(p.strip() for p in parts if str(p).strip())
 
 
-def _case_chunk(row: dict[str, Any], rank: int, is_fallback: bool = False) -> RetrievedChunk:
+def _case_chunk(row: dict[str, Any]) -> RetrievedChunk:
     reasoning = _cot_reasoning(row.get("cot"))
     sources = row.get("evidence_sources") or []
     return RetrievedChunk(
         content=f"[상담] {row.get('question', '')}\n[답변] {row.get('answer', '')}\n{reasoning}",
-        score=_FALLBACK_SCORE if is_fallback else _rank_score(rank),
+        score=float(row.get("score") or 0.0),
         source=ChunkSource(
             doc_id=str(row.get("case_id", "")),
             title=f"{row.get('age') or '연령미상'} {row.get('target_concern', '')} 상담 사례",
@@ -176,15 +108,19 @@ def _case_chunk(row: dict[str, Any], rank: int, is_fallback: bool = False) -> Re
             "skin_concerns": row.get("skin_concerns") or [],
             "age": row.get("age"),
             "gender": row.get("gender"),
+            "target_concern": row.get("target_concern", ""),
+            "skin_type": row.get("skin_type"),
+            "question": row.get("question", ""),
+            "answer": row.get("answer", ""),
         },
     )
 
 
-def _efficacy_chunk(row: dict[str, Any], rank: int) -> RetrievedChunk:
+def _efficacy_chunk(row: dict[str, Any]) -> RetrievedChunk:
     name = row.get("name_kr") or row.get("inci") or ""
     return RetrievedChunk(
         content=f"[성분] {name}\n[효능] {row.get('efficacy', '')}",
-        score=_rank_score(rank),
+        score=float(row.get("score") or 0.0),
         source=ChunkSource(
             doc_id=f"eff_{row.get('id')}",
             title=f"{name} 효능",
@@ -234,21 +170,38 @@ async def retrieve_for_concerns(
 async def _retrieve_one(
     code: str, query: str
 ) -> tuple[str, list[RetrievedChunk], list[RetrievedChunk]]:
-    """고민 하나에 대해 두 인덱스를 동시에 검색한다."""
-    cases, efficacy = await asyncio.gather(
-        retrieve(
-            RetrievalCollection.REC_CASES,
-            query,
-            {"concern_labels": [CONCERN_LABEL_BY_CODE[code]]},
-            CASES_TOP_K,
-        ),
-        retrieve(
-            RetrievalCollection.REC_EFFICACY,
-            query,
-            {"keywords": list(CONCERN_SEARCH_KEYWORDS.get(code, ()))},
-            EFFICACY_TOP_K,
-        ),
+    """고민 하나에 대해 두 leg 를 동시에 벡터 검색한다.
+
+    cases leg 는 사람묘사+고민 질의(query), efficacy leg 는 고민 구절
+    (CONCERN_SEARCH_KEYWORDS) 로 검색한다 — 효능 코퍼스엔 짧은 구절이 맞는다(설계 03 §4).
+    """
+    efficacy_query = " ".join(CONCERN_SEARCH_KEYWORDS.get(code, ())) or CONCERN_LABEL_BY_CODE[code]
+    # 두 leg 는 독립이다 — 한 leg 가 실패(embed_query 장애·RPC 실패)해도 성공한 leg 의
+    # 근거는 살린다. return_exceptions 없이 gather 하면 한 leg 의 예외가 성공한 leg 결과
+    # 까지 버린다. 두 leg 가 모두 실패했을 때만 이 고민을 실패로 올려, retrieve_for_concerns
+    # 의 "전부 실패 시에만 503" 판정에 맡긴다(부분 성공은 살린다).
+    cases_r, efficacy_r = await asyncio.gather(
+        retrieve(RetrievalCollection.REC_CASES, query, CASES_TOP_K),
+        retrieve(RetrievalCollection.REC_EFFICACY, efficacy_query, EFFICACY_TOP_K),
+        return_exceptions=True,
     )
+    if isinstance(cases_r, BaseException) and isinstance(efficacy_r, BaseException):
+        raise RetrievalError(f"{code} 고민 양 leg 검색 실패: {cases_r}") from cases_r
+
+    cases: list[RetrievedChunk]
+    if isinstance(cases_r, BaseException):
+        logger.warning("%s 고민 cases leg 실패, efficacy leg 만 사용", code, exc_info=cases_r)
+        cases = []
+    else:
+        cases = cases_r
+
+    efficacy: list[RetrievedChunk]
+    if isinstance(efficacy_r, BaseException):
+        logger.warning("%s 고민 efficacy leg 실패, cases leg 만 사용", code, exc_info=efficacy_r)
+        efficacy = []
+    else:
+        efficacy = efficacy_r
+
     return code, cases, efficacy
 
 
