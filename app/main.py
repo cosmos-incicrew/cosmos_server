@@ -9,7 +9,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.common.schemas import ErrorDetail, ErrorResponse
 from app.core.config import get_settings
-from app.modules.bsti.router import router as bsti_router
 from app.modules.ingredient_detail.router import router as ingredient_detail_router
 from app.modules.ingredient_search.router import router as ingredient_search_router
 from app.modules.product_compare.router import router as product_compare_router
@@ -37,7 +36,6 @@ app.add_middleware(
 app.include_router(ingredient_search_router)
 app.include_router(ingredient_detail_router)
 app.include_router(product_compare_router)
-app.include_router(bsti_router)
 app.include_router(recommendations_router)
 app.include_router(users_router)
 
