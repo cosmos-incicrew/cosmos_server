@@ -3,7 +3,7 @@
 임베딩 모델 비교(tests/modules/recommendations/embedding/) 결과 확정된 설정으로
 두 leg 코퍼스를 임베딩해 DB embedding 컬럼을 채운다.
 
-  - rec_efficacy : name_kr + efficacy + product_traits  (성분 사전)
+  - rec_efficacy : name_kor + efficacy + product_traits  (성분 사전)
   - rec_cases    : question                              (유사 상담)
 
 임베딩 대상 텍스트 조합은 비교 스크립트(build_*_corpus)와 동일해야 검색 분포가 맞는다.
@@ -38,7 +38,7 @@ UPDATE_CONCURRENCY = 8
 
 
 def _efficacy_text(r: dict) -> str:
-    parts = [r.get("name_kr") or "", r.get("efficacy") or "", r.get("product_traits") or ""]
+    parts = [r.get("name_kor") or "", r.get("efficacy") or "", r.get("product_traits") or ""]
     return " ".join(p for p in parts if p).strip()
 
 
@@ -47,7 +47,7 @@ JOBS = {
     "efficacy": {
         "table": "rec_efficacy",
         "pk": "id",
-        "select": "id,name_kr,efficacy,product_traits",
+        "select": "id,name_kor,efficacy,product_traits",
         "text": _efficacy_text,
     },
     "cases": {

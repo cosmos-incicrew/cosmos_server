@@ -2,7 +2,7 @@
 
 `LlmNarrative` 는 Gemini `response_schema` 로 넘겨 구조를 강제하는 **생성 전용**
 모델이다. LLM 이 지어낼 수 없는 값(근거·경고·유사도)은 여기에 두지 않고 코드가
-⑦에서 조립한다.
+⑩에서 조립한다.
 """
 
 from typing import Any
@@ -56,10 +56,13 @@ class IngredientEvidence(BaseModel):
     efficacy: str | None = None
     safety_note: str | None = None  # rec_efficacy 원본 서술형 주의
     concentration: str | None = None  # 권장 농도
-    badges: list[str] = Field(default_factory=list)  # ⑦ 기능성 고시 배지 (미백·주름개선 등)
+    badges: list[str] = Field(default_factory=list)  # ⑩ 기능성 고시 배지 (미백·주름개선 등)
     owned: bool = False  # 화장대 보유 성분 여부
     owned_products: list[str] = Field(default_factory=list)  # 이 성분을 담은 보유 제품명
     warnings: list[IngredientWarning] = Field(default_factory=list)  # ⑤ 규제 경고 (이 성분)
+    # ⑧ 종합 목록에서만 채운다 — both(고민+타입) | concern(고민) | bsti(타입).
+    # 프론트가 "고민·타입 모두 적합" 배지로 근거를 구분해 보여주는 데 쓴다.
+    match_source: str | None = None
 
 
 class Answer(BaseModel):
@@ -105,7 +108,7 @@ class Advisory(BaseModel):
 
 
 class ProductRecommendation(BaseModel):
-    """🛒 추천 성분을 담은 실제 제품 (⑧ 제품 조회). LLM 미관여 — 코드가 조인·정렬한다."""
+    """🛒 추천 성분을 담은 실제 제품 (⑨ 제품 조회). LLM 미관여 — 코드가 조인·정렬한다."""
 
     product_id: int
     product_name: str
@@ -118,9 +121,18 @@ class ProductRecommendation(BaseModel):
 class RecommendationResponse(BaseModel):
     status: str  # ok | insufficient_evidence
     answer: Answer | None = None  # ①②③ 서사 섹션 (확인 불가 시 null)
+    # ⑧ 종합 추천 — 고민 축과 BSTI 축을 합친 대표 성분·제품(각 최대 5개). 프론트의
+    # 메인 카드이고, 아래 cases·ingredients·products·bsti_* 는 "왜 이게 뽑혔나"를
+    # 펼쳐보는 상세 근거다.
+    top_ingredients: list[IngredientEvidence] = Field(default_factory=list)
+    top_products: list[ProductRecommendation] = Field(default_factory=list)
     cases: list[CaseEvidence] = Field(default_factory=list)
     ingredients: list[IngredientEvidence] = Field(default_factory=list)  # 성분별 경고 포함
-    products: list[ProductRecommendation] = Field(default_factory=list)  # ⑧ 추천 성분 함유 제품
+    products: list[ProductRecommendation] = Field(default_factory=list)  # ⑨ 추천 성분 함유 제품
+    # BSTI 타입 권장 성분·제품 (⑦). 고민 기반 추천과 별개 축이라 따로 싣는다 —
+    # 고민은 "지금 겪는 문제", BSTI 는 "타입상 늘 맞는 성분"이라 섞으면 근거가 흐려진다.
+    bsti_ingredients: list[IngredientEvidence] = Field(default_factory=list)
+    bsti_products: list[ProductRecommendation] = Field(default_factory=list)
     advisory: Advisory | None = None  # 근거 약함/없음 알림 (없으면 null)
     retrieval_mode: str = "vector"  # 프론트 similarity 신뢰도 표시용
     user_profile: UserProfile
@@ -137,14 +149,14 @@ class UserContext(BaseModel):
     bsti_recommended: list[str] = Field(default_factory=list)
     owned_ingredients: list[str] = Field(default_factory=list)
     owned_products_by_ingredient: dict[str, list[str]] = Field(default_factory=dict)
-    owned_product_ids: list[int] = Field(default_factory=list)  # ⑧ 제품 추천에서 제외
+    owned_product_ids: list[int] = Field(default_factory=list)  # ⑨ 제품 추천에서 제외
     is_pregnant: bool | None = None  # None = 온보딩 미수집(unknown)
     is_nursing: bool | None = None
     concerns: list[str] = Field(default_factory=list)
 
 
 class Candidate(BaseModel):
-    """④ 후보 성분 집계의 단위. ⑤ 필터·⑦ 조립이 이 위에 값을 채운다."""
+    """④ 후보 성분 집계의 단위. ⑤ 필터·⑩ 조립이 이 위에 값을 채운다."""
 
     name_kor: str
     score: float

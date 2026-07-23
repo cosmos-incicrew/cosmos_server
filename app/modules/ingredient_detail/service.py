@@ -193,7 +193,7 @@ async def _fetch_evidence(ingredient_id: int) -> IngredientEvidence | None:
 
     return IngredientEvidence(
         ingredient_id=ingredient_id,
-        name_kr=pick(eff.get("name_kr"), ing.get("name_kor")),
+        name_kr=pick(eff.get("name_kor"), ing.get("name_kor")),
         inci=pick(eff.get("inci"), ing.get("name_eng")),
         origin_definition=pick(ing.get("origin_definition")),
         efficacy=pick(eff.get("efficacy")),

@@ -28,7 +28,7 @@ async def aggregate_candidates(
     merged: dict[str, Candidate] = {}
 
     for chunk in efficacy_chunks:
-        name = chunk.metadata.get("name_kr") or chunk.metadata.get("inci")
+        name = chunk.metadata.get("name_kor") or chunk.metadata.get("inci")
         if name:
             _merge(merged, name, chunk, from_efficacy=True)
 
@@ -44,12 +44,17 @@ async def aggregate_candidates(
     await resolve_ingredient_ids(ranked)
     resolved = _dedupe_resolved(ranked)
 
+    # efficacy 근거 필수 (설계 04 §3-1) — 케이스에만 등장하고 효능 사전 근거가 없는
+    # 성분은 추천에서 뺀다. groundedness 를 지키고, ⑩ 근거 패널(efficacy 기반)과
+    # 추천 성분의 불일치(데모의 알로에신·댕댕이나무열매즙 누락)를 없앤다.
+    grounded = [c for c in resolved if c.efficacy]
+
     # 가중치는 ID 매핑 **뒤에** 적용한다. `resolve_ingredient_ids` 가 INCI 후보의
     # 표시명을 한글로 바꾸므로, 앞에서 적용하면 영문명으로 들어온 후보(상담 사례
-    # 성분의 40%)가 BSTI 가점·보유 하향을 통째로 못 받는다. ⑦의 보유 배지는 개명
+    # 성분의 40%)가 BSTI 가점·보유 하향을 통째로 못 받는다. ⑩의 보유 배지는 개명
     # 후 이름으로 판정하므로 "보유 표시는 되는데 하향은 안 된" 후보가 생긴다.
-    _apply_personal_weights(resolved, context)
-    return sorted(resolved, key=lambda c: c.score, reverse=True)[:MAX_CANDIDATES]
+    _apply_personal_weights(grounded, context)
+    return sorted(grounded, key=lambda c: c.score, reverse=True)[:MAX_CANDIDATES]
 
 
 def _apply_personal_weights(candidates: list[Candidate], context: UserContext) -> None:
@@ -142,7 +147,7 @@ async def resolve_ingredient_ids(candidates: list[Candidate]) -> None:
     배열에 섞여 있다 — 고유 138개 중 55개(40%)가 `SULFUR` 같은 영문이다. 한글명만
     조회하면 이 40% 가 통째로 미매핑이 되어 안전성 검사를 우회하고, 사용자에게도
     영문 그대로 노출된다. `rec_efficacy.inci` 로 되짚으면 55개 전부 해소되고
-    한글 표시명(`name_kr`)까지 함께 얻는다.
+    한글 표시명(`name_kor`)까지 함께 얻는다.
     """
     unresolved = [c for c in candidates if c.ingredient_id is None]
     if not unresolved:
@@ -162,7 +167,7 @@ async def resolve_ingredient_ids(candidates: list[Candidate]) -> None:
         candidate.ingredient_id = matched.get("ingredient_id")
         candidate.inci = candidate.inci or matched.get("name_eng") or matched.get("inci")
         # INCI 로 찾은 후보는 표시명을 한글로 바꾼다 (영문 노출 방지).
-        korean = matched.get("name_kr")
+        korean = matched.get("name_kor")
         if korean:
             candidate.name_kor = normalize_ingredient_name(str(korean))
 
@@ -194,7 +199,7 @@ async def _lookup_names(names: list[str]) -> dict[str, dict[str, Any]]:
     if missing:
         inci_rows = rows(
             await client.table("rec_efficacy")
-            .select("ingredient_id, inci, name_kr")
+            .select("ingredient_id, inci, name_kor")
             .in_("inci", missing)
             .execute()
         )

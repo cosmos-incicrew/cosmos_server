@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from app.modules.recommendations import rate_limit
 from app.modules.recommendations.constants import RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_SECONDS
 from app.modules.recommendations.pipeline import s3_retrieval
-from app.modules.recommendations.pipeline import s7_response as response_stage
+from app.modules.recommendations.pipeline import s10_response as response_stage
 from app.modules.recommendations.schemas import (
     Candidate,
     ChunkSource,
@@ -25,11 +25,11 @@ def _context(**kwargs) -> UserContext:
     return UserContext(**{"user_id": "u1", "age": 32, "concerns": ["pores"], **kwargs})
 
 
-def _eff_chunk(name_kr: str, doc_id: str) -> RetrievedChunk:
+def _eff_chunk(name_kor: str, doc_id: str) -> RetrievedChunk:
     return RetrievedChunk(
-        content=f"[성분] {name_kr}", score=0.9,
+        content=f"[성분] {name_kor}", score=0.9,
         source=ChunkSource(doc_id=doc_id, title="t"),
-        metadata={"name_kr": name_kr, "efficacy": "효능"},
+        metadata={"name_kor": name_kor, "efficacy": "효능"},
     )
 
 

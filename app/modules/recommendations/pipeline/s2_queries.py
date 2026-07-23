@@ -1,8 +1,8 @@
 """② 질의 구성 — "무엇을 검색할지 검색어를 만든다".
 
-고민별 검색 질의를 템플릿으로 만든다. 나이·성별·BSTI 축 서술을 조합하고 없는
-요소는 생략한다. 예: "30대 여성 지성·민감 경향 피부의 모공 관리에 도움되는 성분".
-설계 01 §2-②.
+고민별 검색 질의를 템플릿으로 만든다. 고민을 문두에 두고 나이·성별·BSTI 축 서술은
+괄호로 뒤에 붙이며 없는 요소는 생략한다. 예: "모공에 도움되는 성분 (30대 여성 지성·민감
+경향 피부)". 설계 01 §2-② · 04 §2-1.
 """
 
 from app.common.skin_concerns import CONCERN_LABEL_BY_CODE
@@ -15,12 +15,16 @@ _GENDER_LABELS = {"female": "여성", "male": "남성"}
 
 
 def build_queries(context: UserContext) -> list[tuple[str, str]]:
-    """(고민 코드, 검색 질의) 목록을 만든다. 고민 하나당 하나."""
-    prefix = " ".join(_describe_person(context))
-    # prefix 가 비면 "의 모공 관리에…" 처럼 조사가 앞에 남는다.
-    lead = f"{prefix}의 " if prefix else ""
+    """(고민 코드, 검색 질의) 목록. 고민을 문두에 두고 사람묘사는 보조로 뒤에 둔다.
+
+    cases leg 는 이 질의를 그대로 임베딩한다. 사람묘사(BSTI 4축)를 앞세우면 색소·주름
+    같은 축이 질의를 지배해 정작 입력한 고민의 사례를 밀어낸다(설계 04 §2-1). 고민을
+    앞에 두어 검색을 고민 중심으로 고정한다.
+    """
+    descriptor = " ".join(_describe_person(context))
+    tail = f" ({descriptor})" if descriptor else ""
     return [
-        (code, f"{lead}{CONCERN_LABEL_BY_CODE[code]} 관리에 도움되는 성분")
+        (code, f"{CONCERN_LABEL_BY_CODE[code]}에 도움되는 성분{tail}")
         for code in context.concerns
     ]
 

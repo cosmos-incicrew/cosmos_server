@@ -71,7 +71,7 @@ async def test_retrieve_cases_maps_rpc_rows_with_real_score(patch_embed, monkeyp
 async def test_retrieve_efficacy_maps_rpc_rows(patch_embed, monkeypatch):
     rows = [
         {
-            "id": 42, "inci": "NIACINAMIDE", "name_kr": "나이아신아마이드",
+            "id": 42, "inci": "NIACINAMIDE", "name_kor": "나이아신아마이드",
             "efficacy": "피지 조절", "safety_note": "고농도 자극 가능",
             "recommended_concentration": "2~5%", "recommended_skin_types": "지성",
             "regulation_note": "배합 한도 있음", "reference_source": "PMID:29061803",
@@ -145,7 +145,7 @@ async def test_cot_non_string_steps_do_not_leak_repr(patch_embed, monkeypatch):
 async def test_efficacy_chunk_falls_back_to_inci_when_no_korean_name(patch_embed, monkeypatch):
     rows = [
         {
-            "id": 1, "inci": "NIACINAMIDE", "name_kr": None, "efficacy": "피지 조절",
+            "id": 1, "inci": "NIACINAMIDE", "name_kor": None, "efficacy": "피지 조절",
             "safety_note": None, "recommended_concentration": None,
             "recommended_skin_types": None, "regulation_note": None,
             "reference_source": None, "ingredient_id": 1, "score": 0.5,

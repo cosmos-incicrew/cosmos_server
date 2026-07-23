@@ -1,8 +1,11 @@
-"""⑧ 제품 추천 — "추천 성분을 담은 실제 제품을 찾는다".
+"""⑨ 제품 추천 — "추천 성분을 담은 실제 제품을 찾는다".
 
-LLM 이 최종 추천한 성분(narrative.recommended_names) 중 식약처 ID 가 매핑된 것만 골라,
-`product_ingredients` 를 `ingredient_id` 로 역조회해 그 성분을 담은 제품을 찾는다. 커버리지
-(추천 성분을 여러 개 담은 제품) 순으로 정렬하고 보유 제품은 뺀다. 설계 01 §2-⑧.
+사용자에게 보인 추천 성분 중 식약처 ID 가 매핑된 것만 골라, `product_ingredients` 를
+`ingredient_id` 로 역조회해 그 성분을 담은 제품을 찾는다. 추천 성분을 골고루 커버하는
+제품을 그리디로 고르고 보유 제품은 뺀다. 설계 01 §2-⑨ · 04 §4-1.
+
+고민 추천(⑥ LLM 서사의 성분)과 BSTI 추천(⑦ 타입 권장 성분) 양쪽이 이 함수를 쓴다 —
+"보인 성분과 제품을 일치시킨다"는 규칙이 같아서 이름 집합만 받는다.
 
 **LLM 미관여** — 성분↔제품은 DB 사실 조인이라 코드가 결정적으로 붙인다("정확한 값은
 코드가 붙인다"). 제품은 부가 정보이므로 조회가 실패해도 예외를 올리지 않고 빈 목록을
@@ -20,7 +23,6 @@ from app.modules.recommendations.constants import (
 )
 from app.modules.recommendations.schemas import (
     Candidate,
-    LlmNarrative,
     ProductRecommendation,
 )
 
@@ -29,15 +31,16 @@ logger = logging.getLogger(__name__)
 
 async def fetch(
     candidates: list[Candidate],
-    narrative: LlmNarrative,
+    chosen_names: set[str],
     owned_product_ids: list[int],
 ) -> list[ProductRecommendation]:
     """추천 성분을 담은 제품을 커버리지 순으로 최대 MAX_RECOMMENDED_PRODUCTS 개 반환한다.
 
-    candidates 는 안전 필터를 통과한 후보(⑤), narrative 는 LLM 서사(⑥)다. 사용자에게
-    보인 추천 성분(narrative.recommended_names)과 제품을 일치시키려 그 교집합만 쓴다.
+    candidates 는 안전 필터를 통과한 후보(⑤), chosen_names 는 사용자에게 실제로 보인
+    추천 성분명이다 — 고민 추천은 LLM 서사의 `recommended_names`, BSTI 추천(⑦)은 타입
+    권장 성분명이 들어온다. 어느 쪽이든 "보인 성분과 제품을 일치시킨다"는 규칙은 같아
+    이름 집합만 받는다(LLM 결합 없음).
     """
-    chosen_names = set(narrative.recommended_names)
     # LLM 추천 성분 중 식약처 ID 가 매핑된 것만. 미매핑(id None)은 조인 키가 없어 제외된다.
     id_to_name = {
         c.ingredient_id: c.name_kor
@@ -51,7 +54,7 @@ async def fetch(
         client = await get_supabase()
         columns = (
             "ingredient_id, order_no, "
-            "products(id, product_name, brand, product_url, main_category)"
+            "products(id, product_name, cleaned_product_name, brand, product_url, main_category)"
         )
         pi_rows = _narrow(
             await client.table("product_ingredients")
@@ -106,7 +109,34 @@ def _rank(
         grouped.values(),
         key=lambda a: (-len(a.matched), a.min_order_no),
     )
-    return [acc.to_recommendation() for acc in ranked[:MAX_RECOMMENDED_PRODUCTS]]
+    targets = set(id_to_name.values())
+    return [acc.to_recommendation() for acc in _select_by_coverage(ranked, targets)]
+
+
+def _select_by_coverage(
+    ranked: list["_ProductAcc"], targets: set[str]
+) -> list["_ProductAcc"]:
+    """추천 성분(targets)을 골고루 커버하는 제품을 그리디로 고른다 (설계 04 §4-1).
+
+    아직 안 커버된 추천 성분을 가장 많이 더하는 제품부터 고른다(동점이면 전체 매칭 수,
+    배합 상위 순). 새로 커버할 성분이 없으면 멈춘다 — 이미 나온 성분만 담은 제품을 중복
+    노출하지 않는다(개수가 MAX_RECOMMENDED_PRODUCTS 미만이 될 수 있다). a·b·c·d 를 한
+    제품이 다 담으면 그 하나로, 흩어져 있으면 여러 제품으로 최대한 커버한다.
+    """
+    picked: list[_ProductAcc] = []
+    covered: set[str] = set()
+    remaining = list(ranked)
+    while remaining and len(picked) < MAX_RECOMMENDED_PRODUCTS:
+        best = max(
+            remaining,
+            key=lambda a: (len(a.matched - covered), len(a.matched), -a.min_order_no),
+        )
+        if not best.matched - covered:
+            break  # 남은 제품이 새 추천 성분을 못 더한다 — 중복 노출 방지
+        picked.append(best)
+        covered |= best.matched
+        remaining.remove(best)
+    return picked
 
 
 class _ProductAcc:
@@ -124,7 +154,10 @@ class _ProductAcc:
         p = self._product
         return ProductRecommendation(
             product_id=int(p["id"]),
-            product_name=str(p.get("product_name") or ""),
+            # 표시명은 정제 컬럼을 쓴다 — 원본(`product_name`)은 크롤링 그대로라
+            # `[7월 올영픽] … 기획(+샘플)` 같은 프로모션 문구가 붙어 있다. 정제는 제품
+            # 데이터 파이프라인(서지우) 산출물이고, 비어 있을 때만 원본으로 폴백한다.
+            product_name=str(p.get("cleaned_product_name") or p.get("product_name") or ""),
             brand=p.get("brand"),
             product_url=p.get("product_url"),
             main_category=p.get("main_category"),
