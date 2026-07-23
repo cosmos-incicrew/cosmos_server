@@ -22,9 +22,9 @@ cp .env.example .env    # 환경 변수 채우기
 |---|---|
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | 공유 Supabase 프로젝트 → Settings → API (접근 요청: 김민경) |
 | `KAKAO_ADMIN_KEY` | Kakao Developers → 앱 설정 → 앱 키 → Admin 키. 회원 탈퇴 시 카카오 앱 연결 해제에만 쓴다. 비워도 기동한다 |
-| `GEMINI_API_KEY` | 팀 공유 키 (노션 / 김민경) |
+| `GCP_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS` | Gemini는 Vertex 전용이라 API 키가 아니라 **서비스 계정 키 파일**로 붙는다. 프로젝트·키 발급: 김민경 |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | Langfuse 프로젝트 Settings (접근: 김민경) |
-| `GEMINI_MODEL_*`, `LANGFUSE_HOST`, `LOG_LEVEL` | 기본값이 `app/core/config.py`에 있음. 바꿀 때만 지정 |
+| `GCP_LOCATION`, `GEMINI_MODEL`, `LANGFUSE_HOST`, `LOG_LEVEL` | 기본값이 `app/core/config.py`에 있음. 바꿀 때만 지정 |
 
 필수값이 하나라도 비면 서버가 **기동 시점에** 즉시 실패한다.
 
@@ -126,7 +126,7 @@ async def create_recommendations(
 머지 전 아래가 모두 통과해야 한다.
 
 ```bash
-uv run pytest            # 테스트 (스텁을 살렸으면 tests/test_routers.py의 STUB_ENDPOINTS에서 그 경로를 뺀다)
+uv run pytest            # 테스트
 uv run ruff check .      # 린트
 uv run ruff format .     # 포맷
 uv run mypy              # 타입 검사
