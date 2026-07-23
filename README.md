@@ -25,7 +25,7 @@ cp .env.example .env    # 환경 변수 채우기
 | `GCP_PROJECT_ID` | Vertex AI를 사용하는 GCP 프로젝트. 로컬에서는 ADC 로그인 필요 |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | 개발 Langfuse 프로젝트 Settings |
 | `CORS_ALLOWED_ORIGINS` | 브라우저 프론트 주소의 JSON 배열. 기본값은 개발 Vercel과 로컬 웹 |
-| `GEMINI_MODEL`, `LANGFUSE_BASE_URL`, `LOG_LEVEL` | 기본값이 `app/core/config.py`에 있음. 바꿀 때만 지정 |
+| `GCP_LOCATION`, `GEMINI_MODEL`, `LANGFUSE_BASE_URL`, `LOG_LEVEL` | 기본값이 `app/core/config.py`에 있음. 바꿀 때만 지정 |
 
 필수값이 하나라도 비면 서버가 **기동 시점에** 즉시 실패한다.
 
@@ -140,7 +140,7 @@ async def create_recommendations(
 머지 전 아래가 모두 통과해야 한다.
 
 ```bash
-uv run pytest            # 테스트 (스텁을 살렸으면 tests/test_routers.py의 STUB_ENDPOINTS에서 그 경로를 뺀다)
+uv run pytest            # 테스트
 uv run ruff check .      # 린트
 uv run ruff format .     # 포맷
 uv run mypy              # 타입 검사

@@ -14,8 +14,8 @@ from app.common.skin_concerns import CONCERN_LABEL_BY_CODE
 from app.core.supabase import get_supabase, rows
 from app.modules.recommendations import bsti_ingredients, errors
 from app.modules.recommendations.constants import MAX_CONCERNS
-from app.modules.recommendations.names import normalize_ingredient_name
 from app.modules.recommendations.schemas import UserContext
+from app.modules.recommendations.util.ingredient_names import normalize_ingredient_name
 
 logger = logging.getLogger(__name__)
 

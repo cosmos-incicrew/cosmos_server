@@ -24,6 +24,8 @@ _AXIS_TRAITS: Final[tuple[dict[str, str], ...]] = (
 _SENSITIVE_POLE: Final = "S"
 _SENSITIVE_POSITION: Final = 1
 
+_MOISTURE_POSITION: Final = 0
+
 
 def decode_traits(type_code: str | None) -> list[str]:
     """타입 코드 4글자를 축별 특성 서술 목록으로 분해한다. 모르는 글자는 건너뛴다."""
@@ -43,8 +45,24 @@ def describe(type_code: str | None) -> str:
     return f"{'·'.join(traits)} 피부" if traits else ""
 
 
+def case_skin_type(type_code: str | None) -> str | None:
+    """유·수분 축을 AI Hub 상담 사례(`rec_cases.skin_type`)의 표기로 옮긴다.
+
+    두 데이터의 피부타입 어휘가 달라 대조하려면 매핑이 먼저 필요하다. 축 라벨(`지성`·
+    `건성`)이 그 표기와 그대로 겹쳐 여기 표를 재사용한다 — 따로 두면 한쪽만 고쳐도 티가
+    안 난다.
+
+    BSTI 1축은 O/D 2극뿐이라 사례의 `복합성`·`중성`(실 데이터 8,000건 중 69%)에는 대응하는
+    극이 없다. 그건 매핑 실패가 아니라 정상이므로 호출부는 None 을 "가점 없음"으로 다뤄야
+    하고, 하드필터로 쓰면 사례 3분의 2가 통째로 탈락한다.
+    """
+    if not type_code or len(type_code) != BSTI_TYPE_CODE_LENGTH:
+        return None
+    return _AXIS_TRAITS[_MOISTURE_POSITION].get(type_code.upper()[_MOISTURE_POSITION])
+
+
 def is_sensitive(type_code: str | None) -> bool:
-    """민감(S) 축 여부 — 알레르기 경고를 강조할지 판단한다 (01 §2-⑤)."""
+    """민감(S) 축 여부 — ⑤가 알레르기 경고 강조와 자극 성분 제외에 쓴다 (04 §12)."""
     if not type_code or len(type_code) != BSTI_TYPE_CODE_LENGTH:
         return False
     return type_code.upper()[_SENSITIVE_POSITION] == _SENSITIVE_POLE

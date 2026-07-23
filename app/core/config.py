@@ -27,6 +27,11 @@ class Settings(BaseSettings):
         cleaned = dict(data)
         cleaned.pop("supabase_jwt_secret", None)
         cleaned.pop("SUPABASE_JWT_SECRET", None)
+        # Vertex 가 ADC 로 넘어가며 설정에서 빠졌다. 키 파일 시절의 .env 를 그대로 둔
+        # 로컬은 extra="forbid" 에 걸려 기동조차 못 하므로 조용히 흘린다 — 이 변수는
+        # 설정이 아니라 google-auth 가 직접 읽는 환경 변수라 값도 필요 없다.
+        cleaned.pop("google_application_credentials", None)
+        cleaned.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
         legacy_langfuse_host = cleaned.pop("langfuse_host", None)
         legacy_langfuse_host = cleaned.pop("LANGFUSE_HOST", legacy_langfuse_host)
         if legacy_langfuse_host is not None:

@@ -52,23 +52,21 @@ async def _pick_user_id() -> str | None:
     return chosen
 
 
-def _print_ingredients(items: list[dict]) -> None:
-    for i in items:
-        line = f"  [성분] {i['name_kor']} ({i['inci']}) · 유사도 {i['similarity']}"
-        if i.get("safety_note"):
-            line += f" · 주의: {i['safety_note']}"
-        for w in i.get("warnings", []):
-            line += f" · ⚠{w['type']}"
-        print(line)
+def _badge(match_source: str | None) -> str:
+    """⑧ 출처 코드를 사람이 읽는 말로. 성분·제품이 같은 어휘를 쓴다."""
+    return {"both": "고민+타입", "concern": "고민", "bsti": "피부타입"}.get(
+        match_source or "", "?"
+    )
 
 
 def _print_products(products: list[dict], title: str) -> None:
     print(f"\n--- 🛒 {title} {len(products)}개 ---")
     for p in products:
         matched = ", ".join(p.get("matched_ingredients", []))
-        brand = p.get("brand") or "브랜드미상"
+        # 브랜드는 따로 찍지 않는다 — cleaned_product_name 이 이미 브랜드로 시작해
+        # "디오디너리 디오디너리 알파 알부틴"처럼 두 번 나온다.
         cat = f" · {p['main_category']}" if p.get("main_category") else ""
-        print(f"  [{brand}] {p['product_name']}{cat}")
+        print(f"  [{_badge(p.get('match_source'))}] {p['product_name']}{cat}")
         print(f"      매칭 성분: {matched}")
         if p.get("product_url"):
             print(f"      {p['product_url']}")
@@ -82,10 +80,7 @@ async def run(user_id: str) -> None:
 
     data = resp.model_dump()
     print("=" * 70)
-    print(
-        f"전체 소요: {dt:.1f}s   STATUS: {data.get('status')}   "
-        f"mode={data.get('retrieval_mode')}"
-    )
+    print(f"전체 소요: {dt:.1f}s   STATUS: {data.get('status')}")
     print(f"advisory: {data.get('advisory')}")
     print("=" * 70)
     ans = data.get("answer")
@@ -95,37 +90,35 @@ async def run(user_id: str) -> None:
         print("\n③ 사용법·관리법\n" + ans["usage_guide"])
     else:
         print("(근거 부족 — answer 없음)")
-    # ⑩ 종합 — 프론트 메인 카드. 아래 섹션들은 "왜 뽑혔나"의 상세 근거다.
+    # ⑩ 종합 — 프론트 메인 카드. cases 는 "왜 뽑혔나"의 상세 근거다.
     top = data.get("top_ingredients", [])
     print(f"\n--- ⭐ 종합 추천 성분 {len(top)}개 (고민 + BSTI) ---")
     for i in top:
-        badge = {"both": "고민+타입", "concern": "고민", "bsti": "타입"}.get(
-            i.get("match_source") or "", "?"
-        )
-        print(f"  [{badge}] {i['name_kor']} ({i['inci']}) · {i.get('efficacy') or ''}")
+        line = f"  [{_badge(i.get('match_source'))}] {i['name_kor']} ({i['inci']})"
+        # BSTI 축은 표 매칭이라 similarity 가 null 이다 — "유사도 None" 을 찍지 않는다.
+        if i.get("similarity") is not None:
+            line += f" · 유사도 {i['similarity']}"
+        line += f" · {i.get('efficacy') or ''}"
+        if i.get("safety_note"):
+            line += f" · 주의: {i['safety_note']}"
+        if i.get("badges"):
+            line += f" · {', '.join(i['badges'])}"
+        if i.get("owned"):
+            line += " · 보유"
+            if i.get("owned_products"):
+                line += f"({', '.join(i['owned_products'])})"
+        for w in i.get("warnings", []):
+            line += f" · ⚠{w['type']}"
+        print(line)
     _print_products(data.get("top_products", []), "종합 추천 제품")
 
-    print("\n--- 📂 근거: 유사 케이스", len(data.get("cases", [])),
-          "· 성분", len(data.get("ingredients", [])), "---")
+    print("\n--- 📂 근거: 유사 케이스", len(data.get("cases", [])), "---")
     for c in data.get("cases", []):
         rec = ", ".join(c.get("recommended_ingredients", [])[:3])
         print(
             f"  [케이스] {c['target_concern']} · {c['gender']} {c['age']}세 "
             f"{c['skin_type']} · 유사도 {c['similarity']} · 추천성분: {rec}"
         )
-    _print_ingredients(data.get("ingredients", []))
-    _print_products(data.get("products", []), "추천 제품 (고민 기반, 성분 커버리지 순)")
-
-    # ⑨ BSTI — 고민과 별개 축이라 따로 보여준다("지금 겪는 문제" vs "타입상 늘 맞는 성분").
-    profile = data.get("user_profile") or {}
-    bsti_type = profile.get("bsti_type")
-    if bsti_type:
-        bsti_ingredients = data.get("bsti_ingredients", [])
-        print(f"\n--- 🧬 BSTI({bsti_type}) 타입 권장 성분 {len(bsti_ingredients)}개 ---")
-        _print_ingredients(bsti_ingredients)
-        _print_products(data.get("bsti_products", []), f"BSTI({bsti_type}) 권장 성분 함유 제품")
-    else:
-        print("\n--- 🧬 BSTI 미검사 — 타입 권장 추천 없음 ---")
 
     print("\n사용 프로필:", data.get("user_profile"))
 

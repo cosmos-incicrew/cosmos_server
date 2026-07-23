@@ -1,6 +1,6 @@
 """2차 재검토에서 확인된 결함 수정 회귀 테스트.
 
-- R1: s7 근거 패널이 ⑤ 제거 성분을 배지 달고 재노출하던 것 + 중복 회수 제거
+- R1: ⑤ 제거 성분이 배지를 달고 응답 성분 목록에 재노출되던 것
 - s3 retrieve_for_concerns 부분 성공 생존 / 전체 실패 503 (미커버였던 오케스트레이션)
 - rate limit 윈도우 만료 후 쿼터 회복
 """
@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 from app.modules.recommendations import rate_limit
 from app.modules.recommendations.constants import RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_SECONDS
-from app.modules.recommendations.pipeline import s3_retrieval
+from app.modules.recommendations.pipeline import s3_retrieval, s8_top_picks
 from app.modules.recommendations.pipeline import s10_response as response_stage
 from app.modules.recommendations.schemas import (
     Candidate,
@@ -40,31 +40,27 @@ def _narr() -> LlmNarrative:
     )
 
 
-# ── R1: ⑤ 제거 성분은 근거 패널에서도 빠진다 ──────────────────────────
+# ── R1: ⑤ 제거 성분은 응답 성분 목록에서도 빠진다 ─────────────────────
 
 
 def test_safety_removed_ingredient_not_in_evidence_panel():
-    """임신 금기로 ⑤가 제거한 레티놀이 배지·무경고로 근거 패널에 되살아나면 안 된다."""
+    """임신 금기로 ⑤가 제거한 레티놀이 배지·무경고로 응답에 되살아나면 안 된다.
+
+    ⑥ 서사가 레티놀을 언급해도(recommended_names) ⑧은 ⑤ 통과분에서만 대표를 고르므로
+    응답의 유일한 성분 목록인 `top_ingredients` 에 새지 않아야 한다. 구조적으로 보장되는
+    성질이라 지키는 테스트가 없으면 다음 개편에서 조용히 무너진다.
+    """
     safe = [Candidate(name_kor="판테놀", score=0.9)]  # 레티놀은 ⑤에서 제거됨(safe 에 없음)
-    efficacy_chunks = [_eff_chunk("판테놀", "eff_1"), _eff_chunk("레티놀", "eff_2")]
+    shown = {"판테놀", "레티놀"}  # ⑥ 이 둘 다 언급했다고 가정
+    top_picks = s8_top_picks.select_top(safe, shown, [])
 
-    resp = response_stage.assemble(_context(), safe, _narr(), [], efficacy_chunks, [])
+    resp = response_stage.assemble(
+        _context(), _narr(), [], [_eff_chunk("판테놀", "eff_1")], top_picks, []
+    )
 
-    names = [i.name_kor for i in resp.ingredients]
-    assert names == ["판테놀"]  # 레티놀은 없다
-    assert all(i.name_kor != "레티놀" for i in resp.ingredients)
+    assert [i.name_kor for i in resp.top_ingredients] == ["판테놀"]  # 레티놀은 없다
     # 레티놀이 기능성고시_주름개선 배지를 달고 새어나오지 않았는지
-    assert not any("주름개선" in b for i in resp.ingredients for b in i.badges)
-
-
-def test_duplicate_efficacy_chunks_are_deduped():
-    """같은 성분이 여러 고민에서 두 번 회수돼도 근거 패널엔 1회만."""
-    safe = [Candidate(name_kor="판테놀", score=0.9)]
-    dupes = [_eff_chunk("판테놀", "eff_1"), _eff_chunk("판테놀", "eff_1")]
-
-    resp = response_stage.assemble(_context(), safe, _narr(), [], dupes, [])
-
-    assert [i.name_kor for i in resp.ingredients] == ["판테놀"]
+    assert not any("주름개선" in b for i in resp.top_ingredients for b in i.badges)
 
 
 def test_duplicate_cases_are_deduped():
@@ -75,8 +71,8 @@ def test_duplicate_cases_are_deduped():
         )
 
     resp = response_stage.assemble(
-        _context(), [Candidate(name_kor="판테놀", score=0.9)], _narr(),
-        [_case_chunk("case_1"), _case_chunk("case_1")], [], [],
+        _context(), _narr(),
+        [_case_chunk("case_1"), _case_chunk("case_1")], [], [], [],
     )
 
     assert [c.id for c in resp.cases] == ["case_1"]

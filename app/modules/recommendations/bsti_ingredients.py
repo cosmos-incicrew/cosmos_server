@@ -198,3 +198,23 @@ def recommended_for(type_code: str | None) -> list[str]:
     for display in BSTI_RECOMMENDED.get(type_code.upper(), ()):
         names.extend(_DB_ALIASES.get(display, (display,)))
     return names
+
+
+# DB 표기 → 그 이름을 펼쳐 낸 표 항목. 아래 group_by_table_entry 가 되묶는 데 쓴다.
+_ALIAS_OWNER: Final[dict[str, str]] = {
+    name: display for display, names in _DB_ALIASES.items() for name in names
+}
+
+
+def group_by_table_entry(names: list[str]) -> list[tuple[str, ...]]:
+    """DB 표기 목록을 표 항목 단위로 되묶는다 (등장 순서 보존).
+
+    `히알루론산` 한 항목이 `하이알루로닉애씨드`·`소듐하이알루로네이트`·
+    `하이드롤라이즈드하이알루로닉애씨드` 셋으로 펼쳐진다. 평평한 채로 쓰면 ⑦이 사실상
+    같은 성분으로 대표 카드를 여러 칸 채운다 — 실제로 BSTI 3칸을 히알루론산 계열이
+    전부 먹었다. 항목당 하나만 고르게 하려고 되묶는다.
+    """
+    grouped: dict[str, list[str]] = {}
+    for name in names:
+        grouped.setdefault(_ALIAS_OWNER.get(name, name), []).append(name)
+    return [tuple(group) for group in grouped.values()]

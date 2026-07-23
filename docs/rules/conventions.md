@@ -80,8 +80,7 @@
 - 엔드포인트는 `TestClient(app, raise_server_exceptions=False)`로 검사한다. 이래야 500·503도
   공통 에러 포맷(`body["error"]["code"]`)으로 확인할 수 있다.
 - **외부 서비스는 호출하지 않는다.** `monkeypatch`로 `get_supabase()`/`get_gemini()` 경계를 대체한다.
-- 스텁을 구현했다면 `tests/test_routers.py`의 `STUB_ENDPOINTS`에서 그 경로를 빼고 정상·에러 케이스로
-  대체한다. 규칙으로 정한 불변식(예: `user_id` 필터, 생성 전 retrieval 근거)은 테스트로 못 박는다.
+- 규칙으로 정한 불변식(예: `user_id` 필터, 생성 전 retrieval 근거)은 테스트로 못 박는다.
 
 ## Git
 
