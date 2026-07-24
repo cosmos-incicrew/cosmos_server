@@ -63,9 +63,12 @@ def select_top(
     for candidate in concern:
         _add(candidate, SOURCE_CONCERN)
 
-    # 자른 뒤 `seen` 을 다시 세운다 — 상한에 밀린 성분이 BSTI 표에도 있다면 타입 근거로는
-    # 다시 들어올 수 있어야 한다. 그대로 두면 비어 있는 BSTI 칸과 함께 조용히 사라진다.
-    picks = picks[:MAX_TOP_CONCERN_INGREDIENTS]
+    # 고민 축 상한은 BSTI 유무로 갈린다 — BSTI 후보가 있으면 그 몫(2칸)을 남기려 3칸으로
+    # 자르고, 없으면 비울 몫이 없으니 MAX_TOP_INGREDIENTS 까지 고민이 다 쓴다. 자른 뒤
+    # `seen` 을 다시 세운다 — 상한에 밀린 성분이 BSTI 표에도 있다면 타입 근거로 다시
+    # 들어올 수 있어야 한다.
+    concern_limit = MAX_TOP_CONCERN_INGREDIENTS if bsti_candidates else MAX_TOP_INGREDIENTS
+    picks = picks[:concern_limit]
     seen = {_identity(candidate) for candidate, _ in picks}
 
     for candidate in bsti_candidates:

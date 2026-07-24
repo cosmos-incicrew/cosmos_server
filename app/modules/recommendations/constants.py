@@ -82,6 +82,11 @@ BSTI_BOOST: Final = 0.15
 CASE_SKIN_TYPE_BOOST: Final = 0.05
 
 OWNED_PENALTY: Final = 0.1  # 보유 성분은 제외가 아니라 하향 (긍정 피드백 보존)
+
+# 유사 상담 사례가 실제로 처방한 성분(cases leg)에 주는 가점. efficacy leg 의 "교과서적"
+# 성분에 밀려 ⑥ 추천 정원 밖으로 나가던 케이스 처방 성분을 상위로 올린다 — "비슷한 사람이
+# 받은 처방"이 고민 일반론보다 개인화 근거가 강하다. held-out recall/hit/mrr 을 크게 올린다.
+CASE_INGREDIENT_BOOST: Final = 0.25
 MAX_CANDIDATES: Final = 12  # 프롬프트 크기를 결정적으로 만들기 위한 상한
 
 # 고민 하나가 최종 후보 목록에서 확보하는 최소 칸 수 (설계 04 §2-1b).
@@ -168,11 +173,14 @@ PREGNANCY_CAUTION: Final[frozenset[str]] = frozenset({"살리실릭애씨드"})
 
 # ── ⑥ 생성 (s6_generation) ──────────────────────────────────────
 MIN_RECOMMENDED: Final = 3  # 모바일 화면과 생성 품질의 균형 (01 §2-⑥)
-# ⑧ 고민 슬롯(MAX_TOP_CONCERN_INGREDIENTS)이 이 값을 그대로 쓴다. 둘이 어긋나 서사가 더
-# 많이 권하면, 넘치는 성분은 top_ingredients 에 못 실린다 — 응답에 성분 배열이 따로 없어
-# (2026-07-23 계약) 그 성분의 안전 경고(임신수유주의·알레르기유발·한도·사용제한)를 실을
-# 곳이 사라진다. 서사는 권하는데 경고는 어디에도 없는 상태가 된다.
-MAX_RECOMMENDED: Final = 3
+# ⑥ 추천 수는 BSTI 유무로 갈린다 (설계 04 §8 트레이드오프의 조건부 해소).
+# - BSTI 없음: 정답이 평균 5개라 3개면 recall 상한 0.6 이다. 5로 올려 커버를 넓힌다
+#   (held-out recall@5 0.36→0.44). top_ingredients 5칸을 고민 축이 다 쓴다.
+# - BSTI 있음: 3개만 권하고 나머지 2칸을 BSTI 몫으로 남긴다. 5개를 권하면 BSTI 축이
+#   ⑧ 종합에서 0칸이 되고, 서사가 설명한 성분이 top 카드에 못 실려 안전 경고가 사라진다.
+# ⑥ generate 와 ⑧ select_top 이 bsti 후보 유무로 이 둘을 고른다.
+MAX_RECOMMENDED: Final = 5  # BSTI 없을 때 고민 축 추천 수
+MAX_RECOMMENDED_WITH_BSTI: Final = 3  # BSTI 있을 때 (남는 칸은 BSTI 몫)
 
 # 재현성 (설계 04 §9). 같은 프로필로 두 번 요청하면 추천 성분이 바뀐다는 데모 피드백에
 # 대한 대응이며, ④ 동점 정렬 고정·⑥ 프롬프트 문자열 고정과 **한 묶음**이다 — 프롬프트가
@@ -187,10 +195,10 @@ GENERATION_SEED: Final = 20260723
 # (제품은 MAX_RECOMMENDED_PRODUCTS 를 그대로 쓴다).
 MAX_TOP_INGREDIENTS: Final = 5
 
-# 고민 축이 가져갈 수 있는 칸 수. 상한이 없으면 ⑥이 5개를 권할 때 BSTI 몫이 산술적으로
-# 0칸이 되어 "고민+BSTI 종합"이 이름만 남는다 (실 데모에서 5칸 전부 고민이었다).
-# 남는 2칸이 BSTI 자리다. ⑥ MAX_RECOMMENDED 를 그대로 쓰는 이유는 그 상수 주석 참고.
-MAX_TOP_CONCERN_INGREDIENTS: Final = MAX_RECOMMENDED
+# BSTI 축이 있을 때 고민 축이 가져갈 칸 수 — 남는 2칸이 BSTI 자리다. BSTI 가 없으면
+# ⑧ select_top 이 이 상한을 무시하고 MAX_TOP_INGREDIENTS 까지 고민에 준다(비울 BSTI 몫이
+# 없다). 상한이 없으면 "고민+BSTI 종합"이 이름만 남는다(실 데모에서 5칸 전부 고민이었다).
+MAX_TOP_CONCERN_INGREDIENTS: Final = 3
 
 # ── ⑨ 제품 추천 (s9_products) ────────────────────────────────────
 MAX_RECOMMENDED_PRODUCTS: Final = 5  # 추천 성분 함유 제품 상한 (커버리지 순 top-N)
