@@ -11,6 +11,7 @@ from app.core.supabase import get_supabase, rows
 from app.modules.recommendations import bsti_traits
 from app.modules.recommendations.constants import (
     BSTI_BOOST,
+    CASE_INGREDIENT_BOOST,
     CASE_SKIN_TYPE_BOOST,
     EFFICACY_FIELDS,
     MAX_CANDIDATES,
@@ -64,9 +65,13 @@ async def aggregate_candidates(
     await resolve_ingredient_ids(ranked)
     resolved = _dedupe_resolved(ranked)
 
-    # efficacy 근거 필수 (설계 04 §3-1) — 케이스에만 등장하고 효능 사전 근거가 없는
-    # 성분은 추천에서 뺀다. groundedness 를 지키고, ⑩ 근거 패널(efficacy 기반)과
-    # 추천 성분의 불일치(데모의 알로에신·댕댕이나무열매즙 누락)를 없앤다.
+    # 케이스 유래 후보는 효능 필드가 비어 있다(efficacy leg 로 회수돼야만 채워진다).
+    # 그 성분의 대부분이 rec_efficacy 에 실재하므로(회수 병목) 여기서 직접 채워
+    # groundedness 를 지키면서도 아래 필터에서 탈락하지 않게 한다.
+    await fill_missing_efficacy(resolved)
+
+    # efficacy 근거 필수 (설계 04 §3-1) — 효능 사전 근거가 없는 성분은 추천에서 뺀다.
+    # groundedness 를 지키고, ⑩ 근거 패널(efficacy 기반)과 추천 성분의 불일치를 없앤다.
     grounded = [c for c in resolved if c.efficacy]
 
     # 가중치는 ID 매핑 **뒤에** 적용한다. `resolve_ingredient_ids` 가 INCI 후보의
@@ -74,7 +79,21 @@ async def aggregate_candidates(
     # 성분의 40%)가 BSTI 가점·보유 하향을 통째로 못 받는다. ⑩의 보유 배지는 개명
     # 후 이름으로 판정하므로 "보유 표시는 되는데 하향은 안 된" 후보가 생긴다.
     _apply_personal_weights(grounded, context, _same_skin_type_docs(case_chunks, context))
+    _boost_case_ingredients(grounded)
     return _reserve_concern_slots(sorted(grounded, key=_rank_key), context.concerns)
+
+
+def _boost_case_ingredients(candidates: list[Candidate]) -> None:
+    """유사 상담 사례가 처방한 성분을 올린다 (협업 필터링 성격).
+
+    efficacy leg 는 고민 구절로 코퍼스 전체를 훑어 "교과서적" 성분을 상위에 올리는데,
+    유사 케이스가 실제로 처방한 성분(cases leg)이 그에 밀려 ⑥ 추천 정원 밖으로 나갔다.
+    "비슷한 사람이 받은 처방"이 고민 일반론보다 개인화 근거가 강하므로 가점한다.
+    판정은 이름이 아니라 doc_id 로 한다 — efficacy 청크만 `eff_` 접두를 쓴다.
+    """
+    for candidate in candidates:
+        if any(not doc_id.startswith("eff_") for doc_id in candidate.source_doc_ids):
+            candidate.score += CASE_INGREDIENT_BOOST
 
 
 def _reserve_concern_slots(ranked: list[Candidate], concerns: list[str]) -> list[Candidate]:
@@ -168,6 +187,48 @@ def _merge(
 
     if from_efficacy:
         _fill_efficacy_fields(candidate, chunk.metadata)
+
+
+async def fill_missing_efficacy(candidates: list[Candidate]) -> None:
+    """효능 필드가 빈 후보(케이스 유래)를 rec_efficacy 로 채운다 — 정확 일치 recall 병목.
+
+    cases leg 성분은 efficacy leg top-K 에 함께 뜨지 않으면 효능 필드가 비어 grounded
+    필터에서 전량 탈락한다. 그 성분의 97%가 rec_efficacy 에 실재하므로(Validation 정답의
+    회수 상한), ingredient_id(우선)·name_kor 로 되짚어 효능·주의를 붙인다. 한 성분에 여러
+    행이 있으면 `_lowest_id_first` 규칙으로 실행 간 결과를 고정한다.
+    """
+    need = [c for c in candidates if not c.efficacy]
+    if not need:
+        return
+    columns = ", ".join((*EFFICACY_FIELDS, "name_kor"))
+    client = await get_supabase()
+
+    ids = [c.ingredient_id for c in need if c.ingredient_id is not None]
+    by_id: dict[int, dict[str, Any]] = {}
+    if ids:
+        matched = rows(
+            await client.table("rec_efficacy").select(columns).in_("ingredient_id", ids).execute()
+        )
+        for row in _lowest_id_first(matched):
+            by_id.setdefault(row["ingredient_id"], row)
+
+    names = [c.name_kor for c in need if c.ingredient_id is None]
+    by_name: dict[str, dict[str, Any]] = {}
+    if names:
+        matched = rows(
+            await client.table("rec_efficacy").select(columns).in_("name_kor", names).execute()
+        )
+        for row in _lowest_id_first(matched):
+            by_name.setdefault(str(row["name_kor"]), row)
+
+    for candidate in need:
+        filled = (
+            by_id.get(candidate.ingredient_id)
+            if candidate.ingredient_id is not None
+            else by_name.get(candidate.name_kor)
+        )
+        if filled:
+            _fill_efficacy_fields(candidate, filled)
 
 
 def _fill_efficacy_fields(candidate: Candidate, meta: dict[str, Any]) -> None:

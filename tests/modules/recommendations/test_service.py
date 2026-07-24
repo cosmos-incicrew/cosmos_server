@@ -15,6 +15,7 @@ from fastapi import HTTPException
 from app.modules.recommendations import bsti_traits
 from app.modules.recommendations.constants import (
     BSTI_BOOST,
+    CASE_INGREDIENT_BOOST,
     CASE_SKIN_TYPE_BOOST,
     MAX_CANDIDATES,
     MAX_CHUNK_CHARS,
@@ -84,12 +85,18 @@ def test_generation_trace_disables_automatic_io_capture() -> None:
 
 @pytest.fixture(autouse=True)
 def _no_db(monkeypatch: pytest.MonkeyPatch):
-    """④의 ingredient_id 조인은 DB를 타므로 테스트에서는 건너뛴다."""
+    """④의 ingredient_id 조인·효능 채우기는 DB를 타므로 테스트에서는 건너뛴다.
+
+    fill_missing_efficacy 를 no-op 으로 두면 케이스 유래 후보의 efficacy 가 안 채워져
+    grounded 필터에서 빠진다 — DB 미매칭 시의 동작이다. 채워질 때 살아남는 경로는
+    test_fill_missing_efficacy_rescues_case_ingredient 가 따로 검증한다.
+    """
 
     async def _noop(candidates):
         return None
 
     monkeypatch.setattr(candidates_stage, "resolve_ingredient_ids", _noop)
+    monkeypatch.setattr(candidates_stage, "fill_missing_efficacy", _noop)
 
 
 # ── BSTI 축 해석 ──────────────────────────────────────────────
@@ -179,7 +186,8 @@ async def test_case_skin_type_match_boosts_candidate():
         _context(bsti_type="OSPW"),  # O = 지성
     )
 
-    assert candidates[0].score == pytest.approx(0.7 + CASE_SKIN_TYPE_BOOST)
+    # 사례 유래 성분이라 CASE_INGREDIENT_BOOST 도 함께 붙는다 (협업 필터링 가점).
+    assert candidates[0].score == pytest.approx(0.7 + CASE_SKIN_TYPE_BOOST + CASE_INGREDIENT_BOOST)
 
 
 async def test_case_skin_type_boost_needs_a_bsti_type():
@@ -190,7 +198,8 @@ async def test_case_skin_type_boost_needs_a_bsti_type():
         _context(),  # bsti_type=None
     )
 
-    assert candidates[0].score == pytest.approx(0.7)
+    # skin_type 가점(BSTI 축)은 안 붙지만 CASE_INGREDIENT_BOOST 는 사례 유래라 붙는다.
+    assert candidates[0].score == pytest.approx(0.7 + CASE_INGREDIENT_BOOST)
 
 
 async def test_unmapped_case_skin_type_is_kept_without_boost():
@@ -213,8 +222,9 @@ async def test_unmapped_case_skin_type_is_kept_without_boost():
     )
 
     assert {c.name_kor for c in candidates} == {"판테놀", "세라마이드"}
-    # 가점도 감점도 없이 사례 기여가 그대로 남는다 (걸러졌다면 효능 청크의 0.5 에 머문다)
-    assert all(c.score == pytest.approx(0.85) for c in candidates)
+    # skin_type 가점은 없지만(복합성·중성은 O/D 어느 극에도 대응 안 함) 사례 유래라
+    # CASE_INGREDIENT_BOOST 는 붙는다 — 걸러졌다면 효능 청크의 0.5 에 머문다.
+    assert all(c.score == pytest.approx(0.85 + CASE_INGREDIENT_BOOST) for c in candidates)
     assert all("wrinkles" in c.concerns for c in candidates)
 
 
@@ -246,8 +256,32 @@ async def test_case_ingredients_merge_into_candidates():
 
     assert {c.name_kor for c in candidates} == {"세라마이드", "판테놀"}
     ceramide = next(c for c in candidates if c.name_kor == "세라마이드")
-    assert ceramide.score == pytest.approx(0.85)  # case chunk 의 더 높은 score 가 반영됨
+    # case chunk 의 더 높은 score(0.85) + 사례 유래 가점(CASE_INGREDIENT_BOOST)
+    assert ceramide.score == pytest.approx(0.85 + CASE_INGREDIENT_BOOST)
     assert "wrinkles" in ceramide.concerns  # case chunk 의 concern 도 반영됨
+
+
+async def test_fill_missing_efficacy_rescues_case_ingredient(monkeypatch):
+    """rec_efficacy 에 실재하는 case-only 성분은 효능이 채워져 grounded 를 통과한다.
+
+    cases leg 정답 성분이 efficacy leg top-K 에 함께 뜨지 않아도 살아나는 경로 —
+    held-out recall 을 0.11→0.36 으로 끌어올린 핵심 개조(fill_missing_efficacy)다.
+    """
+
+    async def _fill(candidates):  # rec_efficacy 매칭을 흉내 — 빈 효능을 채운다
+        for candidate in candidates:
+            if not candidate.efficacy:
+                candidate.efficacy = "미백에 도움"
+
+    monkeypatch.setattr(candidates_stage, "fill_missing_efficacy", _fill)
+
+    candidates = await candidates_stage.aggregate_candidates(
+        [_case_chunk(["알로에신"], 0.9, concern="brightening")],
+        [],  # efficacy leg 는 이 성분을 회수하지 못했다
+        _context(),
+    )
+
+    assert "알로에신" in {c.name_kor for c in candidates}
 
 
 async def test_candidate_cap_enforced():
@@ -762,17 +796,17 @@ async def test_regeneration_prompt_carries_the_failure_reason(monkeypatch):
     assert "존재하지않는성분" in prompts[1]
 
 
-def test_request_block_asks_for_an_exact_count_when_bounds_are_equal():
-    """MIN == MAX(3) 인데 범위로 렌더하면 "3~3개"가 되어 지시가 흐려진다."""
-    from app.modules.recommendations.constants import MAX_RECOMMENDED, MIN_RECOMMENDED
-
-    count = generation._recommend_count()
-
-    assert count == (
-        f"정확히 {MAX_RECOMMENDED}"
-        if MIN_RECOMMENDED == MAX_RECOMMENDED
-        else f"{MIN_RECOMMENDED}~{MAX_RECOMMENDED}"
+def test_recommend_count_is_exact_with_bsti_and_a_range_without():
+    """BSTI 있으면 하한==상한(3)이라 '정확히 3', 없으면 '3~5' 범위로 렌더한다."""
+    from app.modules.recommendations.constants import (
+        MAX_RECOMMENDED,
+        MAX_RECOMMENDED_WITH_BSTI,
+        MIN_RECOMMENDED,
     )
+
+    with_bsti = generation._recommend_count(MAX_RECOMMENDED_WITH_BSTI)
+    assert with_bsti == f"정확히 {MAX_RECOMMENDED_WITH_BSTI}"
+    assert generation._recommend_count(MAX_RECOMMENDED) == f"{MIN_RECOMMENDED}~{MAX_RECOMMENDED}"
 
 
 async def test_too_few_recommended_names_triggers_regeneration(monkeypatch):

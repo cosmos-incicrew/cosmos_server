@@ -110,6 +110,30 @@ def build_name_matcher(ingredients: list[dict[str, str]]) -> re.Pattern[str] | N
     return re.compile("|".join(re.escape(n) for n in ordered))
 
 
+def _canon_key(name: str) -> str:
+    return re.sub(r"\s+", " ", str(name).replace("\n", " ")).strip().upper()
+
+
+def build_canonicalizer(ingredients: list[dict[str, str]]):
+    """성분명(영문 INCI·한글 혼재) → 대표 한글명 매칭 키.
+
+    정답(answer 추출)과 파이프라인 추천(name_kor)의 표기가 언어·표기 차로 어긋나
+    문자열 recall 이 0 이 되는 것을 막는다 — 예: 'SULFUR'/'황', 'Hexapeptide-2'/
+    '헥사펩타이드-2' 를 한 키로 접는다. 이명(synonyms)까지는 다루지 않는다(주 표기만).
+    """
+    inci_to_kor = {
+        _canon_key(ing["inci"]): _canon_key(ing["name_kor"])
+        for ing in ingredients
+        if ing.get("inci") and ing.get("name_kor")
+    }
+
+    def canon(name: str) -> str:
+        key = _canon_key(name)
+        return inci_to_kor.get(key, key)
+
+    return canon
+
+
 def _cot_step2_text(cot: list[dict[str, Any]]) -> str:
     return " ".join(c.get("content", "") for c in cot if c.get("step") == 2)
 

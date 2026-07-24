@@ -22,6 +22,7 @@ from app.modules.recommendations.constants import (
     MAX_CHUNK_CHARS,
     MAX_EVIDENCE_CHARS,
     MAX_RECOMMENDED,
+    MAX_RECOMMENDED_WITH_BSTI,
     MIN_RECOMMENDED,
     MODULE_TAG,
 )
@@ -58,9 +59,12 @@ async def generate(
     카드로 나가므로 영어 원문이 그대로 노출되는 건 같다(병풀추출물이 16타입 중 8개에
     들어 있다). 추천은 여전히 고민 축 후보 안에서만 한다.
     """
+    # BSTI 축이 있으면 3개만 권해 ⑧ 종합에 BSTI 몫(2칸)을 남긴다. 없으면 5개까지 권해
+    # 고민 축이 top 5칸을 다 쓴다 (constants MAX_RECOMMENDED 주석 · 설계 04 §8).
+    recommend_max = MAX_RECOMMENDED_WITH_BSTI if bsti_candidates else MAX_RECOMMENDED
     prompt = RECOMMENDATION_USER_TEMPLATE.format(
         min_recommended=MIN_RECOMMENDED,
-        recommend_count=_recommend_count(),
+        recommend_count=_recommend_count(recommend_max),
         candidate_block=_candidate_block(candidates),
         warning_block=_warning_block(candidates),
         evidence_block=_evidence_block(_relevant_chunks(chunks, candidates)),
@@ -104,7 +108,7 @@ async def generate(
             _has_banned_claim(t)
             for t in (out.cause_analysis, out.recommendation, out.usage_guide)
         )
-        uncovered = _uncovered_concerns(out.recommended_names, candidates, context)
+        uncovered = _uncovered_concerns(out.recommended_names, candidates, context, recommend_max)
         reasons = _retry_reasons(bad_names, too_few, banned, uncovered, min_names)
         if not reasons:
             return out  # 깨끗한 결과 — 즉시 반환
@@ -200,16 +204,15 @@ def _candidate_block(candidates: list[Candidate]) -> str:
     return "\n".join(lines)
 
 
-def _recommend_count() -> str:
-    """추천 개수 지시 문구. 두 상수가 같으면 "3~3개"로 렌더돼 지시가 흐려진다.
+def _recommend_count(recommend_max: int) -> str:
+    """추천 개수 지시 문구. 하한과 상한이 같으면 "정확히 N", 다르면 범위로 준다.
 
-    범위로 주면 모델이 하한을 고르는 쪽으로 기우는데, 지금은 `MIN_RECOMMENDED` ==
-    `MAX_RECOMMENDED`(3, 설계 04 §8)라 애초에 폭이 없다. 두 상수가 다시 벌어지면
-    범위 표기로 돌아간다.
+    범위로 주면 모델이 하한을 고르는 쪽으로 기운다 — BSTI 있을 때(하한=상한=3)는 폭이
+    없어 "정확히 3", 없을 때(3~5)는 범위로 렌더된다.
     """
-    if MIN_RECOMMENDED == MAX_RECOMMENDED:
-        return f"정확히 {MAX_RECOMMENDED}"
-    return f"{MIN_RECOMMENDED}~{MAX_RECOMMENDED}"
+    if recommend_max <= MIN_RECOMMENDED:
+        return f"정확히 {recommend_max}"
+    return f"{MIN_RECOMMENDED}~{recommend_max}"
 
 
 def _warning_block(candidates: list[Candidate]) -> str:
@@ -367,7 +370,7 @@ def _redact_model_output(output: str, context: UserContext) -> str:
 
 
 def _uncovered_concerns(
-    names: list[str], candidates: list[Candidate], context: UserContext
+    names: list[str], candidates: list[Candidate], context: UserContext, recommend_max: int
 ) -> set[str]:
     """추천이 놓친 고민 코드. 재생성 사유이며, 없으면 빈 집합.
 
@@ -381,7 +384,7 @@ def _uncovered_concerns(
     않는다 — 산술적으로 못 채운다.
     """
     coverable = {code for c in candidates for code in c.concerns if code in context.concerns}
-    if len(coverable) > MAX_RECOMMENDED:
+    if len(coverable) > recommend_max:
         return set()
     chosen = set(names)
     covered = {code for c in candidates if c.name_kor in chosen for code in c.concerns}
