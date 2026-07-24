@@ -6,6 +6,7 @@
 
 from scripts.evaluate_recommendations import (
     CaseResult,
+    _f1,
     _first_hit_rank,
     _hit_at,
     _mrr_at,
@@ -48,6 +49,8 @@ def test_build_summary_separates_top_and_generated() -> None:
             status="ok",
             recall_top={"@3": 0.5, "@5": 0.5},
             recall_generated={"@3": 1.0, "@5": 1.0},
+            f1_top=0.5,
+            f1_generated=1.0,
             top_rank=2,
             gen_rank=1,
             covered=True,
@@ -59,6 +62,8 @@ def test_build_summary_separates_top_and_generated() -> None:
     assert summary["hit"]["top_ingredients"]["@1"] == 0.0  # top_rank=2 라 @1 미스
     assert summary["hit"]["recommended_names"]["@1"] == 1.0
     assert summary["rule_compliance"]["concern_coverage_rate"] == 1.0
+    assert summary["f1"]["top_ingredients"] == 0.5
+    assert summary["f1"]["recommended_names"] == 1.0
 
 
 def test_canonicalizer_folds_english_inci_to_korean() -> None:
@@ -73,3 +78,16 @@ def test_canonicalizer_folds_english_inci_to_korean() -> None:
     assert canon("Hexapeptide-2") == canon("헥사펩타이드-2") == "헥사펩타이드-2"
     # 사전에 없는 이름은 정규화만 (대문자·공백 정리)
     assert canon("모로칸 용암점토") == "모로칸 용암점토"
+
+
+def test_f1_full_set_precision_and_recall() -> None:
+    gold = {"콜라겐", "펩타이드", "세라마이드", "황"}
+    predicted = ["콜라겐", "오답", "펩타이드"]  # tp=2, pred=3, gold=4
+    # precision=2/3, recall=2/4 → f1 = 2*(2/3*0.5)/(2/3+0.5) = 0.5714…
+    assert round(_f1(predicted, gold), 4) == 0.5714
+
+
+def test_f1_empty_side_is_zero() -> None:
+    assert _f1([], {"콜라겐"}) == 0.0
+    assert _f1(["콜라겐"], set()) == 0.0
+    assert _f1(["오답"], {"콜라겐"}) == 0.0  # 교집합 0

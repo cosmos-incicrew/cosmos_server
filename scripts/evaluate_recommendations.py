@@ -53,6 +53,8 @@ class CaseResult:
     recommended_names: list[str] = field(default_factory=list)
     recall_top: dict[str, float] = field(default_factory=dict)
     recall_generated: dict[str, float] = field(default_factory=dict)
+    f1_top: float = 0.0
+    f1_generated: float = 0.0
     top_rank: int | None = None  # 첫 정답의 순위(1-indexed) — hit@k·mrr 용
     gen_rank: int | None = None
     covered: bool = False
@@ -82,6 +84,19 @@ def _recall_at_k(predicted: list[str], gold: set[str]) -> dict[str, float]:
 def _first_hit_rank(predicted: list[str], gold: set[str]) -> int | None:
     """첫 정답의 순위(1-indexed). 없으면 None. hit@k·mrr 의 공통 입력."""
     return next((i for i, name in enumerate(predicted, 1) if name in gold), None)
+
+
+def _f1(predicted: list[str], gold: set[str]) -> float:
+    """추천 성분 전체 집합(top-k 미절단)의 F1. AI Hub F1(KEA)과 같은 잣대의 근사."""
+    pred_set = set(predicted)
+    if not pred_set or not gold:
+        return 0.0
+    tp = len(pred_set & gold)
+    if tp == 0:
+        return 0.0
+    precision = tp / len(pred_set)
+    recall = tp / len(gold)
+    return 2 * precision * recall / (precision + recall)
 
 
 def _has_banned_claim(answer: Any) -> bool:
@@ -137,6 +152,8 @@ async def _run_case(case: dict[str, Any], holder: dict[str, LlmNarrative | None]
     result.recommended_names = _norm_set(narrative.recommended_names) if narrative else []
     result.recall_top = _recall_at_k(result.top_names, gold)
     result.recall_generated = _recall_at_k(result.recommended_names, gold)
+    result.f1_top = _f1(result.top_names, gold)
+    result.f1_generated = _f1(result.recommended_names, gold)
     result.top_rank = _first_hit_rank(result.top_names, gold)
     result.gen_rank = _first_hit_rank(result.recommended_names, gold)
     result.covered = resp.status == "ok" and bool(resp.top_ingredients)
@@ -195,6 +212,10 @@ def build_summary(results: list[CaseResult]) -> dict[str, Any]:
         "mrr": {
             "top_ingredients": {"@5": round(_mrr_at(top_ranks, 5), 4)},
             "recommended_names": {"@5": round(_mrr_at(gen_ranks, 5), 4)},
+        },
+        "f1": {
+            "top_ingredients": round(_mean([r.f1_top for r in scored]), 4),
+            "recommended_names": round(_mean([r.f1_generated for r in scored]), 4),
         },
         "rule_compliance": {
             "concern_coverage_rate": round(_mean([float(r.covered) for r in ok]), 4),
