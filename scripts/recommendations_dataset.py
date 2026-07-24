@@ -25,7 +25,7 @@ from scripts.load_recommendations_data import (
 
 DEFAULT_SRC = Path.home() / "mkim/실무/data/03.스킨케어 성분-효능 추천 데이터/3.개방데이터"
 VAL_SUBDIR = "2.데이터(NIA)/Validation/02.라벨링데이터"
-DEFAULT_OUTPUT = Path("evaluation/recommendations/datasets/held-out-v1.0.0.json")
+DEFAULT_OUTPUT = Path("evaluation/recommendations/datasets/held-out-v1.1.0.json")
 DEFAULT_SEED = 20260724
 DEFAULT_SAMPLE = 100
 
@@ -84,6 +84,7 @@ def build_dataset(src: Path, seed: int, sample: int) -> dict[str, Any]:
                 "concern": concern,
                 "target_concern_kor": concern_kor,
                 "gold": gold,
+                "answer": info["answer"],
             }
         )
     random.Random(seed).shuffle(built)

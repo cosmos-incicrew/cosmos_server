@@ -34,7 +34,7 @@ from app.modules.recommendations.schemas import LlmNarrative, UserContext
 from scripts.load_recommendations_data import build_canonicalizer, read_ingredients
 from scripts.recommendations_dataset import DEFAULT_SRC
 
-DEFAULT_DATASET = Path("evaluation/recommendations/datasets/held-out-v1.0.0.json")
+DEFAULT_DATASET = Path("evaluation/recommendations/datasets/held-out-v1.1.0.json")
 DEFAULT_OUTPUT = Path("artifacts/recommendations-evaluation/held-out.json")
 RECALL_KS = (3, 5)
 
