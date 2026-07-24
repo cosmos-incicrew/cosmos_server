@@ -6,6 +6,7 @@
 
 from scripts.evaluate_recommendations import (
     CaseResult,
+    _cosine,
     _f1,
     _first_hit_rank,
     _hit_at,
@@ -91,3 +92,9 @@ def test_f1_empty_side_is_zero() -> None:
     assert _f1([], {"콜라겐"}) == 0.0
     assert _f1(["콜라겐"], set()) == 0.0
     assert _f1(["오답"], {"콜라겐"}) == 0.0  # 교집합 0
+
+
+def test_cosine_normalized_vectors() -> None:
+    assert round(_cosine([1.0, 0.0], [1.0, 0.0]), 6) == 1.0
+    assert round(_cosine([1.0, 0.0], [0.0, 1.0]), 6) == 0.0
+    assert round(_cosine([0.6, 0.8], [0.6, 0.8]), 6) == 1.0

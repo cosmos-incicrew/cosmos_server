@@ -27,8 +27,11 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
+import numpy as np
+
 from app.modules.recommendations import service
 from app.modules.recommendations.constants import BANNED_CLAIM_TERMS
+from app.modules.recommendations.embedding import embed_query
 from app.modules.recommendations.pipeline import s6_generation
 from app.modules.recommendations.schemas import LlmNarrative, UserContext
 from scripts.load_recommendations_data import build_canonicalizer, read_ingredients
@@ -55,6 +58,7 @@ class CaseResult:
     recall_generated: dict[str, float] = field(default_factory=dict)
     f1_top: float = 0.0
     f1_generated: float = 0.0
+    semantic_cosine: float | None = None
     top_rank: int | None = None  # 첫 정답의 순위(1-indexed) — hit@k·mrr 용
     gen_rank: int | None = None
     covered: bool = False
@@ -97,6 +101,14 @@ def _f1(predicted: list[str], gold: set[str]) -> float:
     precision = tp / len(pred_set)
     recall = tp / len(gold)
     return 2 * precision * recall / (precision + recall)
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    """두 벡터의 코사인 유사도. embed_query 는 L2 정규화 벡터라 내적이 곧 코사인이지만,
+    안전하게 노름으로 나눈다(빈/영벡터 방어)."""
+    va, vb = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+    denom = float(np.linalg.norm(va) * np.linalg.norm(vb)) or 1.0
+    return float(va @ vb / denom)
 
 
 def _has_banned_claim(answer: Any) -> bool:
@@ -156,6 +168,17 @@ async def _run_case(case: dict[str, Any], holder: dict[str, LlmNarrative | None]
     result.f1_generated = _f1(result.recommended_names, gold)
     result.top_rank = _first_hit_rank(result.top_names, gold)
     result.gen_rank = _first_hit_rank(result.recommended_names, gold)
+    ref_answer = case.get("answer")
+    if ref_answer and narrative:
+        cot_text = "\n".join(
+            [narrative.cause_analysis, narrative.recommendation, narrative.usage_guide]
+        )
+        try:
+            gen_vec = await embed_query(cot_text)
+            ref_vec = await embed_query(ref_answer)
+            result.semantic_cosine = _cosine(gen_vec, ref_vec)
+        except Exception:  # 임베딩 실패는 이 케이스의 cosine 만 비우고 집계는 계속
+            result.semantic_cosine = None
     result.covered = resp.status == "ok" and bool(resp.top_ingredients)
     result.banned_claim_hit = _has_banned_claim(resp.answer)
     return result
@@ -187,6 +210,7 @@ def _mrr_at(ranks: list[int | None], k: int) -> float:
 def build_summary(results: list[CaseResult]) -> dict[str, Any]:
     ok = [r for r in results if r.error is None]
     scored = [r for r in ok if r.status == "ok"]
+    cos_values = [r.semantic_cosine for r in scored if r.semantic_cosine is not None]
     latencies = [r.latency_ms for r in ok]
     top_ranks = [r.top_rank for r in scored]
     gen_ranks = [r.gen_rank for r in scored]
@@ -217,6 +241,7 @@ def build_summary(results: list[CaseResult]) -> dict[str, Any]:
             "top_ingredients": round(_mean([r.f1_top for r in scored]), 4),
             "recommended_names": round(_mean([r.f1_generated for r in scored]), 4),
         },
+        "semantic_cosine": round(_mean(cos_values), 4),
         "rule_compliance": {
             "concern_coverage_rate": round(_mean([float(r.covered) for r in ok]), 4),
             "banned_claim_violations": sum(r.banned_claim_hit for r in scored),
