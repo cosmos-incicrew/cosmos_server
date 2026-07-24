@@ -1,0 +1,1427 @@
+{
+  "dataset_version": "v1.0.0",
+  "dataset_kind": "recommendations-recall",
+  "sampling_seed": 20260724,
+  "source": "AI Hub 71886 Validation (held-out)",
+  "cases": [
+    {
+      "case_id": "COT_WRK_M_O50_08629",
+      "age": 57,
+      "gender": "남성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "세라마이드",
+        "아세틸헥사펩타이드-8",
+        "펩타이드"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_O40_08339",
+      "age": 47,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "카나다발삼추출물",
+        "서양톱풀오일",
+        "알부민추출물",
+        "우엉뿌리추출물"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O30_08941",
+      "age": 35,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "LITCHI CHINENSIS SEED POWDER",
+        "SULFUR",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O30_08977",
+      "age": 32,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "3-o-에틸아스코빅애씨드",
+        "1-메틸하이단토인-2-이미드",
+        "우슬추출물",
+        "키위추출물",
+        "키위수",
+        "루틴",
+        "콜라겐"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O40_08269",
+      "age": 48,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "ALOESIN",
+        "Hexapeptide-2",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT",
+        "루틴",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O30_08976",
+      "age": 32,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O30_08818",
+      "age": 39,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "우엉뿌리추출물",
+        "서양톱풀오일",
+        "알부민추출물",
+        "카나다발삼추출물",
+        "Abies Balsamea (Balsam Canada) Extract"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O40_08530",
+      "age": 40,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "LITCHI CHINENSIS SEED POWDER",
+        "SULFUR",
+        "SODIUM THIOSULFATE",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "MINERAL SALTS"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O40_08049",
+      "age": 46,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "펩타이드",
+        "헥사펩타이드-11",
+        "엘라스틴",
+        "자두추출물",
+        "리치추출물",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "PRUNUS SALICINA FRUIT EXTRACT",
+        "LITCHI CHINENSIS FRUIT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_ACN_F_U20_08072",
+      "age": 17,
+      "gender": "여성",
+      "concern": "acne",
+      "target_concern_kor": "여드름/뾰루지",
+      "gold": [
+        "BHA"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O40_08204",
+      "age": 42,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2",
+        "펩타이드"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O40_08213",
+      "age": 40,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "SULFUR",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "LITCHI CHINENSIS SEED POWDER",
+        "MINERAL SALTS",
+        "SODIUM THIOSULFATE"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O50_08333",
+      "age": 61,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O50_08817",
+      "age": 55,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙"
+      ]
+    },
+    {
+      "case_id": "COT_ACN_F_O50_08187",
+      "age": 54,
+      "gender": "여성",
+      "concern": "acne",
+      "target_concern_kor": "여드름/뾰루지",
+      "gold": [
+        "알로에베라잎즙가루",
+        "키틴",
+        "MINERAL SALTS",
+        "ALOE BARBADENSIS LEAF JUICE POWDER",
+        "CARAPA GUAIANENSIS SEED OIL",
+        "CHITIN",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_U30_08232",
+      "age": 23,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "ALOESIN",
+        "Hexapeptide-2",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O30_08858",
+      "age": 36,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "ALOESIN",
+        "Hexapeptide-2",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O30_08096",
+      "age": 32,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2",
+        "펩타이드"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O30_08093",
+      "age": 32,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "우엉뿌리추출물",
+        "알부민추출물",
+        "서양톱풀오일",
+        "카나다발삼추출물",
+        "Abies Balsamea (Balsam Canada) Extract"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08185",
+      "age": 65,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "BAMBUSA VULGARIS LEAF EXTRACT",
+        "BAMBUSA VULGARIS LEAF/STEM EXTRACT",
+        "Bambusa Vulgaris Shoot Extract",
+        "LANSIUM DOMESTICUM EXTRACT",
+        "PRUNUS AMYGDALUS AMARA (BITTER ALMOND) SEED EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O40_08999",
+      "age": 47,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "루틴",
+        "콜라겐",
+        "BHA"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O40_08217",
+      "age": 47,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "엘라스틴",
+        "헥사펩타이드-11",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "펩타이드",
+        "자두추출물",
+        "PRUNUS SALICINA FRUIT EXTRACT",
+        "리치추출물",
+        "LITCHI CHINENSIS FRUIT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O50_08664",
+      "age": 55,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "우엉뿌리추출물",
+        "서양톱풀오일",
+        "카나다발삼추출물",
+        "알부민추출물",
+        "루틴",
+        "Abies Balsamea (Balsam Canada) Extract"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08593",
+      "age": 53,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "엘라스틴",
+        "자두추출물",
+        "리치추출물",
+        "헥사펩타이드-11",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "펩타이드"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_M_O50_08979",
+      "age": 53,
+      "gender": "남성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "펩타이드",
+        "자두추출물",
+        "리치추출물",
+        "헥사펩타이드-11",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "PRUNUS SALICINA FRUIT EXTRACT",
+        "LITCHI CHINENSIS FRUIT EXTRACT",
+        "엘라스틴"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O50_08255",
+      "age": 68,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "ALOESIN",
+        "Hexapeptide-2",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O40_08047",
+      "age": 42,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "ALOESIN",
+        "Hexapeptide-2",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_O30_08152",
+      "age": 31,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "BHA"
+      ]
+    },
+    {
+      "case_id": "COT_ACN_F_O40_08801",
+      "age": 46,
+      "gender": "여성",
+      "concern": "acne",
+      "target_concern_kor": "여드름/뾰루지",
+      "gold": [
+        "BHA"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O40_08747",
+      "age": 45,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "헥사펩타이드-2",
+        "알로에신",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2",
+        "펩타이드"
+      ]
+    },
+    {
+      "case_id": "COT_RED_M_O50_08230",
+      "age": 69,
+      "gender": "남성",
+      "concern": "redness",
+      "target_concern_kor": "붉어짐(홍조)",
+      "gold": [
+        "루틴",
+        "ARTEMISIA PRINCEPS LEAF EXTRACT",
+        "BAMBUSA VULGARIS EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O40_08048",
+      "age": 48,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_U30_08408",
+      "age": 26,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "MINERAL SALTS",
+        "LITCHI CHINENSIS SEED POWDER",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "SODIUM THIOSULFATE"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_O40_08312",
+      "age": 42,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "루틴",
+        "LITCHI CHINENSIS SEED POWDER",
+        "SULFUR",
+        "MINERAL SALTS",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "SODIUM THIOSULFATE"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08940",
+      "age": 64,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "펩타이드",
+        "콜라겐"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_O40_08319",
+      "age": 42,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "BHA",
+        "루틴",
+        "콜라겐"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O40_08824",
+      "age": 46,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "헥사펩타이드-11",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "펩타이드",
+        "자두추출물",
+        "리치추출물",
+        "엘라스틴"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08662",
+      "age": 63,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "BAMBUSA VULGARIS LEAF EXTRACT",
+        "BAMBUSA VULGARIS LEAF/STEM EXTRACT",
+        "Bambusa Vulgaris Shoot Extract",
+        "LANSIUM DOMESTICUM EXTRACT",
+        "PRUNUS AMYGDALUS AMARA (BITTER ALMOND) SEED EXTRACT",
+        "루틴"
+      ]
+    },
+    {
+      "case_id": "COT_ACN_F_O40_08481",
+      "age": 41,
+      "gender": "여성",
+      "concern": "acne",
+      "target_concern_kor": "여드름/뾰루지",
+      "gold": [
+        "ALOE BARBADENSIS LEAF JUICE POWDER",
+        "CARAPA GUAIANENSIS SEED OIL",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT",
+        "CHITIN"
+      ]
+    },
+    {
+      "case_id": "COT_RED_F_O50_08144",
+      "age": 57,
+      "gender": "여성",
+      "concern": "redness",
+      "target_concern_kor": "붉어짐(홍조)",
+      "gold": [
+        "ARTEMISIA PRINCEPS LEAF EXTRACT",
+        "BAMBUSA VULGARIS EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O40_08744",
+      "age": 44,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "루틴",
+        "ALOESIN",
+        "Hexapeptide-2",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O30_08054",
+      "age": 38,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "ALOESIN",
+        "헥사펩타이드-2",
+        "Hexapeptide-2",
+        "HORSERADISH PEROXIDASE"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08634",
+      "age": 55,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "헥사펩타이드-9",
+        "헥사펩타이드-11",
+        "펩타이드",
+        "자두추출물"
+      ]
+    },
+    {
+      "case_id": "COT_RED_F_O40_08718",
+      "age": 49,
+      "gender": "여성",
+      "concern": "redness",
+      "target_concern_kor": "붉어짐(홍조)",
+      "gold": [
+        "루틴"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_M_O50_08053",
+      "age": 67,
+      "gender": "남성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "2-O-에틸 아스코르빈산",
+        "3-o-에틸아스코빅애씨드",
+        "콜라겐",
+        "아세틸헥사펩타이드-8",
+        "아세틸헥사펩타이드-1",
+        "펩타이드",
+        "Acetyl Hexapeptide-8"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_O40_08619",
+      "age": 40,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "LITCHI CHINENSIS SEED POWDER",
+        "SULFUR",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "MINERAL SALTS"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_U30_08582",
+      "age": 26,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_ACN_F_U30_08724",
+      "age": 23,
+      "gender": "여성",
+      "concern": "acne",
+      "target_concern_kor": "여드름/뾰루지",
+      "gold": [
+        "BHA"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O50_08870",
+      "age": 51,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "ALOESIN",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O50_08001",
+      "age": 52,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "ALOESIN",
+        "Hexapeptide-2",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08117",
+      "age": 50,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "펩타이드"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O50_08196",
+      "age": 59,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "ALOESIN",
+        "Hexapeptide-2",
+        "GENTIANA SCABRA ROOT EXTRACT",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT",
+        "HORSERADISH PEROXIDASE"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_U30_08337",
+      "age": 29,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "ALOESIN",
+        "Hexapeptide-2",
+        "GENTIANA SCABRA ROOT EXTRACT",
+        "루틴",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT",
+        "HORSERADISH PEROXIDASE"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O50_08763",
+      "age": 55,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "ALOESIN",
+        "Hexapeptide-2",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O30_08875",
+      "age": 31,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "MINERAL SALTS"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08503",
+      "age": 57,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "루틴",
+        "BAMBUSA VULGARIS LEAF EXTRACT",
+        "BAMBUSA VULGARIS LEAF/STEM EXTRACT",
+        "Bambusa Vulgaris Shoot Extract",
+        "LANSIUM DOMESTICUM EXTRACT",
+        "PRUNUS AMYGDALUS AMARA (BITTER ALMOND) SEED EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_M_O40_08223",
+      "age": 44,
+      "gender": "남성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "엘라스틴",
+        "자두추출물",
+        "리치추출물",
+        "헥사펩타이드-11",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "펩타이드"
+      ]
+    },
+    {
+      "case_id": "COT_RED_F_O40_08498",
+      "age": 41,
+      "gender": "여성",
+      "concern": "redness",
+      "target_concern_kor": "붉어짐(홍조)",
+      "gold": [
+        "루틴",
+        "병풀추출물",
+        "판테놀",
+        "세라마이드"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O40_08850",
+      "age": 43,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "SULFUR",
+        "LITCHI CHINENSIS SEED POWDER",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "MINERAL SALTS",
+        "SODIUM THIOSULFATE"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_O50_08888",
+      "age": 55,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "MINERAL SALTS",
+        "LITCHI CHINENSIS SEED POWDER",
+        "SULFUR",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "SODIUM THIOSULFATE",
+        "콜라겐"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O50_08051",
+      "age": 52,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_M_O50_08238",
+      "age": 67,
+      "gender": "남성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "BAMBUSA VULGARIS LEAF EXTRACT",
+        "LANSIUM DOMESTICUM EXTRACT",
+        "PRUNUS AMYGDALUS AMARA (BITTER ALMOND) SEED EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_ACN_M_O40_08300",
+      "age": 46,
+      "gender": "남성",
+      "concern": "acne",
+      "target_concern_kor": "여드름/뾰루지",
+      "gold": [
+        "루틴",
+        "ALOE BARBADENSIS LEAF JUICE POWDER",
+        "CARAPA GUAIANENSIS SEED OIL",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_M_O50_08074",
+      "age": 56,
+      "gender": "남성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "자두추출물",
+        "리치추출물",
+        "콜라겐",
+        "헥사펩타이드-11",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "펩타이드",
+        "엘라스틴"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O40_08283",
+      "age": 40,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "LITCHI CHINENSIS SEED POWDER",
+        "SULFUR",
+        "MINERAL SALTS",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "SODIUM THIOSULFATE"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_M_O50_08109",
+      "age": 64,
+      "gender": "남성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "자두추출물",
+        "리치추출물",
+        "콜라겐",
+        "엘라스틴",
+        "헥사펩타이드-11",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "펩타이드"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08182",
+      "age": 61,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "자두추출물",
+        "리치추출물",
+        "콜라겐",
+        "헥사펩타이드-11",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "펩타이드",
+        "엘라스틴"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08980",
+      "age": 63,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "펩타이드",
+        "세라마이드",
+        "콜라겐",
+        "엘라스틴"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O40_08906",
+      "age": 40,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "SULFUR",
+        "LITCHI CHINENSIS SEED POWDER",
+        "MINERAL SALTS",
+        "SODIUM THIOSULFATE"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O40_08542",
+      "age": 42,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "ALOESIN",
+        "Hexapeptide-2",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_ACN_F_O30_08396",
+      "age": 30,
+      "gender": "여성",
+      "concern": "acne",
+      "target_concern_kor": "여드름/뾰루지",
+      "gold": [
+        "알로에베라잎즙가루",
+        "키틴",
+        "루틴"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_O30_08936",
+      "age": 39,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "SULFUR",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "SODIUM THIOSULFATE",
+        "LITCHI CHINENSIS SEED POWDER",
+        "MINERAL SALTS"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O40_08167",
+      "age": 40,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "ALOESIN",
+        "Hexapeptide-2",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O50_08005",
+      "age": 59,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "ALOESIN",
+        "Hexapeptide-2",
+        "GENTIANA SCABRA ROOT EXTRACT",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT",
+        "루틴"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08699",
+      "age": 63,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "루틴",
+        "BAMBUSA VULGARIS LEAF EXTRACT",
+        "BAMBUSA VULGARIS LEAF/STEM EXTRACT",
+        "Bambusa Vulgaris Shoot Extract",
+        "LANSIUM DOMESTICUM EXTRACT",
+        "PRUNUS AMYGDALUS AMARA (BITTER ALMOND) SEED EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_O30_08688",
+      "age": 37,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "LITCHI CHINENSIS SEED POWDER",
+        "SULFUR",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "SODIUM THIOSULFATE",
+        "MINERAL SALTS",
+        "루틴"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08043",
+      "age": 67,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "자두추출물",
+        "콜라겐",
+        "헥사펩타이드-9",
+        "펩타이드",
+        "리치추출물",
+        "Hexapeptide-9",
+        "엘라스틴",
+        "헥사펩타이드-11",
+        "Hexapeptide-11"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_U30_08985",
+      "age": 27,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "우엉뿌리추출물",
+        "알부민추출물",
+        "카나다발삼추출물",
+        "서양톱풀오일",
+        "Abies Balsamea (Balsam Canada) Extract"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O30_08828",
+      "age": 35,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "우엉뿌리추출물",
+        "서양톱풀오일",
+        "알부민추출물",
+        "카나다발삼추출물",
+        "루틴",
+        "Abies Balsamea (Balsam Canada) Extract",
+        "아디픽애씨드/다이글라이콜크로스폴리머"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O30_08357",
+      "age": 35,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O30_08103",
+      "age": 30,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "우엉뿌리추출물",
+        "서양톱풀오일",
+        "알부민추출물",
+        "카나다발삼추출물",
+        "Abies Balsamea (Balsam Canada) Extract"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O50_08172",
+      "age": 50,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_O40_08071",
+      "age": 45,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "알부민추출물",
+        "우엉뿌리추출물",
+        "서양톱풀오일",
+        "카나다발삼추출물",
+        "아디픽애씨드/다이글라이콜크로스폴리머",
+        "ALBUMEN EXTRACT",
+        "ARCTIUM LAPPA ROOT EXTRACT",
+        "ACHILLEA MILLEFOLIUM OIL",
+        "Abies Balsamea (Balsam Canada) Extract",
+        "ADIPIC ACID/DIGLYCOL CROSSPOLYMER"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O40_08419",
+      "age": 47,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O50_08929",
+      "age": 57,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08189",
+      "age": 54,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "엘라스틴",
+        "자두추출물",
+        "리치추출물",
+        "헥사펩타이드-11",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "펩타이드"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_M_O50_08943",
+      "age": 64,
+      "gender": "남성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "펩타이드",
+        "자두추출물",
+        "리치추출물",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "헥사펩타이드-11",
+        "엘라스틴"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O30_08083",
+      "age": 31,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "ALOESIN",
+        "Hexapeptide-2",
+        "HORSERADISH PEROXIDASE",
+        "GENTIANA SCABRA ROOT EXTRACT",
+        "COCHLEARIA ARMORACIA (HORSERADISH) ROOT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O50_08479",
+      "age": 62,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08375",
+      "age": 65,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "BAMBUSA VULGARIS LEAF EXTRACT",
+        "BAMBUSA VULGARIS LEAF/STEM EXTRACT",
+        "Bambusa Vulgaris Shoot Extract",
+        "LANSIUM DOMESTICUM EXTRACT",
+        "PRUNUS AMYGDALUS AMARA (BITTER ALMOND) SEED EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_POR_F_O40_08082",
+      "age": 40,
+      "gender": "여성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "LITCHI CHINENSIS SEED POWDER",
+        "SULFUR",
+        "MOMORDICA CHARANTIA FRUIT EXTRACT",
+        "SODIUM THIOSULFATE",
+        "MINERAL SALTS"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O40_08868",
+      "age": 43,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2",
+        "펩타이드"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O50_08531",
+      "age": 53,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O40_08006",
+      "age": 44,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08752",
+      "age": 56,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "펩타이드",
+        "헥사펩타이드-11",
+        "콜라겐",
+        "엘라스틴",
+        "자두추출물",
+        "리치추출물",
+        "헥사펩타이드-3",
+        "헥사펩타이드-9",
+        "PRUNUS SALICINA FRUIT EXTRACT",
+        "LITCHI CHINENSIS FRUIT EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_POR_M_O40_08421",
+      "age": 46,
+      "gender": "남성",
+      "concern": "pores",
+      "target_concern_kor": "모공",
+      "gold": [
+        "알부민추출물",
+        "서양톱풀오일",
+        "우엉뿌리추출물",
+        "카나다발삼추출물",
+        "아디픽애씨드/다이글라이콜크로스폴리머"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_F_O30_08706",
+      "age": 35,
+      "gender": "여성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O30_08855",
+      "age": 39,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "3-o-에틸아스코빅애씨드",
+        "1-메틸하이단토인-2-이미드",
+        "우슬추출물",
+        "키위추출물",
+        "키위수",
+        "3-o-Ethyl Ascorbic Acid",
+        "콜라겐",
+        "1-METHYLHYDANTOIN-2-IMIDE",
+        "ACHYRANTHES BIDENTATA ROOT EXTRACT",
+        "ACTINIDIA CHINENSIS (KIWI) FRUIT EXTRACT",
+        "ACTINIDIA CHINENSIS (KIWI) FRUIT WATER"
+      ]
+    },
+    {
+      "case_id": "COT_WRK_F_O50_08201",
+      "age": 65,
+      "gender": "여성",
+      "concern": "wrinkles",
+      "target_concern_kor": "주름",
+      "gold": [
+        "콜라겐",
+        "BAMBUSA VULGARIS LEAF EXTRACT",
+        "BAMBUSA VULGARIS LEAF/STEM EXTRACT",
+        "Bambusa Vulgaris Shoot Extract",
+        "LANSIUM DOMESTICUM EXTRACT",
+        "PRUNUS AMYGDALUS AMARA (BITTER ALMOND) SEED EXTRACT"
+      ]
+    },
+    {
+      "case_id": "COT_WHT_M_O40_08032",
+      "age": 40,
+      "gender": "남성",
+      "concern": "brightening",
+      "target_concern_kor": "미백(색소침착/기미/칙칙함)",
+      "gold": [
+        "알로에신",
+        "헥사펩타이드-2",
+        "댕댕이나무열매즙",
+        "Hexapeptide-2",
+        "펩타이드",
+        "콜라겐"
+      ]
+    }
+  ]
+}
