@@ -1,168 +1,193 @@
 # cosmos_server
 
-cosmos 백엔드 API 서버 — 화장품 전성분 해설 · 다중 제품 교차 조회 · BSTI 기반 성분 추천.
+화장품 전성분 해설 · 다중 제품 비교 · 개인 맞춤 성분 추천 API 서버.
+FastAPI + Supabase(pgvector) + Vertex AI Gemini로 구성했습니다.
 
-저장소를 처음 클론했다면 이 문서 하나로 셋업부터 자기 모듈 첫 구현까지 간다.
-지켜야 할 규칙은 [docs/rules/conventions.md](docs/rules/conventions.md)에 있다.
+앱은 [cosmos_client](https://github.com/cosmos-incicrew/cosmos_client),
+인프라는 [cosmos_infra](https://github.com/cosmos-incicrew/cosmos_infra)에 있습니다.
+
+## 주요 기능
+
+### 제품·성분 검색
+
+제품 검색은 정규화한 제품명(`cleaned_product_name`)을 대상으로 표기 흔들림을 허용하는
+패턴 매칭을 씁니다. 성분 검색은 후보를 DB에서 뽑은 뒤 6단계 우선순위로 정렬합니다 —
+표준명 완전일치 → 이명 완전일치 → 표준명 접두 → 이명 접두 → 표준명 부분 → 이명 부분.
+같은 등급 안에서는 질의와 길이 차이가 작은 쪽을 앞에 둡니다. LLM을 쓰지 않아 같은
+질의에 항상 같은 순서가 나옵니다.
+
+질의는 정규화 후 2자 이상 100자 이하만 받습니다. 성분이 매핑되지 않은 제품은 빈 결과가
+아니라 "분석 불가"로 구분해 돌려주므로, 앱이 데이터가 없는 경우와 오류를 구분할 수
+있습니다.
+
+### 성분 해설
+
+근거 조회 → 게이트 → 생성 → 출처 검증 순서로 동작합니다. `ingredients`와 `rec_efficacy`
+에서 유래·효능·안전성 근거를 모으고, **해설 근거가 없으면 Gemini를 호출하지 않고**
+`확인 불가`를 돌려줍니다.
+
+생성된 문장에 근거에 없는 출처가 섞이면 검증 단계에서 걸러내고 `source_verified: false`로
+표시합니다. 안전성 근거가 따로 없으면 `안전성 확인 불가`로 적습니다. 안전하다는 뜻이
+아니라 판단할 자료가 없다는 뜻이고, 앱도 그렇게 표시합니다. 제품 단위 요약과 비교 해설도
+같은 규칙을 따릅니다.
+
+### 다중 제품 비교
+
+2개 이상 최대 4개(`PRODUCT_COMPARE_MAX_COUNT`) 제품을 받아, 성분마다 어느 제품에 들어
+있는지 표시합니다. 모든 제품에 있으면 `all`, 일부면 `partial`, 하나뿐이면 `single`입니다.
+각 성분에는 식약처 규제 정보를 함께 붙입니다.
+
+같은 제품을 두 번 보내거나 성분이 매핑되지 않은 제품이 섞이면 거절합니다. 이 단계에
+LLM은 관여하지 않습니다. 해설이 필요하면 앱이 비교 결과를 그대로
+`/ingredients/comparison-summary`로 넘깁니다.
+
+### 맞춤 추천
+
+프로필(나이·성별·고민), BSTI 타입, 화장대에 담긴 성분을 서버가 DB에서 읽어 성분과
+제품을 추천합니다.
+
+### 프로필
+
+온보딩 프로필 저장·조회와 회원 탈퇴입니다. 탈퇴 시 카카오 앱 연결 해제까지 처리합니다.
+서버는 service_role 키로 접근해 RLS가 적용되지 않으므로, 사용자 소유 데이터는 항상
+`user_id`로 필터링합니다.
+
+### 엔드포인트
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| `GET` | `/api/v1/products/search` | 제품명 검색 |
+| `GET` | `/api/v1/products/{product_id}/ingredients` | 제품의 성분 ID 목록 |
+| `POST` | `/api/v1/products/compare` | 다중 제품 성분 비교 |
+| `GET` | `/api/v1/ingredients/search` | 성분 검색 (표준명·이명) |
+| `GET` | `/api/v1/ingredients/{ingredient_id}/detail` | 개별 성분 해설·주의사항 |
+| `POST` | `/api/v1/ingredients/names` | 성분 ID 목록 → 이름 조회 |
+| `POST` | `/api/v1/ingredients/product-summary` | 제품 단위 성분 요약 |
+| `POST` | `/api/v1/ingredients/comparison-summary` | 비교 결과 해설 |
+| `POST` | `/api/v1/recommendations` | 개인 맞춤 성분·제품 추천 (요청 바디 없음) |
+| `GET` `POST` | `/api/v1/users/me/profile` | 프로필 조회·저장 |
+| `DELETE` | `/api/v1/users/me` | 회원 탈퇴 |
+| `GET` | `/health` `/health/ready` | 상태 확인 (인증 불필요) |
+
+`/api/v1/*`는 모두 Supabase access token이 필요합니다.
 
 ## 요구 사항
 
-Python 3.12+, [uv](https://docs.astral.sh/uv/), (DB를 건드리면) [Supabase CLI](https://supabase.com/docs/guides/cli).
+- Python 3.12 이상
+- [uv](https://docs.astral.sh/uv/)
+- [Supabase CLI](https://supabase.com/docs/guides/cli) — DB 스키마를 변경할 때만
+- Google Cloud CLI — Gemini를 호출하는 기능(성분 해설·추천)을 로컬에서 쓸 때
 
-## 셋업
+## 설치·실행
 
 ```bash
 uv sync                 # 의존성 설치, .venv 자동 생성
-cp .env.example .env    # 환경 변수 채우기
+cp .env.example .env    # 환경 변수 파일 준비
 ```
 
-`.env`의 빈 값을 채운다. **실제 값은 저장소에 없다** — 팀 공유 시크릿이라 커밋 금지다.
+`.env`에 아래 네 개를 채우면 기동합니다. 나머지는 기본값이 있습니다.
 
 | 변수 | 어디서 |
 |---|---|
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | 팀에서 관리하는 개발용 비밀 저장소 |
-| `KAKAO_ADMIN_KEY` | Kakao Developers → 앱 설정 → 앱 키 → Admin 키. 회원 탈퇴 시 카카오 앱 연결 해제에만 쓴다. 비워도 기동한다 |
-| `GCP_PROJECT_ID` | Vertex AI를 사용하는 GCP 프로젝트. 로컬에서는 ADC 로그인 필요 |
-| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | 개발 Langfuse 프로젝트 Settings |
-| `CORS_ALLOWED_ORIGINS` | 브라우저 프론트 주소의 JSON 배열. 기본값은 개발 Vercel과 로컬 웹 |
-| `GCP_LOCATION`, `GEMINI_MODEL`, `LANGFUSE_BASE_URL`, `LOG_LEVEL` | 기본값이 `app/core/config.py`에 있음. 바꿀 때만 지정 |
+| `SUPABASE_URL` `SUPABASE_SERVICE_ROLE_KEY` | 팀에서 관리하는 개발용 비밀 저장소 |
+| `LANGFUSE_PUBLIC_KEY` `LANGFUSE_SECRET_KEY` | 개발 Langfuse 프로젝트 Settings |
 
-필수값이 하나라도 비면 서버가 **기동 시점에** 즉시 실패한다.
+Gemini를 호출하는 기능까지 확인하려면 `GCP_PROJECT_ID`를 채우고 로컬에서
+Application Default Credentials로 로그인합니다.
 
-> `SUPABASE_JWT_SECRET`은 더 이상 쓰지 않는다 (2026-07-21). Supabase가 액세스 토큰을
-> ES256으로 서명하도록 바뀌어, 서버는 JWKS 공개키로 검증한다 (`app/core/auth.py`).
-> 기존 `.env`에 줄이 남아 있어도 기동에는 문제없다 — 지워도 된다.
+```bash
+gcloud auth application-default login
+```
 
-GCE에서는 `GCP_PROJECT_ID=kt-tech-up-01`, `GCP_LOCATION=global`만 지정하고 VM에 연결된
-서비스 계정의 Application Default Credentials를 사용한다. 서비스 계정 JSON 키와
-`GOOGLE_APPLICATION_CREDENTIALS`는 배포하지 않는다.
-
-실행·확인:
+실행과 확인:
 
 ```bash
 uv run uvicorn app.main:app --reload
+
 curl http://localhost:8000/health         # {"status":"ok"} — 인증 없이 200
 curl http://localhost:8000/health/ready   # Supabase 연결까지 확인, 실패 시 503
-open http://localhost:8000/docs           # 자동 생성 API 문서(Swagger)
+open http://localhost:8000/docs           # Swagger
 ```
 
-`/health/ready`가 503이면 `SUPABASE_URL`이 틀렸거나 프로젝트 접근이 안 되는 것이다.
+필수값이 하나라도 비면 서버는 **기동 시점에** 즉시 실패합니다.
+`/health/ready`가 503이면 `SUPABASE_URL`이 틀렸거나 프로젝트 접근이 되지 않는 경우입니다.
 
-## 개발 서버 사용과 배포
-
-개발 API 주소, Swagger 인증, PR 머지 후 자동 배포 흐름, 장애 확인 방법은
-[팀 배포·사용 가이드](docs/deployment/team-guide.md)에 정리되어 있다.
-
-프론트엔드에서 연결할 때는 `cosmos_client`의
-`docs/backend-connection.md`를 함께 확인한다. API 경로와 요청·응답의 최종 기준은
-실행 중인 서버의 `/docs`와 `/openapi.json`이다.
-
-## 모듈 구현
-
-새 엔드포인트를 구현하거나 기존 모듈을 확장할 때는 아래 순서를 따른다. 담당은
-[아래 모듈 표](#모듈)를 본다.
+인증 없이 API를 시험할 때는 개발용 토큰을 발급합니다. 약 1시간 유효합니다.
 
 ```bash
-git switch -c feat/ingredient-search-tsvector   # main 직접 커밋 금지
+uv run python scripts/dev_token.py
 ```
 
-모듈은 3단계 구조이고 의존 방향은 `router.py → service.py` 한 방향이다.
-**모듈 간 직접 import는 금지**(`import-linter`로 강제). 안쪽부터 채우면 손이 덜 간다.
+> 팀 외부에서 이 저장소를 그대로 재현하려면 자체 Supabase 프로젝트에
+> `supabase/migrations/`를 적용하고, 식약처 오픈API와 제품 데이터를 직접 수집해
+> `supabase/scripts/load_*.py`로 적재해야 합니다. 원본 데이터는 저장소에 포함하지
+> 않습니다.
 
-**① `schemas.py` — 입출력 모델 (`~Request`/`~Response`)**
+## 설정
 
-```python
-from pydantic import BaseModel
+| 변수 | 설명 |
+|---|---|
+| `SUPABASE_URL` `SUPABASE_SERVICE_ROLE_KEY` | Supabase 접근. 서버는 service_role로 접근하므로 RLS가 적용되지 않습니다 |
+| `KAKAO_ADMIN_KEY` | 회원 탈퇴 시 카카오 앱 연결 해제에만 사용. 비워도 기동합니다 |
+| `GCP_PROJECT_ID` | Vertex AI를 사용하는 GCP 프로젝트 |
+| `GCP_LOCATION` | 기본값 `global`. Gemini 3.x 계열은 `global`에서만 제공됩니다 |
+| `GEMINI_MODEL` | 기본값은 `app/core/config.py` 참고 |
+| `LANGFUSE_PUBLIC_KEY` `LANGFUSE_SECRET_KEY` `LANGFUSE_BASE_URL` | LLM 관측 |
+| `CORS_ALLOWED_ORIGINS` | 브라우저 프론트 origin의 JSON 배열. 기본값은 개발 Vercel과 로컬 웹 |
+| `PRODUCT_COMPARE_MAX_COUNT` | 비교 가능한 제품 수 상한 (기본 4) |
+| `LOG_LEVEL` | 기본 `INFO` |
 
+`SUPABASE_JWT_SECRET`은 사용하지 않습니다(2026-07-21 변경). Supabase가 액세스 토큰을
+ES256으로 서명하도록 바뀌어 서버는 JWKS 공개키로 검증합니다(`app/core/auth.py`).
 
-class IngredientItem(BaseModel):
-    ingredient_id: int
-    name_ko: str
+GCE에서는 `GCP_PROJECT_ID`와 `GCP_LOCATION`만 지정하고 VM에 연결된 서비스 계정의
+Application Default Credentials를 사용합니다. 서비스 계정 JSON 키는 배포하지 않습니다.
 
+## 프로젝트 구조
 
-class SearchIngredientsResponse(BaseModel):
-    items: list[IngredientItem]
+```
+app/
+├─ core/          설정 · JWT 검증 · Supabase/Gemini/Langfuse 클라이언트
+├─ common/        공통 예외·유틸
+└─ modules/<모듈>/
+   ├─ router.py    엔드포인트
+   ├─ service.py   로직
+   └─ schemas.py   요청·응답 모델
+supabase/         DB 마이그레이션(Supabase CLI) · 적재 스크립트 · 스키마 문서
+scripts/          개발 토큰 발급 · 데이터 적재 · 검색 품질 평가
+evaluation/       검색·추천 평가 데이터셋
+docs/             규칙 · 설계 · ADR · 배포 가이드
 ```
 
-**② `service.py` — 로직. 외부 서비스는 `app/core`를 통해서만**
+의존 방향은 `router.py → service.py` 한 방향이고, 모듈 간 직접 import는 금지입니다
+(`import-linter`가 CI에서 강제합니다). 외부 서비스는 `app/core`를 통해서만 접근합니다.
 
-```python
-from app.core.supabase import get_supabase
-from app.modules.ingredient_search.schemas import IngredientItem
+## 개발
 
+`main`에 직접 커밋하지 않고 브랜치에서 작업합니다. 커밋 메시지는 Conventional Commits를
+따릅니다.
 
-async def search_ingredients(query: str, limit: int) -> list[IngredientItem]:
-    client = await get_supabase()  # get_supabase()는 비동기 — await 필수
-    rows = await client.rpc("search_ingredients", {"q": query, "n": limit}).execute()
-    return [IngredientItem(**row) for row in rows.data]
-```
-
-**③ `router.py` — 501 스텁을 지우고 실제 엔드포인트로**
-
-```python
-from fastapi import APIRouter
-
-from app.modules.ingredient_search import service
-from app.modules.ingredient_search.schemas import SearchIngredientsResponse
-
-router = APIRouter(prefix="/api/v1/ingredients", tags=["ingredient_search"])
-
-
-@router.get("/search", response_model=SearchIngredientsResponse)
-async def search_ingredients(query: str, limit: int = 20) -> SearchIngredientsResponse:
-    items = await service.search_ingredients(query, limit)
-    return SearchIngredientsResponse(items=items)
-```
-
-`prefix`는 [conventions.md](docs/rules/conventions.md)의 모듈별 prefix 표와 일치해야 한다.
-
-**인증이 필요하면** `verify_jwt`를 의존성으로 주입한다. 반환값이 `user_id`다.
-서버는 service_role 키로 접근해 RLS가 적용되지 않으므로, 사용자 소유 데이터 쿼리는
-반드시 `user_id`로 필터링한다(`.eq("user_id", user_id)`). — [conventions.md](docs/rules/conventions.md) "데이터 접근 보안".
-
-```python
-from typing import Annotated
-from fastapi import Depends
-from app.core.auth import verify_jwt
-
-@router.post("")
-async def create_recommendations(
-    body: RecommendRequest,
-    user_id: Annotated[str, Depends(verify_jwt)],
-) -> RecommendResponse: ...
-```
-
-**Gemini를 호출하는 모듈**(`ingredient_detail`·`recommendations`)은
-[llm-rag-rules.md](docs/rules/llm-rag-rules.md)를 예외 없이 따른다.
-
-## 검증 (머지 게이트)
-
-머지 전 아래가 모두 통과해야 한다.
+머지 전에 아래가 모두 통과해야 합니다.
 
 ```bash
-uv run pytest            # 테스트
+uv run pytest            # 테스트 455개
 uv run ruff check .      # 린트
 uv run ruff format .     # 포맷
 uv run mypy              # 타입 검사
 uv run lint-imports      # 모듈 독립성 검사
 ```
 
-다 통과하면 셀프 리뷰 후 PR을 연다. PR 절차는 [conventions.md](docs/rules/conventions.md).
+`main`에 머지되면 GitHub Actions가 이미지를 빌드하고, `development` Environment 승인을
+거쳐 API VM에 배포합니다. DB 마이그레이션은 자동 실행하지 않습니다.
 
-## 구조
+## 문서
 
-- `app/core/` — 설정·인증·외부 클라이언트 (담당: 김민경)
-- `app/modules/<모듈>/` — 기능 모듈. `router.py`(엔드포인트) → `service.py`(로직) → `schemas.py`(모델)
-- `docs/rules/` — 개발 규칙: [architecture.md](docs/rules/architecture.md) · [conventions.md](docs/rules/conventions.md) · [llm-rag-rules.md](docs/rules/llm-rag-rules.md)
-- `docs/design/` — 기능별 설계서
-- `supabase/` — DB 마이그레이션 (Supabase CLI)
-
-## 모듈
-
-| 모듈 | 기능 | 담당 |
-|---|---|---|
-| `ingredient_search` | 제품명 검색·제품→성분 ID 확장 / 성분 표준명·이명 검색 | 박영기 |
-| `ingredient_detail` | 개별 성분 해설·주의사항 | 이호영 |
-| `product_compare` | 2개 이상 제품의 구조화 성분 비교 | 박영기 |
-| `bsti` | BSTI 16타입 검사 | 박금별 |
-| `recommendations` | 성분 추천 Agent | 김민경 |
+| 문서 | 내용 |
+|---|---|
+| [rules/architecture.md](docs/rules/architecture.md) | 레이어 구조와 의존 규칙 |
+| [rules/conventions.md](docs/rules/conventions.md) | 네이밍·모듈 prefix·PR 절차·데이터 접근 보안 |
+| [rules/llm-rag-rules.md](docs/rules/llm-rag-rules.md) | Gemini 호출·프롬프트·관측 규칙 |
+| [design/](docs/design/) | 추천 파이프라인 · 데이터 스펙 · 벡터 검색 · 품질 개선 |
+| [adr/](docs/adr/) | 호스트 분리, 인프라 저장소 분리, 트레이스 개인정보 최소화 |
+| [deployment/team-guide.md](docs/deployment/team-guide.md) | 개발 서버 사용법과 배포 흐름 |
+| [supabase/schema.md](supabase/schema.md) | DB 스키마 |
