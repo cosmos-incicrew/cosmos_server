@@ -1,4 +1,4 @@
-name: Backend CI/CD
+name: Backend CI
 
 on:
   pull_request:
@@ -9,14 +9,13 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: backend-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   quality:
     name: Quality gate
     runs-on: ubuntu-latest
+    concurrency:
+      group: backend-quality-${{ github.event_name }}-${{ github.ref }}
+      cancel-in-progress: true
     env:
       LANGFUSE_TRACING_ENABLED: "false"
     steps:
@@ -48,18 +47,14 @@ jobs:
       - name: Verify container build
         run: docker build --tag cosmos-server:test .
 
-  deploy:
-    name: Deploy development
+  publish:
+    name: Publish main image
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: quality
     runs-on: ubuntu-latest
-    environment: development
     permissions:
       contents: read
       id-token: write
-    concurrency:
-      group: cosmos-api-development
-      cancel-in-progress: false
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -78,24 +73,8 @@ jobs:
         run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
 
       - name: Build and push immutable image
-        id: image
         env:
           IMAGE_URI: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REPOSITORY }}/cosmos-server
         run: |
           docker build --tag "${IMAGE_URI}:${GITHUB_SHA}" .
           docker push "${IMAGE_URI}:${GITHUB_SHA}"
-          digest="$(gcloud artifacts docker images describe \
-            "${IMAGE_URI}:${GITHUB_SHA}" \
-            --format='value(image_summary.digest)')"
-          echo "reference=${IMAGE_URI}@${digest}" >> "$GITHUB_OUTPUT"
-
-      - name: Deploy and verify
-        env:
-          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
-        run: |
-          gcloud compute ssh "${{ vars.GCE_API_INSTANCE }}" \
-            --project="${{ vars.GCP_PROJECT_ID }}" \
-            --zone="${{ vars.GCE_API_ZONE }}" \
-            --tunnel-through-iap \
-            --quiet \
-            --command="sudo /opt/cosmos/bin/deploy-api '${IMAGE_REFERENCE}'"
