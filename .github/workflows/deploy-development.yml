@@ -1,0 +1,142 @@
+name: Deploy development
+
+on:
+  workflow_run:
+    workflows: ["Backend CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "비워두면 현재 main, 필요하면 배포할 main commit SHA"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cosmos-api-development
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve deployment revision
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.revision.outputs.revision }}
+      should_deploy: ${{ steps.revision.outputs.should_deploy }}
+    steps:
+      - name: Check out main history
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve safe main revision
+        id: revision
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          AUTO_REVISION: ${{ github.event.workflow_run.head_sha }}
+          MANUAL_REVISION: ${{ inputs.revision }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin main
+          latest_revision="$(git rev-parse origin/main)"
+          requested_revision="$MANUAL_REVISION"
+
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            requested_revision="$AUTO_REVISION"
+          elif [[ -z "$requested_revision" ]]; then
+            requested_revision="$latest_revision"
+          fi
+
+          if [[ ! "$requested_revision" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+            echo "revision must be a 7-40 character hexadecimal commit SHA" >&2
+            exit 1
+          fi
+
+          revision="$(git rev-parse --verify "${requested_revision}^{commit}")"
+          if ! git merge-base --is-ancestor "$revision" origin/main; then
+            echo "revision must be part of main history: $revision" >&2
+            exit 1
+          fi
+
+          should_deploy="true"
+          if [[ "$EVENT_NAME" == "workflow_run" && "$revision" != "$latest_revision" ]]; then
+            should_deploy="false"
+            echo "Skipping outdated automatic deployment: $revision (main: $latest_revision)"
+          fi
+
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "should_deploy=$should_deploy" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy immutable image
+    needs: resolve
+    if: needs.resolve.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+      url: ${{ vars.API_URL }}
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Resolve immutable image
+        id: image
+        env:
+          IMAGE_URI: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REPOSITORY }}/cosmos-server
+          REVISION: ${{ needs.resolve.outputs.revision }}
+        run: |
+          set -euo pipefail
+          digest="$(gcloud artifacts docker images describe \
+            "${IMAGE_URI}:${REVISION}" \
+            --format='value(image_summary.digest)')"
+          if [[ -z "$digest" ]]; then
+            echo "Published image not found for revision: $REVISION" >&2
+            exit 1
+          fi
+          echo "reference=${IMAGE_URI}@${digest}" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy and verify
+        env:
+          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+        run: |
+          gcloud compute ssh "${{ vars.GCE_API_INSTANCE }}" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --zone="${{ vars.GCE_API_ZONE }}" \
+            --tunnel-through-iap \
+            --quiet \
+            --command="sudo /opt/cosmos/bin/deploy-api '${IMAGE_REFERENCE}'"
+
+      - name: Verify public health endpoints
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          curl --fail --silent --show-error "${API_URL}/health"
+          curl --fail --silent --show-error "${API_URL}/health/ready"
+
+      - name: Record deployment summary
+        env:
+          DEPLOYMENT_DIGEST: ${{ steps.image.outputs.digest }}
+          DEPLOYMENT_REVISION: ${{ needs.resolve.outputs.revision }}
+        run: |
+          {
+            echo "## Development deployment"
+            echo
+            echo "- Trigger: \`${GITHUB_EVENT_NAME}\`"
+            echo "- Commit: \`${DEPLOYMENT_REVISION}\`"
+            echo "- Image: \`${DEPLOYMENT_DIGEST}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

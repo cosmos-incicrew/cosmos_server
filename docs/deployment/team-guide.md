@@ -36,10 +36,9 @@ API 문서에는 Caddy Basic Auth가 적용되어 있습니다. 사용자명은 
 2. `main`을 대상으로 PR을 엽니다.
 3. GitHub Actions의 `Quality gate`가 모두 통과한 것을 확인합니다.
 4. 리뷰 후 PR을 `main`에 머지합니다.
-5. `Backend CI/CD`가 같은 품질 검증을 다시 실행합니다.
-6. `Deploy development`가 승인을 기다리면 지정된 reviewer가 승인합니다.
-7. 워크플로가 이미지를 게시하고 API VM에 배포합니다.
-8. 아래 명령으로 외부 주소까지 정상인지 확인합니다.
+5. `Backend CI`가 같은 품질 검증을 다시 실행하고 커밋 SHA 이미지를 게시합니다.
+6. CI가 성공하면 `Deploy development`가 최신 `main` 이미지를 자동 배포합니다.
+7. 아래 명령으로 외부 주소까지 정상인지 확인합니다.
 
 팀원은 평소에 GCP 콘솔이나 VM에 직접 접속할 필요가 없습니다. `main`에 직접
 커밋하거나 로컬에서 VM으로 수동 배포하지 않습니다.
@@ -64,9 +63,17 @@ DB 적용 순서와 담당자를 PR에서 먼저 합의해야 합니다.
 
 ## 머지하면 어떤 일이 일어나는가
 
-`.github/workflows/ci-cd.yml`은 `main`에 들어간 정확한 커밋으로 Docker 이미지를
-만듭니다. 이미지는 Artifact Registry에 커밋 SHA로 올라가며, VM에는 변경되지 않는
-digest 형식으로 전달됩니다.
+`.github/workflows/ci.yml`은 `main`에 들어간 정확한 커밋으로 Docker 이미지를
+만듭니다. 이미지는 Artifact Registry에 커밋 SHA로 올라갑니다.
+
+CI가 성공하면 `.github/workflows/deploy-development.yml`이 해당 이미지를 변경되지 않는
+digest 형식으로 API VM에 자동 배포합니다. 여러 커밋이 빠르게 들어와도 실제 배포는
+한 번에 하나만 실행하며, 이미 최신 `main`이 존재하면 오래된 자동 배포는 건너뜁니다.
+
+`development` Environment에는 required reviewer를 두지 않습니다. `main` 보호와 CI
+통과가 자동 배포 조건이며, 사람이 명시적으로 개입할 때는 아래의 `Run workflow`를
+사용합니다. required reviewer를 다시 설정하면 자동 배포가 승인 대기 상태에 머물 수
+있습니다.
 
 VM의 배포 스크립트는 다음 작업을 수행합니다.
 
@@ -78,6 +85,20 @@ VM의 배포 스크립트는 다음 작업을 수행합니다.
 
 이미지에는 Supabase service-role 키, Kakao Admin 키, Langfuse secret 키가 들어가지
 않습니다. GitHub Actions에도 이 값을 등록하지 않습니다.
+
+## 자동 배포를 다시 실행하거나 이전 버전으로 복구하기
+
+자동 배포가 누락되었거나 같은 버전을 다시 배포해야 할 때는 GitHub의
+`Actions → Deploy development → Run workflow`를 사용합니다.
+
+- `revision`을 비우면 현재 `main` 최신 커밋을 배포합니다.
+- 특정 커밋을 배포하려면 `main`에 포함된 전체 commit SHA를 입력합니다.
+- Artifact Registry에 해당 SHA 이미지가 없거나 `main` 이력에 없는 커밋이면 배포하지
+  않고 실패합니다.
+
+자동 배포와 수동 배포는 같은 스크립트와 직렬화 규칙을 사용합니다. 실행 중인 배포를
+강제로 취소하지 않으며, 동시에 VM을 변경하지 않습니다. 일반 팀원은 VM에 직접
+접속하거나 이미지 digest를 복사할 필요가 없습니다.
 
 ## 배포가 끝난 뒤 확인하기
 
@@ -123,12 +144,15 @@ curl --fail --get "$API_URL/api/v1/products/search" \
 
 ## 배포 실패를 확인하는 순서
 
-1. GitHub의 `Actions → Backend CI/CD`에서 실패한 job과 step을 확인합니다.
+1. GitHub의 `Actions → Backend CI`에서 실패한 job과 step을 확인합니다.
 2. `Quality gate` 실패라면 코드나 테스트를 수정한 새 PR을 만듭니다.
-3. `Deploy development`가 대기 중이면 Environment 승인이 필요한지 확인합니다.
-4. 배포 step이 실패했어도 외부 `/health`와 `/health/ready`를 확인합니다. readiness
+3. 이미지 게시까지 성공했다면 `Actions → Deploy development`에서 자동 배포 실행을
+   확인합니다.
+4. 자동 실행이 누락되었으면 `Run workflow`에서 `revision`을 비워 최신 `main`을
+   명시적으로 다시 배포합니다.
+5. 배포 step이 실패했어도 외부 `/health`와 `/health/ready`를 확인합니다. readiness
    실패 시 스크립트가 직전 이미지로 복구했을 수 있습니다.
-5. 복구 후에도 API가 비정상이면 인프라 담당자가 IAP로 VM 로그를 확인합니다.
+6. 복구 후에도 API가 비정상이면 인프라 담당자가 IAP로 VM 로그를 확인합니다.
 
 인프라 담당자가 확인할 때 사용하는 명령은 다음과 같습니다.
 
@@ -147,8 +171,9 @@ sudo docker compose \
   -f /opt/cosmos/compose.yml logs --tail=200 api
 ```
 
-수동 재배포나 rollback은 실행할 이미지 digest를 정확히 알아야 하므로 일반적인 장애
-대응으로 사용하지 않습니다. 자동 복구가 실패한 경우에만 인프라 담당자가 수행합니다.
+수동 workflow에서도 커밋 SHA를 실제 이미지 digest로 변환해 배포합니다. 이전 커밋
+복구는 자동 복구가 실패했거나 최신 변경 자체에 문제가 있다고 확인된 경우에만
+사용합니다.
 
 ## 개발 환경이 꺼져 있을 때
 
